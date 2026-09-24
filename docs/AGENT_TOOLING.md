@@ -2,6 +2,12 @@
 
 Проверено `2026-09-24` по официальной документации OpenAI и репозиториям GitHub. Эта игра — статический локальный сайт без API, сборки и серверной логики. Skills, MCP и hooks относятся к рабочему процессу агента, а не к runtime игры.
 
+## Проектные инструменты (используются)
+
+- `node scripts/qa.js [папка]` — Playwright-автотест: раскладки, коллизии, навигация, механики, события, скриншоты. Ищет Playwright локально или в `/opt/node22/lib/node_modules/playwright`. В игре есть отладочный хук `window.NP_DEBUG` (teleport, setBoss, skip, startEvent, set, setDay).
+- Для скриншотов реального холста с `file://` используй `locator.screenshot`: `toDataURL` блокируется из-за tainted canvas.
+- `scripts/normalize_sprites.py` / `face_edit.py` / `make_panorama.py` — пересборка ассетов (Pillow, numpy, scipy).
+
 ## Короткая рекомендация
 
 - **Браузерная проверка:** официальный [Playwright skill из `openai/skills`](https://github.com/openai/skills/tree/main/skills/.curated/playwright) подходит для повторяемых снимков и проверки UI. В этой среде доступен Node.js, но сам CLI skill не установлен; пока достаточно имеющихся инструментов браузера, поэтому устанавливать зависимость только ради правки раскладки не нужно.
