@@ -166,6 +166,15 @@ function loadPlaywright() {
   check('смена завершается', st.mode === 'ended', st.mode);
   await page.screenshot({ path: path.join(outDir, '06-end.png') });
 
+  // 15. Пятница: после 17:00 Директор уезжает
+  await page.evaluate(() => NP_DEBUG.setDay(4));
+  await page.keyboard.press('Enter');
+  await page.waitForTimeout(200);
+  await page.evaluate(() => { for (let i = 0; i < 20; i++) { NP_DEBUG.set({ usefulness: 90, stealth: 90 }); NP_DEBUG.teleport(870, 230); NP_DEBUG.skip(10); } });
+  st = await page.evaluate(() => NP_DEBUG.state);
+  check('пятница: Д.Н. уезжает после 17:00', ['leaving', 'gone'].includes(st.boss.state), `${st.boss.state} @ ${Math.round(st.clockMinutes)}`);
+  await page.screenshot({ path: path.join(outDir, '09-friday.png') });
+
   check('нет ошибок в консоли', errors.length === 0, errors.join(' | '));
   await browser.close();
 

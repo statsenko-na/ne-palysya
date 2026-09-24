@@ -57,13 +57,30 @@
     chatCooldown: 30,
   };
 
+  // ---------- НЕДЕЛЯ ----------
+  // Каждый день — свой модификатор. Победа переводит на следующий день, проигрыш — переигровка.
+  const DAYS = [
+    { name: 'ПОНЕДЕЛЬНИК', short: 'ПН', mod: 'Тяжёлый понедельник: проверки чаще, KPI тает быстрее', checkMul: 0.8, decayMul: 1.25 },
+    { name: 'ВТОРНИК', short: 'ВТ', mod: 'Обычный вторник. Подозрительно обычный.' },
+    { name: 'СРЕДА', short: 'СР', mod: 'Среда — маленькая пятница: кайф ×1.25', funMul: 1.25 },
+    { name: 'ЧЕТВЕРГ', short: 'ЧТ', mod: 'Аудит из головного офиса: Д.Н. видит дальше', visionMul: 1.2, checkMul: 0.9 },
+    { name: 'ПЯТНИЦА', short: 'ПТ', mod: 'Пятница! Д.Н. уедет «на встречу» в 17:00', funMul: 1.2, bossLeaves: 17 * 60 },
+  ];
+  const store = {
+    get(k, d) { try { const v = localStorage.getItem(`nepalsya.${k}`); return v === null ? d : JSON.parse(v); } catch (_) { return d; } },
+    set(k, v) { try { localStorage.setItem(`nepalsya.${k}`, JSON.stringify(v)); } catch (_) { /* приватный режим */ } },
+  };
+  let dayIndex = clampDay(store.get('day', 0));
+  function clampDay(d) { return Math.max(0, Math.min(DAYS.length - 1, d | 0)); }
+  const today = () => DAYS[dayIndex];
+
   // ---------- ВВОД ----------
   const keys = new Set();
   const physicalKeyAliases = {
     KeyW: 'w', KeyA: 'a', KeyS: 's', KeyD: 'd',
-    KeyE: 'e', KeyH: 'h', KeyP: 'p', KeyQ: 'q', Space: 'e', Tab: 'q',
+    KeyE: 'e', KeyH: 'h', KeyP: 'p', KeyQ: 'q', KeyM: 'm', Space: 'e', Tab: 'q',
   };
-  const russianKeyAliases = { ц: 'w', ф: 'a', ы: 's', в: 'd', у: 'e', р: 'h', з: 'p', й: 'q' };
+  const russianKeyAliases = { ц: 'w', ф: 'a', ы: 's', в: 'd', у: 'e', р: 'h', з: 'p', й: 'q', ь: 'm' };
   function getControlKey(event) {
     const key = (event.key || '').toLowerCase();
     return physicalKeyAliases[event.code] || russianKeyAliases[key] || key;
@@ -72,6 +89,8 @@
 
   // ---------- ЗВУК (Web Audio, без файлов) ----------
   let audioCtx = null;
+  let muted = false;
+  try { muted = localStorage.getItem('nepalsya.muted') === 'true'; } catch (_) { /* нет доступа */ }
   function getAudio() {
     if (!audioCtx) {
       const AC = window.AudioContext || window.webkitAudioContext;
@@ -81,6 +100,7 @@
     return audioCtx;
   }
   function tone(type, f0, f1, dur, vol, delay = 0) {
+    if (muted) return;
     const a = getAudio();
     if (!a) return;
     const t = a.currentTime + delay;
@@ -332,7 +352,7 @@
     usefulness = 30;
     fun = 0;
     resetStats();
-    nextBossCheck = CFG.firstCheck[0] + rand() * (CFG.firstCheck[1] - CFG.firstCheck[0]);
+    nextBossCheck = (CFG.firstCheck[0] + rand() * (CFG.firstCheck[1] - CFG.firstCheck[0])) * (today().checkMul || 1);
     intelTimer = 0;
     coverTokens = 0;
     particles = []; floaters = []; bubbles = []; logEntries = [];
@@ -344,10 +364,12 @@
     Object.assign(player, { x: SEAT.x, y: WD.ROW1_Y + 62, action: 'none', actionTimer: 0, coffeeBoost: 0, speed: CFG.playerSpeed, chatWith: null, hideSpot: null, facingX: -1 });
     Object.assign(boss, { x: WD.bossHome.x, y: WD.bossHome.y, state: 'office', stateTimer: 5, path: [], target: null, suspicion: 0, catchCooldown: 0, quoteTimer: 4, praiseTimer: 0, warned: false, facing: Math.PI / 2 });
     coworkers.forEach((c, i) => { c.cooldown = 0; c.talkTimer = 0; c.idleTimer = 5 + i * 3; c.alert = 0; });
-    addLog('08:50 — Викентий пришёл в БЦ «Угар». Хвостик поправлен.');
+    addLog(`${today().name}: ${today().mod}.`);
+    addLog('08:50 — Викентий пришёл в БЦ «Угар». Хвостик поправлен, в наушниках — «Кино».');
     addLog('Директор Начальникович пьёт чай в кабинете. Пока.');
     setMode('playing');
-    toast('Смена началась! Кайфуй, но когда Д.Н. рядом — сиди в Excel. Tab — телефон со списком дел.', 4.5);
+    banner = { text: `${today().name} · ДЕНЬ ${dayIndex + 1}/5`, sub: today().mod, t: 0 };
+    toast('Кайфуй, но когда Д.Н. рядом — сиди в Excel. Tab — телефон со списком дел.', 4.5);
   }
   function startGame() { playSound('click'); resetGame(); }
   function pauseGame() {
@@ -670,7 +692,8 @@
   function playerVisibleToBoss() {
     if (HIDDEN.has(player.action)) return false;
     const d = dist(boss, player);
-    const range = boss.state === 'inspect' ? CFG.visionRangeInspect : CFG.visionRange;
+    if (boss.state === 'gone') return false;
+    const range = (boss.state === 'inspect' ? CFG.visionRangeInspect : CFG.visionRange) * (today().visionMul || 1);
     if (d > range) return false;
     const eye = { x: boss.x, y: boss.y - 4 };
     const target = { x: player.x, y: player.y - 4 };
@@ -733,7 +756,7 @@
   }
 
   function endInspection() {
-    nextBossCheck = CFG.checkInterval[0] + rand() * (CFG.checkInterval[1] - CFG.checkInterval[0]);
+    nextBossCheck = (CFG.checkInterval[0] + rand() * (CFG.checkInterval[1] - CFG.checkInterval[0])) * (today().checkMul || 1);
     if (rand() < 0.4) { bossGoTo(WD.bossHome, 'return', 'кабинет'); }
     else { bossGoTo(pick(WD.patrolSpots), 'patrol'); }
   }
@@ -772,7 +795,7 @@
     boss.quoteTimer -= dt;
     boss.praiseTimer = Math.max(0, boss.praiseTimer - dt);
 
-    if (mode === 'playing' && boss.state !== 'inspect' && boss.state !== 'lecture' && !eventIs('call')) {
+    if (mode === 'playing' && !['inspect', 'lecture', 'leaving', 'gone'].includes(boss.state) && !eventIs('call')) {
       nextBossCheck -= dt;
       if (nextBossCheck < 2.5 && !boss.warned) {
         boss.warned = true;
@@ -780,6 +803,15 @@
         playSound('ahem');
       }
       if (nextBossCheck <= 0) startInspection();
+    }
+    // Пятница: после 17:00 Директор уезжает «на встречу»
+    if (mode === 'playing' && today().bossLeaves && clockMinutes >= today().bossLeaves && boss.state !== 'gone') {
+      if (boss.state !== 'leaving') {
+        boss.state = 'leaving';
+        boss.path = findPath(boss, { x: 40, y: 300 });
+        say('boss', 'Так, у меня встреча. Важная. На даче.', 3);
+        addLog('Д.Н. уехал «на встречу». Пятница, детка!', 'good');
+      }
     }
 
     switch (boss.state) {
@@ -821,6 +853,12 @@
       case 'lecture':
         boss.moving = false;
         if (boss.stateTimer <= 0) endInspection();
+        break;
+      case 'leaving':
+        if (followPath(dt, CFG.bossSpeed + 20)) { boss.state = 'gone'; boss.x = -100; boss.y = 300; }
+        break;
+      case 'gone':
+        boss.moving = false;
         break;
       default: break;
     }
@@ -895,6 +933,7 @@
     }
 
     const a = player.action;
+    const funBefore = fun;
     if (a === 'work') {
       const base = player.coffeeBoost > 0 ? CFG.workKpiCoffee : CFG.workKpi;
       const mult = (boss.watchingWork ? CFG.watchedKpiMultiplier : 1) * (eventIs('internet') ? 1.5 : 1);
@@ -904,7 +943,7 @@
       kpiTick -= dt;
       if (boss.watchingWork && kpiTick <= 0) { floater(player.x + (rand() - 0.5) * 20, player.y - 58, '+KPI ×3', '#57d08a'); playSound('kpi'); kpiTick = 0.5; }
     } else {
-      usefulness = clamp(usefulness - CFG.kpiDecay * dt, 0, 100);
+      usefulness = clamp(usefulness - CFG.kpiDecay * (today().decayMul || 1) * dt, 0, 100);
     }
     if (a === 'smoke') {
       fun += 4 * dt;
@@ -918,6 +957,7 @@
       if (c && player.actionTimer < 3.4 && !player.chatReplied) { say(c.id, player.chatPair[1], 3.2); player.chatReplied = true; }
       if (player.actionTimer > 3.4) player.chatReplied = false;
     } else if (HIDDEN.has(a)) stealth = clamp(stealth + 0.5 * dt, 0, 100);
+    if (today().funMul && fun > funBefore) fun = funBefore + (fun - funBefore) * today().funMul;
   }
 
   function updateCoworkers(dt) {
@@ -1000,7 +1040,6 @@
     const done = todo.filter(t => t.done).length;
     const score = Math.round(fun + usefulness * 0.8 + done * 12 - stats.catches * 10);
     const [grade, title] = gradeFor(score);
-    ui.endKicker.textContent = win ? 'СМЕНА ОКОНЧЕНА · 19:30' : 'КРИТИЧЕСКИЙ ЗАЛЁТ';
     ui.endTitle.textContent = win ? 'ТЫ ВЫЖИЛ!' : (result === 'fired' ? 'ТЕБЯ УВОЛИЛИ!' : 'УВОЛЕН ЗА KPI!');
     if (win) {
       ui.endCopy.textContent = usefulness > 60
@@ -1011,7 +1050,16 @@
     } else {
       ui.endCopy.textContent = 'KPI упал до нуля: отчёты копились, пока ты кайфовал. «Голодранцы нам не нужны!» — сказал Д.Н.';
     }
-    ui.grade.innerHTML = win ? `<b>${grade}</b><span>${title} · ${score} очков</span>` : '';
+    const bestKey = `best.${dayIndex}`;
+    const best = store.get(bestKey, 0);
+    const record = win && score > best;
+    if (record) store.set(bestKey, score);
+    const dayName = today().name;
+    if (win) { dayIndex = dayIndex < DAYS.length - 1 ? dayIndex + 1 : 0; store.set('day', dayIndex); }
+    ui.grade.innerHTML = win ? `<b>${grade}</b><span>${title} · ${score} очков${record ? ' · НОВЫЙ РЕКОРД!' : ` · рекорд ${Math.max(best, score)}`}</span>` : '';
+    ui.endKicker.textContent = win ? `${dayName} ПЕРЕЖИТ · 19:30` : `${dayName} · КРИТИЧЕСКИЙ ЗАЛЁТ`;
+    if (win && dayName === 'ПЯТНИЦА') ui.endCopy.textContent = 'Неделя пережита! Викентий врубает «Группу крови» в наушниках и уходит в закат над Алатау. В понедельник всё сначала.';
+    ui.restart.innerHTML = win ? `${dayIndex === 0 ? 'НОВАЯ НЕДЕЛЯ' : DAYS[dayIndex].name} <span>↵</span>` : 'ПЕРЕИГРАТЬ ДЕНЬ <span>↵</span>';
     ui.grade.classList.toggle('hidden', !win);
     ui.endStats.innerHTML = [
       [`${Math.round(usefulness)}%`, 'KPI'],
@@ -1139,7 +1187,8 @@
 
   function drawVisionCone() {
     if (mode === 'menu' || boss.state === 'office') return;
-    const range = boss.state === 'inspect' ? CFG.visionRangeInspect : CFG.visionRange;
+    if (boss.state === 'gone' || boss.state === 'leaving') return;
+    const range = (boss.state === 'inspect' ? CFG.visionRangeInspect : CFG.visionRange) * (today().visionMul || 1);
     const alert = boss.state === 'inspect';
     const sus = boss.suspicion / 100;
     // Конус обрезается стенами: лучи до первого препятствия
@@ -1194,6 +1243,7 @@
 
   function drawPlayer() {
     const a = player.action;
+    const funBefore = fun;
     if (a === 'work') {
       // Сидит за своим столом: столешница закроет ноги
       if (ready(img.vik)) drawStripFrame(img.vik, 4, 0, SEAT.x, DESK.y + 16 + Math.sin(performance.now() / 300) * 0.4, true);
@@ -1216,6 +1266,7 @@
   }
 
   function drawBoss() {
+    if (boss.state === 'gone') return;
     const inOffice = boss.state === 'office';
     if (!inOffice) drawShadow(boss.x, boss.y, 16, 5, 0.38);
     if (!ready(img.boss)) return;
@@ -1491,7 +1542,7 @@
     R(452, 6, 118, 36, '#081012'); R(453, 7, 116, 34, '#122126');
     T(timeString(clockMinutes), 511, 19, 15, '#fff');
     R(460, 32, 102, 3, '#0b1417'); R(460, 32, 102 * dayProgress(), 3, '#f2bb38');
-    T('СМЕНА ДО 19:30', 511, 38.5, 4.8, '#9fb', 'center', 700, FONT_SANS);
+    T(`${today().name} · ДО 19:30${muted ? ' · 🔇' : ''}`, 511, 38.5, 4.8, '#9fb', 'center', 700, FONT_SANS);
 
     // Радар начальника
     const x0 = 582;
@@ -1507,6 +1558,8 @@
       return: 'Д.Н. возвращается в кабинет',
       inspect: boss.mode === 'desk' ? '🚨 ПРОВЕРКА! Идёт к твоему столу' : '🚨 РЕЙД ПО ЭТАЖУ!',
       lecture: 'Д.Н. читает нотацию',
+      leaving: 'Д.Н. уезжает «на встречу»',
+      gone: 'Д.Н. уехал. Офис твой! 🤘',
     }[boss.state];
     T(status, x0 + 38, 17, 7, alert ? '#fff' : '#f5edd9', 'left', 700, FONT_SANS);
     // подозрение
@@ -1666,6 +1719,7 @@
   window.addEventListener('keydown', e => {
     const key = getControlKey(e);
     if (MOVE_KEYS.includes(key) || ['e', 'h', 'p', 'q', 'enter', ' '].includes(key)) e.preventDefault();
+    if (key === 'm') { muted = !muted; store.set('muted', muted); toast(muted ? 'Звук выключен (M)' : 'Звук включён (M)', 1.4); return; }
     if (key === 'escape' && player.action === 'phone' && mode === 'playing') { togglePhone(); return; }
     if (key === 'p' || key === 'escape') { if (mode === 'playing' || mode === 'paused') pauseGame(); return; }
     if (key === 'enter') {
@@ -1692,6 +1746,8 @@
     teleport(x, y) { player.x = x; player.y = y; player.action = 'none'; player.actionTimer = 0; player.hideSpot = null; },
     setBoss(x, y, state = 'look') { boss.x = x; boss.y = y; boss.state = state; boss.stateTimer = 99; boss.path = []; },
     skip(seconds) { for (let i = 0; i < seconds * 20 && mode === 'playing'; i++) update(0.05); },
+    setDay(d) { dayIndex = clampDay(d); },
+    get day() { return dayIndex; },
     set(v) { if ('usefulness' in v) usefulness = v.usefulness; if ('stealth' in v) stealth = v.stealth; if ('fun' in v) fun = v.fun; },
     interact, quickHide, togglePhone, startInspection, blocked, findPath, nav, startEvent,
     get event() { return officeEvent; },
