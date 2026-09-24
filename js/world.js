@@ -89,11 +89,11 @@
     { id: 'paper_shelf', x: 460, y: 492, w: 62, h: 30 },
     { id: 'boss_desk', x: 660, y: 462, w: 92, h: 30 },
     { id: 'boss_cabinet', x: 588, y: 488, w: 40, h: 36 },
-    { id: 'rack_row1', x: 828, y: 364, w: 112, h: 26 },
-    { id: 'rack_row2', x: 828, y: 476, w: 112, h: 46 },
+    { id: 'rack_row1', x: 828, y: 374, w: 112, h: 22 },
+    { id: 'rack_row2', x: 828, y: 480, w: 112, h: 42 },
     { id: 'bench', x: 876, y: 262, w: 62, h: 22 },
     { id: 'ashtray', x: 820, y: 170, w: 12, h: 10 },
-    { id: 'bucket', x: 316, y: 440, w: 30, h: 12 },
+    { id: 'bucket', x: 314, y: 440, w: 34, h: 12 },
     { id: 'whiteboard', x: 272, y: 394, w: 72, h: 8 },
     { id: 'no_smoke_sign', x: 842, y: 168, w: 16, h: 8 },
   ];
@@ -119,7 +119,7 @@
     { id: 'smoke', type: 'smoke', x: 800, y: 150, w: 140, h: 164, short: 'Курилка' },
     { id: 'archive', type: 'archive', x: 50, y: 360, w: 40, h: 150, short: 'За шкафами' },
     { id: 'printer', type: 'printer', x: 396, y: 440, w: 130, h: 32, short: 'Ксерокс' },
-    { id: 'server', type: 'server', x: 800, y: 398, w: 140, h: 70, short: 'Серверная' },
+    { id: 'server', type: 'server', x: 800, y: 402, w: 140, h: 68, short: 'Серверная' },
   ];
   coworkers.forEach(c => {
     zones.push({

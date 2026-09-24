@@ -143,8 +143,8 @@ h2 { color: #fff5d0; font-size: clamp(16px, 2.8vw, 26px); }
 .end-stat { padding: 8px 4px; border: 1px solid #416064; }
 .end-stat b { display: block; color: var(--yellow); font-family: 'Press Start 2P', monospace; font-size: 12px; }
 .end-stat span { display: block; margin-top: 6px; color: #8faeaa; font-size: 7px; }
-.toast { position: absolute; right: 24px; bottom: 20px; left: auto; z-index: 3; max-width: 50%; padding: 8px 12px; border: 2px solid #f5efde; color: #f5efde; background: rgba(20, 46, 50, 0.95); font-size: 9px; line-height: 1.35; opacity: 0; transform: translateY(5px); transition: opacity .16s ease, transform .16s ease; pointer-events: none; box-shadow: 4px 4px 0 rgba(0,0,0,.35); }
-.toast.show { opacity: 1; transform: translateY(0); }
+.toast { position: absolute; top: calc(9% + 12px); left: 50%; z-index: 3; max-width: 60%; padding: 7px 12px; border: 2px solid #f5efde; color: #f5efde; background: rgba(20, 46, 50, 0.94); font-size: 11px; line-height: 1.35; text-align: center; opacity: 0; transform: translate(-50%, -5px); transition: opacity .16s ease, transform .16s ease; pointer-events: none; box-shadow: 4px 4px 0 rgba(0,0,0,.35); }
+.toast.show { opacity: 1; transform: translate(-50%, 0); }
 
 .how { text-align: left; margin: 10px auto 0; padding: 0 0 0 16px; max-width: 480px; color: #c8d6ca; font-size: 10px; line-height: 1.5; }
 .how b { color: var(--yellow); }
@@ -166,5 +166,5 @@ h2 { color: #fff5d0; font-size: clamp(16px, 2.8vw, 26px); }
   .screen-frame { padding: 4px; }
   .scanlines { inset: 4px; }
   .footerbar { flex-direction: column; align-items: flex-start; gap: 7px; font-size: 8px; }
-  .toast { left: 10px; bottom: 10px; max-width: 85%; }
+  .toast { max-width: 90%; font-size: 9px; }
 }

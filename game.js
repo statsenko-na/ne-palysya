@@ -979,6 +979,16 @@
     if (Math.floor(performance.now() / 600) % 2 === 0) R(art.balconyView.x + 123, art.balconyView.y + 1, 1.5, 1.5, '#ff3a2a');
   }
 
+  function drawWallClock(cx, cy) {
+    const m = clockMinutes;
+    const ha = ((m / 60) % 12) / 12 * TAU - Math.PI / 2;
+    const ma = (m % 60) / 60 * TAU - Math.PI / 2;
+    ctx.strokeStyle = '#222'; ctx.lineCap = 'round';
+    ctx.lineWidth = 1.2; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(ha) * 3.2, cy + Math.sin(ha) * 3.2); ctx.stroke();
+    ctx.lineWidth = 0.7; ctx.beginPath(); ctx.moveTo(cx, cy); ctx.lineTo(cx + Math.cos(ma) * 5, cy + Math.sin(ma) * 5); ctx.stroke();
+    R(cx - 0.6, cy - 0.6, 1.2, 1.2, '#c02a2a');
+  }
+
   function drawSunbeams() {
     const p = dayProgress();
     const strength = p < 0.75 ? 0.07 : Math.max(0, 0.07 - (p - 0.75) * 0.3);
@@ -1035,8 +1045,9 @@
     ctx.save();
     const grd = ctx.createRadialGradient(boss.x, boss.y, 6, boss.x, boss.y, range);
     const base = sus > 0.05 ? `255,${Math.round(170 - sus * 120)},60` : (alert ? '255,90,70' : '255,240,180');
-    grd.addColorStop(0, `rgba(${base},${alert || sus > 0.05 ? 0.28 : 0.16})`);
-    grd.addColorStop(1, `rgba(${base},0)`);
+    grd.addColorStop(0, `rgba(${base},${alert || sus > 0.05 ? 0.42 : 0.3})`);
+    grd.addColorStop(0.7, `rgba(${base},${alert || sus > 0.05 ? 0.22 : 0.14})`);
+    grd.addColorStop(1, `rgba(${base},0.04)`);
     ctx.fillStyle = grd;
     ctx.beginPath();
     ctx.moveTo(boss.x, boss.y);
@@ -1051,6 +1062,12 @@
     }
     ctx.closePath();
     ctx.fill();
+    ctx.setLineDash([3, 3]);
+    ctx.lineDashOffset = -performance.now() / 60;
+    ctx.strokeStyle = `rgba(${base},0.45)`;
+    ctx.lineWidth = 0.8;
+    ctx.stroke();
+    ctx.setLineDash([]);
     ctx.restore();
   }
 
@@ -1125,8 +1142,8 @@
 
   // Динамические детали, привязанные к спрайтам мебели
   const decor = {
-    rack_row1: () => drawRackLeds(364, 26),
-    rack_row2: () => drawRackLeds(476, 46),
+    rack_row1: () => drawRackLeds(374, 22),
+    rack_row2: () => drawRackLeds(480, 42),
     copier: () => {
       if (player.action === 'printer') {
         const x = 406 + Math.abs(Math.sin(performance.now() / 300)) * 40;
@@ -1384,6 +1401,7 @@
     drawWindows();
     ctx.drawImage(art.staticLayer, 0, 0, W, H);
     ctx.drawImage(art.windowOverlay, 0, 0, W, WD.FLOOR_TOP);
+    drawWallClock(385, 72);
     drawSunbeams();
     drawZoneHints();
     drawVisionCone();
