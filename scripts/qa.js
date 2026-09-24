@@ -36,7 +36,7 @@ function loadPlaywright() {
       [{ code: 'KeyA', key: 'ф' }, 'a'], [{ code: 'KeyS', key: 'ы' }, 's'], [{ code: 'KeyD', key: 'в' }, 'd'],
       [{ code: 'KeyE', key: 'у' }, 'e'], [{ code: '', key: 'у' }, 'e'], [{ code: 'KeyH', key: 'р' }, 'h'],
       [{ code: '', key: 'р' }, 'h'], [{ code: 'KeyP', key: 'з' }, 'p'], [{ code: '', key: 'з' }, 'p'],
-      [{ code: 'Space', key: ' ' }, 'e'], [{ code: 'ArrowUp', key: 'ArrowUp' }, 'arrowup'], [{ code: 'Enter', key: 'Enter' }, 'enter'],
+      [{ code: 'Space', key: ' ' }, 'e'], [{ code: 'KeyQ', key: 'й' }, 'q'], [{ code: '', key: 'й' }, 'q'], [{ code: 'Tab', key: 'Tab' }, 'q'], [{ code: 'ArrowUp', key: 'ArrowUp' }, 'arrowup'], [{ code: 'Enter', key: 'Enter' }, 'enter'],
     ];
     return cases.map(([ev, want]) => ({ ev, want, got: f(ev) })).filter(c => c.got !== c.want);
   });
@@ -132,6 +132,17 @@ function loadPlaywright() {
   st = await page.evaluate(() => NP_DEBUG.state);
   check('проверка пройдена в Excel', st.stats.inspectPass >= 1 || st.boss.mode === 'raid', `pass=${st.stats.inspectPass} mode=${st.boss.mode}`);
 
+  // 12b. Телефон (Tab) — открывается и считается прокрастинацией
+  await page.evaluate(() => { NP_DEBUG.teleport(520, 260); NP_DEBUG.setBoss(706, 446, 'office'); });
+  await page.keyboard.press('Tab');
+  await page.waitForTimeout(400);
+  st = await page.evaluate(() => NP_DEBUG.state);
+  check('телефон по Tab', st.player.action === 'phone', st.player.action);
+  await page.screenshot({ path: path.join(outDir, '08-phone.png') });
+  await page.keyboard.press('KeyQ');
+  st = await page.evaluate(() => NP_DEBUG.state);
+  check('телефон закрывается Q', st.player.action === 'none', st.player.action);
+
   // 13. Офисные события: угощение, ксерокс, созвон
   await page.evaluate(() => { NP_DEBUG.setBoss(706, 446, 'office'); NP_DEBUG.startEvent('food'); NP_DEBUG.teleport(120, 244); });
   await page.keyboard.press('KeyE');
@@ -146,7 +157,7 @@ function loadPlaywright() {
   check('событие «ксерокс» даёт KPI', st.usefulness > kBefore + 5, `${kBefore.toFixed(1)} → ${st.usefulness.toFixed(1)}`);
   await page.evaluate(() => { NP_DEBUG.setBoss(470, 452, 'look'); NP_DEBUG.startEvent('call'); NP_DEBUG.skip(10); });
   st = await page.evaluate(() => NP_DEBUG.state);
-  check('событие «созвон» уводит Ф.П. в кабинет', ['return', 'office'].includes(st.boss.state), st.boss.state);
+  check('событие «созвон» уводит Д.Н. в кабинет', ['return', 'office'].includes(st.boss.state), st.boss.state);
 
   // 14. Прогон всей смены
   await page.evaluate(() => NP_DEBUG.skip(260));

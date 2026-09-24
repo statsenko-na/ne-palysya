@@ -20,7 +20,7 @@
   function loadImage(src) { const i = new Image(); i.src = src; return i; }
   const img = {
     vik: loadImage('assets/vikentiy-walk-v2.png'),
-    boss: loadImage('assets/fedor-walk-v2.png'),
+    boss: loadImage('assets/boss-walk-v2.png'),
     coworkers: loadImage('assets/coworkers-v2.png'),
     view: loadImage('assets/almaty-view-v1.png'),
     emblem: loadImage('assets/firdom-emblem.svg'),
@@ -61,9 +61,9 @@
   const keys = new Set();
   const physicalKeyAliases = {
     KeyW: 'w', KeyA: 'a', KeyS: 's', KeyD: 'd',
-    KeyE: 'e', KeyH: 'h', KeyP: 'p', Space: 'e',
+    KeyE: 'e', KeyH: 'h', KeyP: 'p', KeyQ: 'q', Space: 'e', Tab: 'q',
   };
-  const russianKeyAliases = { ц: 'w', ф: 'a', ы: 's', в: 'd', у: 'e', р: 'h', з: 'p' };
+  const russianKeyAliases = { ц: 'w', ф: 'a', ы: 's', в: 'd', у: 'e', р: 'h', з: 'p', й: 'q' };
   function getControlKey(event) {
     const key = (event.key || '').toLowerCase();
     return physicalKeyAliases[event.code] || russianKeyAliases[key] || key;
@@ -119,7 +119,7 @@
     overlay: $('screen-overlay'), pause: $('pause-overlay'), end: $('end-overlay'), endCard: $('end-card'),
     start: $('start-btn'), resume: $('resume-btn'), restart: $('restart-btn'),
     toast: $('toast'), endKicker: $('end-kicker'), endTitle: $('end-title'), endCopy: $('end-copy'), endStats: $('end-stats'),
-    todo: $('todo-list'), log: $('log-list'), perks: $('perk-list'), grade: $('end-grade'),
+    grade: $('end-grade'),
   };
 
   // ---------- УТИЛИТЫ ----------
@@ -240,12 +240,13 @@
   let flash = 0;
   let last = 0;
   let kpiTick = 0;
-  let uiDirty = true;
   let officeEvent = null;     // текущее офисное событие
   let nextEvent = 40;
   let eventQueue = [];
   let banner = null;          // крупная плашка события
   let heartbeat = 0;
+  let phoneAnim = 0;          // 0..1 — выезд телефона
+  let phoneBuzz = 0;          // новое уведомление
   let danger = 0;             // 0..1 — начальник рядом, а ты прокрастинируешь
 
   function resetStats() {
@@ -261,7 +262,7 @@
   function addLog(text, kind = 'info') {
     logEntries.unshift({ time: timeString(clockMinutes), text, kind });
     logEntries = logEntries.slice(0, 8);
-    uiDirty = true;
+    if (kind !== 'info') phoneBuzz = 2;
   }
   function toast(text, seconds = 3) {
     ui.toast.textContent = text;
@@ -319,7 +320,6 @@
         toast(`✔ Выполнено: ${t.text}! +8 кайфа`, 2.6);
         addLog(`Список дел: «${t.text}» — готово.`, 'good');
         floater(player.x, player.y - 70, '✔ ДЕЛО СДЕЛАНО', '#f2bb38');
-        uiDirty = true;
       }
     }
   }
@@ -344,11 +344,10 @@
     Object.assign(player, { x: SEAT.x, y: WD.ROW1_Y + 62, action: 'none', actionTimer: 0, coffeeBoost: 0, speed: CFG.playerSpeed, chatWith: null, hideSpot: null, facingX: -1 });
     Object.assign(boss, { x: WD.bossHome.x, y: WD.bossHome.y, state: 'office', stateTimer: 5, path: [], target: null, suspicion: 0, catchCooldown: 0, quoteTimer: 4, praiseTimer: 0, warned: false, facing: Math.PI / 2 });
     coworkers.forEach((c, i) => { c.cooldown = 0; c.talkTimer = 0; c.idleTimer = 5 + i * 3; c.alert = 0; });
-    addLog('08:50 — Викентий пришёл в БЦ «Турар». Хвостик поправлен.');
-    addLog('Федор Павлович пьёт чай в кабинете. Пока.');
+    addLog('08:50 — Викентий пришёл в БЦ «Угар». Хвостик поправлен.');
+    addLog('Директор Начальникович пьёт чай в кабинете. Пока.');
     setMode('playing');
-    toast('Смена началась! Слоняйся, кайфуй, но когда Ф.П. рядом — сиди в Excel.', 4);
-    uiDirty = true;
+    toast('Смена началась! Кайфуй, но когда Д.Н. рядом — сиди в Excel. Tab — телефон со списком дел.', 4.5);
   }
   function startGame() { playSound('click'); resetGame(); }
   function pauseGame() {
@@ -365,7 +364,7 @@
   ];
   const EVENTS = {
     food: { dur: 28, title: 'УГОЩЕНИЕ НА КУХНЕ' },
-    call: { dur: 22, title: 'Ф.П. НА СОЗВОНЕ С ПРАВЛЕНИЕМ' },
+    call: { dur: 22, title: 'Д.Н. НА СОЗВОНЕ С ПРАВЛЕНИЕМ' },
     internet: { dur: 22, title: 'УПАЛ ИНТЕРНЕТ' },
     jam: { dur: 30, title: 'КСЕРОКС ЗАЖЕВАЛ БУМАГУ' },
   };
@@ -383,12 +382,12 @@
     let text = def.title;
     if (id === 'food') { officeEvent.food = pick(FOODS); text = officeEvent.food.text; }
     if (id === 'call') {
-      text = 'Ф.П. ушёл на созвон с правлением — у тебя окно!';
+      text = 'Д.Н. ушёл на созвон с правлением — у тебя окно!';
       if (boss.state !== 'inspect' && boss.state !== 'lecture') bossGoTo(WD.bossHome, 'return', 'кабинет');
       say('boss', 'Алло! Да, Ерлан Серикович, всё под контролем!', 3);
     }
     if (id === 'internet') { text = 'Интернет упал: YouTube недоступен, Excel работает быстрее.'; say('vlad', 'Интернет всё. Я домой?', 2.6); }
-    if (id === 'jam') { text = 'Ксерокс зажевал бумагу. Почини — Ф.П. оценит (+KPI).'; say('alexandr', 'Он опять жуёт! Кто-нибудь?', 2.6); }
+    if (id === 'jam') { text = 'Ксерокс зажевал бумагу. Почини — Д.Н. оценит (+KPI).'; say('alexandr', 'Он опять жуёт! Кто-нибудь?', 2.6); }
     banner = { text: def.title, sub: text, t: 0 };
     playSound('success');
     addLog(`Событие: ${text}`, 'info');
@@ -412,7 +411,7 @@
 
   // ---------- ВЗАИМОДЕЙСТВИЯ ----------
   const HIDDEN = new Set(['plant_hide', 'cabinet_hide', 'printer_hide']);
-  const SLACK = new Set(['smoke', 'youtube', 'fridge', 'chat']);
+  const SLACK = new Set(['smoke', 'youtube', 'fridge', 'chat', 'phone']);
   function nearestPlant() {
     let best = null;
     for (const p of WD.plants) {
@@ -496,7 +495,6 @@
     playSound('success');
     toast(LINES.perks[c.perk], 3.2);
     addLog(`Поболтал с ${c.name}. ${LINES.perks[c.perk]}`, 'good');
-    uiDirty = true;
   }
 
   function interact() {
@@ -520,7 +518,7 @@
       startAction('plant_hide', 0);
       playSound('hide');
       puff(p.x, p.y - 20, 'rgba(90,160,90,0.8)', 6, 20, -6);
-      toast(`Спрятался: ${p.label}. Для Ф.П. тебя нет.`, 2.2);
+      toast(`Спрятался: ${p.label}. Для Д.Н. тебя нет.`, 2.2);
       return;
     }
     const z = info.zone;
@@ -531,7 +529,7 @@
         startAction('work', 0);
         playSound('click');
         addLog('Викентий открыл Excel. Пальцы стучат по формулам.', 'good');
-        toast('Сидишь в Excel. Если Ф.П. увидит — KPI полетит вверх втрое!', 2.6);
+        toast('Сидишь в Excel. Если Д.Н. увидит — KPI полетит вверх втрое!', 2.6);
         break;
       case 'coffee':
         startAction('coffee', 2.2);
@@ -602,7 +600,7 @@
         break;
       case 'chat': {
         const c = coworkerById(z.coworker);
-        if (c.cooldown > 0) { say(c.id, pick(['Отстань, я занят(а)!', 'Потом, дедлайн!', 'Не сейчас, Ф.П. бдит.']), 2.2); return; }
+        if (c.cooldown > 0) { say(c.id, pick(['Отстань, я занят(а)!', 'Потом, дедлайн!', 'Не сейчас, Д.Н. бдит.']), 2.2); return; }
         const pair = pick(LINES.chat[c.id]);
         player.chatWith = c.id;
         player.chatPair = pair;
@@ -614,6 +612,20 @@
       }
       default: break;
     }
+  }
+
+  function togglePhone() {
+    if (player.action === 'phone') { endAction('cancel'); playSound('click'); return; }
+    if (player.action === 'work' || HIDDEN.has(player.action) || player.action === 'chat') {
+      // в Excel и в укрытии телефон тоже можно достать — но это палево
+      if (player.action === 'work') player.y = SEAT.y;
+      if (player.action === 'plant_hide' && player.hideSpot) player.y = player.hideSpot.y + 14;
+      if (player.action === 'chat') return;
+      endAction('cancel');
+    }
+    startAction('phone', 0);
+    phoneBuzz = 0;
+    playSound('blip');
   }
 
   function quickHide() {
@@ -648,8 +660,8 @@
     else bossGoTo(DESK_FRONT, 'inspect', 'твой стол');
     playSound('alarm');
     say('boss', pick(LINES.boss.alarm), 3);
-    addLog('🚨 Ф.П. пошёл с проверкой!', 'bad');
-    toast(raid ? 'ТРЕВОГА! Рейд по этажу — прячься или беги в Excel!' : 'ТРЕВОГА! Ф.П. идёт к твоему столу — садись в Excel!', 3.4);
+    addLog('🚨 Д.Н. пошёл с проверкой!', 'bad');
+    toast(raid ? 'ТРЕВОГА! Рейд по этажу — прячься или беги в Excel!' : 'ТРЕВОГА! Д.Н. идёт к твоему столу — садись в Excel!', 3.4);
     // коллеги предупреждают, если Викентий рядом
     for (const c of coworkers) {
       if (Math.hypot(player.x - c.x, player.y - c.y) < 150) { say(c.id, pick(LINES.coworkerWarn), 2.4, '#ffd4c8'); break; }
@@ -675,11 +687,10 @@
       coverTokens = 0;
       boss.suspicion = 0;
       boss.catchCooldown = 4;
-      say('ayarshyn', 'Федор Павлович, он по моему поручению!', 3, '#ffd4c8');
+      say('ayarshyn', 'Директор Начальникович, он по моему поручению!', 3, '#ffd4c8');
       say('boss', 'Ну... ладно. Смотрите мне!', 2.6);
       addLog('Айаршын прикрыла Викентия. Залёт прощён.', 'good');
       toast('Айаршын прикрыла! Залёт прощён.', 2.6);
-      uiDirty = true;
       return;
     }
     stats.catches++;
@@ -696,10 +707,9 @@
     playSound('caught');
     say('boss', pick(LINES.boss.caught), 3);
     floater(player.x, player.y - 70, `СПАЛИЛИ! −${CFG.catchStealth}`, '#ff6a5a');
-    addLog('❌ СПАЛИЛИ! Ф.П. застал Викентия без дела.', 'bad');
+    addLog('❌ СПАЛИЛИ! Д.Н. застал Викентия без дела.', 'bad');
     toast('ТЕБЯ СПАЛИЛИ! Незаметность падает.', 3);
     if (player.action !== 'none' && player.action !== 'work') endAction('cancel');
-    uiDirty = true;
   }
 
   function finishDeskInspection() {
@@ -715,12 +725,11 @@
     } else {
       stealth = clamp(stealth - 10, 0, 100);
       say('boss', pick(LINES.boss.emptyDesk), 3);
-      addLog('Ф.П. нашёл пустое кресло. −10 незаметности.', 'bad');
+      addLog('Д.Н. нашёл пустое кресло. −10 незаметности.', 'bad');
       toast('Начальник у пустого стола. −10 незаметности.', 2.4);
     }
     if (HIDDEN.has(player.action) && player.action === 'plant_hide') stats.plantHideInspect++;
     checkTodo();
-    uiDirty = true;
   }
 
   function endInspection() {
@@ -802,7 +811,7 @@
           if (boss.inspectTimer <= 0) {
             if (boss.mode === 'desk') { finishDeskInspection(); endInspection(); }
             else if (boss.visitedSpots < 2) { boss.visitedSpots++; bossGoTo(pick(WD.patrolSpots), 'inspect', 'рейд по этажу'); }
-            else { addLog('Рейд окончен. Ф.П. выдохся.', 'info'); endInspection(); }
+            else { addLog('Рейд окончен. Д.Н. выдохся.', 'info'); endInspection(); }
           }
         } else if (followPath(dt, CFG.bossInspectSpeed)) {
           boss.inspectTimer = boss.mode === 'desk' ? 3.2 : 2.2;
@@ -866,7 +875,7 @@
 
     player.moving = false;
     if (dx || dy) {
-      if (player.action !== 'none' && player.action !== 'coffee' && player.action !== 'water') {
+      if (player.action !== 'none' && player.action !== 'coffee' && player.action !== 'water' && player.action !== 'phone') {
         if (player.action === 'work') { player.y = SEAT.y; }
         if (player.action === 'plant_hide' && player.hideSpot) player.y = player.hideSpot.y + 14;
         endAction('cancel');
@@ -902,6 +911,7 @@
       if (rand() < 0.5) particles.push({ x: player.x + 10 * player.facingX, y: player.y - 40, vx: 12 + rand() * 10, vy: -8 - rand() * 8, size: 2 + rand() * 2, life: 1.5, maxLife: 1.5, color: 'rgba(230,230,230,0.6)' });
     } else if (a === 'youtube') { fun += 5 * dt; usefulness = clamp(usefulness - 0.8 * dt, 0, 100); }
     else if (a === 'fridge') fun += 3 * dt;
+    else if (a === 'phone') fun += 1.2 * dt;
     else if (a === 'chat') {
       fun += 3 * dt;
       const c = coworkerById(player.chatWith);
@@ -963,9 +973,11 @@
 
     if (toastTimer > 0) { toastTimer -= dt; if (toastTimer <= 0) ui.toast.classList.remove('show'); }
     shake = Math.max(0, shake - dt);
+    phoneAnim = clamp(phoneAnim + (player.action === 'phone' ? dt : -dt) * 6, 0, 1);
+    phoneBuzz = Math.max(0, phoneBuzz - dt * 0.2);
     flash = Math.max(0, flash - dt);
 
-    if (Math.floor(shiftTime * 2) !== Math.floor((shiftTime - dt) * 2)) { checkTodo(); uiDirty = true; }
+    if (Math.floor(shiftTime * 2) !== Math.floor((shiftTime - dt) * 2)) checkTodo();
     if (clockMinutes >= CFG.shiftEnd) finishGame('win');
     else if (stealth <= 0) finishGame('fired');
     else if (usefulness <= 0) finishGame('useless');
@@ -992,12 +1004,12 @@
     ui.endTitle.textContent = win ? 'ТЫ ВЫЖИЛ!' : (result === 'fired' ? 'ТЕБЯ УВОЛИЛИ!' : 'УВОЛЕН ЗА KPI!');
     if (win) {
       ui.endCopy.textContent = usefulness > 60
-        ? '«Викентий, вы — опора рисков!» — Ф.П. хлопает по плечу. За окном горит Кок-Тобе, а ты даже немного поработал.'
+        ? '«Викентий, вы — опора рисков!» — Д.Н. хлопает по плечу. За окном горит Кок-Тобе, а ты даже немного поработал.'
         : 'Ты дожил до 19:30. Огни Алматы, пробки на Аль-Фараби и ни одного лишнего отчёта.';
     } else if (result === 'fired') {
-      ui.endCopy.textContent = 'Ф.П. сверил логи прокси и записи камер: перекуры, ролики и холодильник Влада. Пропуск заблокирован.';
+      ui.endCopy.textContent = 'Д.Н. сверил логи прокси и записи камер: перекуры, ролики и холодильник Влада. Пропуск заблокирован.';
     } else {
-      ui.endCopy.textContent = 'KPI упал до нуля: отчёты копились, пока ты кайфовал. «Голодранцы нам не нужны!» — сказал Ф.П.';
+      ui.endCopy.textContent = 'KPI упал до нуля: отчёты копились, пока ты кайфовал. «Голодранцы нам не нужны!» — сказал Д.Н.';
     }
     ui.grade.innerHTML = win ? `<b>${grade}</b><span>${title} · ${score} очков</span>` : '';
     ui.grade.classList.toggle('hidden', !win);
@@ -1007,29 +1019,10 @@
       [stats.catches, 'раз спалился'],
       [`${done}/${todo.length}`, 'дел из списка'],
       [stats.chats, 'разговоров'],
-      [stats.praise, 'похвал Ф.П.'],
+      [stats.praise, 'похвал Д.Н.'],
     ].map(s => `<div class="end-stat"><b>${s[0]}</b><span>${s[1]}</span></div>`).join('');
     playSound(win ? 'success' : 'caught');
     addLog(win ? '19:30 — смена окончена. Свобода!' : 'Трудовой договор расторгнут.', win ? 'good' : 'bad');
-  }
-
-  // ---------- DOM-ПАНЕЛЬ ----------
-  function renderPanel() {
-    if (!uiDirty) return;
-    uiDirty = false;
-    ui.todo.innerHTML = todo.map(t => {
-      const prog = Math.min(t.goal, todoProgress(t));
-      const count = t.goal > 1 ? ` <em>${prog}/${t.goal}</em>` : '';
-      return `<li class="${t.done ? 'done' : ''}"><span class="box">${t.done ? '✔' : ''}</span>${t.text}${count}</li>`;
-    }).join('');
-    const perks = [];
-    if (coverTokens) perks.push('<li><b>🛡 Прикрытие</b> Айаршын простит один залёт</li>');
-    if (intelTimer > 0) perks.push(`<li><b>📅 Инсайд</b> Влад: проверка через ${Math.max(0, Math.ceil(nextBossCheck))} с</li>`);
-    if (player.coffeeBoost > 0) perks.push(`<li><b>☕ Кофеин</b> ещё ${Math.ceil(player.coffeeBoost)} с</li>`);
-    const cds = coworkers.filter(c => c.cooldown > 0).map(c => `${c.name} ${Math.ceil(c.cooldown)}с`);
-    if (cds.length) perks.push(`<li class="muted">Заняты: ${cds.join(', ')}</li>`);
-    ui.perks.innerHTML = perks.join('') || '<li class="muted">Поболтай с коллегами — у каждого свой бонус.</li>';
-    ui.log.innerHTML = logEntries.map(e => `<li class="${e.kind}"><time>${e.time}</time>${e.text}</li>`).join('');
   }
 
   // ---------- РЕНДЕР ----------
@@ -1382,7 +1375,7 @@
       work: ['EXCEL · РИСК-МОДЕЛИ', '#2f9a5a'], smoke: ['ПЕРЕКУР', '#b3261e'], youtube: ['▶ YOUTUBE 4K', '#b3261e'],
       fridge: ['ШАРИТ В ХОЛОДИЛЬНИКЕ', '#c9861e'], chat: ['БОЛТАЕТ', '#c9861e'], plant_hide: ['В ЛИСТВЕ', '#2f7a3a'],
       cabinet_hide: ['ЗА ШКАФАМИ', '#2a6a8a'], printer_hide: ['ЗА КСЕРОКСОМ', '#2a6a8a'], printer: ['ПЕЧАТЬ МЕМА', '#2a6a8a'],
-      eat: ['ЖУЁТ', '#c9861e'], fixjam: ['ЧИНИТ КСЕРОКС', '#2f9a5a'],
+      eat: ['ЖУЁТ', '#c9861e'], fixjam: ['ЧИНИТ КСЕРОКС', '#2f9a5a'], phone: ['ЛИСТАЕТ ТЕЛЕФОН', '#c9861e'],
     };
     const lab = labels[player.action];
     if (lab && !bubbles.some(b => b.owner === 'player')) {
@@ -1506,14 +1499,14 @@
     R(x0, 6, W - x0 - 8, 36, alert ? '#4a1316' : '#0f2126');
     R(x0 + 1, 7, W - x0 - 10, 34, alert ? (Math.floor(performance.now() / 250) % 2 ? '#7a1a1f' : '#5f1418') : '#16303a');
     // мини-портрет
-    R(x0 + 5, 10, 26, 28, '#e0b088'); R(x0 + 11, 11, 12, 2.5, '#fff'); R(x0 + 8, 24, 20, 3, '#3a2a1e'); R(x0 + 8, 18, 8, 3, '#222'); R(x0 + 20, 18, 8, 3, '#222'); R(x0 + 5, 33, 26, 5, '#9ab8e0'); R(x0 + 16, 33, 3, 5, '#c02a2a');
+    R(x0 + 5, 10, 26, 28, '#e0b088'); R(x0 + 11, 11, 12, 2.5, '#fff'); R(x0 + 13, 27, 10, 1.5, '#8a3a30'); R(x0 + 8, 18, 8, 3, '#222'); R(x0 + 20, 18, 8, 3, '#222'); R(x0 + 5, 33, 26, 5, '#9ab8e0'); R(x0 + 16, 33, 3, 5, '#c02a2a');
     const status = {
-      office: eventIs('call') ? `Ф.П. на созвоне с правлением · ${Math.ceil(officeEvent.t)} с` : 'Ф.П. в кабинете: чай и чак-чак',
-      patrol: `Ф.П. идёт: ${boss.spotDesc}`,
-      look: 'Ф.П. озирается по сторонам',
-      return: 'Ф.П. возвращается в кабинет',
+      office: eventIs('call') ? `Д.Н. на созвоне с правлением · ${Math.ceil(officeEvent.t)} с` : 'Д.Н. в кабинете: чай и чак-чак',
+      patrol: `Д.Н. идёт: ${boss.spotDesc}`,
+      look: 'Д.Н. озирается по сторонам',
+      return: 'Д.Н. возвращается в кабинет',
       inspect: boss.mode === 'desk' ? '🚨 ПРОВЕРКА! Идёт к твоему столу' : '🚨 РЕЙД ПО ЭТАЖУ!',
-      lecture: 'Ф.П. читает нотацию',
+      lecture: 'Д.Н. читает нотацию',
     }[boss.state];
     T(status, x0 + 38, 17, 7, alert ? '#fff' : '#f5edd9', 'left', 700, FONT_SANS);
     // подозрение
@@ -1548,6 +1541,91 @@
     }
   }
 
+  function perkLines() {
+    const out = [];
+    if (coverTokens) out.push(['🛡', 'Прикрытие: Айаршын простит залёт', '#9fe0b0']);
+    if (intelTimer > 0) out.push(['📅', `Инсайд Влада: проверка через ${Math.max(0, Math.ceil(nextBossCheck))} с`, '#f2bb38']);
+    if (player.coffeeBoost > 0) out.push(['☕', `Кофеин: ещё ${Math.ceil(player.coffeeBoost)} с`, '#e8b070']);
+    const cds = coworkers.filter(c => c.cooldown > 0).map(c => `${c.name} ${Math.ceil(c.cooldown)}с`);
+    if (cds.length) out.push(['⏳', `Заняты: ${cds.join(', ')}`, '#9ab']);
+    if (!out.length) out.push(['💬', 'Поболтай с коллегами — у каждого свой бонус', '#9ab']);
+    return out;
+  }
+
+  function drawPhone() {
+    if (phoneAnim <= 0) return;
+    const e = 1 - Math.pow(1 - phoneAnim, 3);
+    const pw = 210, ph = 318;
+    const x = W - pw - 18;
+    const y = H - ph * e - 8 + (1 - e) * 20;
+    ctx.save();
+    ctx.globalAlpha = Math.min(1, phoneAnim * 1.5);
+    // корпус
+    ctx.fillStyle = 'rgba(0,0,0,0.45)'; roundRect(x + 4, y + 5, pw, ph, 16); ctx.fill();
+    ctx.fillStyle = '#15191c'; roundRect(x, y, pw, ph, 16); ctx.fill();
+    ctx.fillStyle = '#0d2a30'; roundRect(x + 7, y + 8, pw - 14, ph - 16, 11); ctx.fill();
+    R(x + pw / 2 - 18, y + 11, 36, 5, '#15191c');
+    // трещина на экране — телефон тоже «убогий»
+    ctx.strokeStyle = 'rgba(255,255,255,0.18)'; ctx.lineWidth = 0.6;
+    ctx.beginPath(); ctx.moveTo(x + pw - 30, y + 20); ctx.lineTo(x + pw - 48, y + 60); ctx.lineTo(x + pw - 40, y + 90); ctx.moveTo(x + pw - 48, y + 60); ctx.lineTo(x + pw - 70, y + 72); ctx.stroke();
+    const cx = x + 16;
+    let cy = y + 26;
+    T(timeString(clockMinutes), cx, cy, 7, '#fff', 'left', 700, FONT_SANS);
+    T('Kcell  ▂▄▆  23%', x + pw - 16, cy, 6, '#9ab', 'right', 700, FONT_SANS);
+    cy += 16;
+    T('📋 ДЕЛА НА СЕГОДНЯ', cx, cy, 8, '#f2bb38', 'left', 900, FONT_SANS);
+    cy += 13;
+    for (const t of todo) {
+      const prog = Math.min(t.goal, todoProgress(t));
+      R(cx, cy - 4, 8, 8, t.done ? '#2f9a5a' : '#0b1417'); ctx.strokeStyle = '#6a8'; ctx.lineWidth = 0.8; ctx.strokeRect(cx + 0.4, cy - 3.6, 7.2, 7.2);
+      if (t.done) T('✓', cx + 4, cy + 0.5, 7, '#fff');
+      const label = t.goal > 1 ? `${t.text} ${prog}/${t.goal}` : t.text;
+      const lines = wrap(label, pw - 44, 7);
+      lines.forEach((l, i) => T(l, cx + 13, cy + i * 9, 7, t.done ? '#6a8a80' : '#e8f2ee', 'left', 700, FONT_SANS));
+      if (t.done) R(cx + 13, cy, Math.min(pw - 44, ctx.measureText(lines[0]).width), 0.8, '#6a8a80');
+      cy += lines.length * 9 + 4;
+    }
+    cy += 4;
+    T('🎁 БОНУСЫ', cx, cy, 8, '#f2bb38', 'left', 900, FONT_SANS);
+    cy += 12;
+    for (const [icon, text, col] of perkLines()) {
+      const lines = wrap(`${icon} ${text}`, pw - 32, 6.5);
+      lines.forEach((l, i) => T(l, cx, cy + i * 8.5, 6.5, col, 'left', 700, FONT_SANS));
+      cy += lines.length * 8.5 + 2;
+    }
+    cy += 5;
+    T('💬 ЧАТ «РИСКИ 7 ЭТАЖ»', cx, cy, 8, '#f2bb38', 'left', 900, FONT_SANS);
+    cy += 12;
+    const bottom = y + ph - 22;
+    for (const e2 of logEntries) {
+      const lines = wrap(e2.text, pw - 40, 6.2);
+      const hh = lines.length * 8 + 5;
+      if (cy + hh > bottom) break;
+      ctx.fillStyle = e2.kind === 'good' ? 'rgba(47,154,90,0.35)' : (e2.kind === 'bad' ? 'rgba(200,50,40,0.35)' : 'rgba(255,255,255,0.08)');
+      roundRect(cx - 2, cy - 5, pw - 28, hh, 4); ctx.fill();
+      lines.forEach((l, i) => T(l, cx + 2, cy + i * 8, 6.2, '#e8f2ee', 'left', 700, FONT_SANS));
+      T(e2.time, x + pw - 16, cy, 5, '#9ab', 'right', 700, FONT_SANS);
+      cy += hh + 3;
+    }
+    T('Tab / Q — убрать · смотреть в телефон = палево', x + pw / 2, y + ph - 14, 5.6, '#7a9a94', 'center', 700, FONT_SANS);
+    ctx.restore();
+  }
+
+  function drawObjective() {
+    if (mode !== 'playing' || player.action === 'phone') return;
+    const next = todo.find(t => !t.done);
+    const done = todo.filter(t => t.done).length;
+    const text = next ? `📋 ${next.text}${next.goal > 1 ? ` ${Math.min(next.goal, todoProgress(next))}/${next.goal}` : ''}  ·  ${done}/${todo.length}` : `📋 Все дела сделаны! ${done}/${todo.length}`;
+    ctx.font = `700 7px ${FONT_SANS}`;
+    const w = ctx.measureText(text).width + 60;
+    const x = W - w - 10;
+    const y = H - 20;
+    ctx.fillStyle = 'rgba(8,16,20,0.85)'; roundRect(x, y, w, 13, 3); ctx.fill();
+    T(text, x + 6, y + 6.8, 7, '#e8f2ee', 'left', 700, FONT_SANS);
+    const buzz = phoneBuzz > 0 && Math.floor(performance.now() / 200) % 2 === 0;
+    T(buzz ? '📱 Tab ●' : '📱 Tab', x + w - 6, y + 6.8, 7, buzz ? '#f2bb38' : '#9ab', 'right', 700, FONT_SANS);
+  }
+
   function draw() {
     ctx.setTransform(S, 0, 0, S, 0, 0);
     ctx.imageSmoothingEnabled = false;
@@ -1568,6 +1646,8 @@
     drawBubbles();
     ctx.setTransform(S, 0, 0, S, 0, 0);
     drawHUD();
+    drawObjective();
+    drawPhone();
     drawBanner();
     if (flash > 0) R(0, 0, W, H, `rgba(224,68,62,${flash * 0.35})`);
   }
@@ -1578,7 +1658,6 @@
     if (mode === 'playing') update(dt);
     else if (mode === 'menu') { updateBoss(dt); updateCoworkers(dt); updateAmbient(dt); bubbles.forEach(b => { b.t += dt; }); bubbles = bubbles.filter(b => b.t < b.dur); }
     draw();
-    renderPanel();
     requestAnimationFrame(loop);
   }
 
@@ -1586,7 +1665,8 @@
   const MOVE_KEYS = ['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 'a', 's', 'd'];
   window.addEventListener('keydown', e => {
     const key = getControlKey(e);
-    if (MOVE_KEYS.includes(key) || ['e', 'h', 'p', 'enter', ' '].includes(key)) e.preventDefault();
+    if (MOVE_KEYS.includes(key) || ['e', 'h', 'p', 'q', 'enter', ' '].includes(key)) e.preventDefault();
+    if (key === 'escape' && player.action === 'phone' && mode === 'playing') { togglePhone(); return; }
     if (key === 'p' || key === 'escape') { if (mode === 'playing' || mode === 'paused') pauseGame(); return; }
     if (key === 'enter') {
       if (mode === 'menu' || mode === 'ended') { startGame(); return; }
@@ -1596,6 +1676,7 @@
     if (e.repeat && (key === 'e' || key === 'h')) return;
     if (key === 'e') { interact(); return; }
     if (key === 'h') { quickHide(); return; }
+    if (key === 'q') { if (!e.repeat) togglePhone(); return; }
     if (MOVE_KEYS.includes(key)) keys.add(key);
   });
   window.addEventListener('keyup', e => { keys.delete(getControlKey(e)); });
@@ -1612,7 +1693,7 @@
     setBoss(x, y, state = 'look') { boss.x = x; boss.y = y; boss.state = state; boss.stateTimer = 99; boss.path = []; },
     skip(seconds) { for (let i = 0; i < seconds * 20 && mode === 'playing'; i++) update(0.05); },
     set(v) { if ('usefulness' in v) usefulness = v.usefulness; if ('stealth' in v) stealth = v.stealth; if ('fun' in v) fun = v.fun; },
-    interact, quickHide, startInspection, blocked, findPath, nav, startEvent,
+    interact, quickHide, togglePhone, startInspection, blocked, findPath, nav, startEvent,
     get event() { return officeEvent; },
   };
 

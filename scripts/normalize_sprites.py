@@ -10,6 +10,7 @@ Requires Pillow + numpy (dev only; the game itself needs nothing).
 from pathlib import Path
 import numpy as np
 from PIL import Image
+from face_edit import remove_glasses, remove_moustache
 
 ASSETS = Path(__file__).resolve().parent.parent / "assets"
 
@@ -32,6 +33,11 @@ def trim(frame):
     return frame.crop((xs.min(), ys.min(), xs.max() + 1, ys.max() + 1))
 
 
+def edit_frames(frames, fn, per_frame=None):
+    per_frame = per_frame or [{}] * len(frames)
+    return [Image.fromarray(fn(np.array(f), **kw)) for f, kw in zip(frames, per_frame)]
+
+
 def normalize(frames, out_h, name):
     trimmed = [trim(f) for f in frames]
     # every frame is scaled to the same height: generated frames drift in size
@@ -47,6 +53,12 @@ def normalize(frames, out_h, name):
 
 
 if __name__ == "__main__":
-    normalize(frames_from_strip(Image.open(ASSETS / "vikentiy-walk-v1.png").convert("RGBA"), 4), 120, "vikentiy-walk-v2.png")
-    normalize(frames_from_strip(Image.open(ASSETS / "fedor-walk-v1.png").convert("RGBA"), 4), 134, "fedor-walk-v2.png")
+    # Викентий без очков (он ближе к рокеру), Директор Начальникович — без усов
+    vik = edit_frames(frames_from_strip(Image.open(ASSETS / "vikentiy-walk-v1.png").convert("RGBA"), 4), remove_glasses,
+                       # в кадрах 3–4 глаза тёмные и не распознаются — радужки заданы вручную
+                       [{}, {}, {"boxes": [(100, 108, 314, 326), (99, 107, 339, 348)]},
+                        {"boxes": [(93, 101, 186, 198), (92, 100, 216, 226)]}])
+    normalize(vik, 120, "vikentiy-walk-v2.png")
+    boss = edit_frames(frames_from_strip(Image.open(ASSETS / "fedor-walk-v1.png").convert("RGBA"), 4), remove_moustache)
+    normalize(boss, 134, "boss-walk-v2.png")
     normalize(frames_from_atlas(Image.open(ASSETS / "coworkers-atlas-v1.png").convert("RGBA"), 2, 2), 112, "coworkers-v2.png")
