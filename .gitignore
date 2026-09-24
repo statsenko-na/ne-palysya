@@ -1,0 +1,17 @@
+# Local credentials and environment files
+.env
+.env.*
+!.env.example
+
+# Dependencies and generated test output
+node_modules/
+coverage/
+playwright-report/
+test-results/
+output/
+
+# OS/editor noise
+.DS_Store
+Thumbs.db
+Desktop.ini
+*.log

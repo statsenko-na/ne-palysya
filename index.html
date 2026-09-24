@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="ru">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Не палься — Фирдом Риск-Офис</title>
+    <link rel="stylesheet" href="style.css" />
+  </head>
+  <body>
+    <main class="cabinet">
+      <header class="topbar">
+        <div class="brand">
+          <img class="brand-emblem" src="assets/firdom-emblem.svg" alt="Эмблема Фирдом Банка" />
+          <div>
+            <div class="brand-name">ФИРДОМ БАНК</div>
+            <div class="brand-sub">CREDIT RISK / ALMATY</div>
+          </div>
+        </div>
+        <div class="topbar-note">БЦ «ТУРАР» · 7 ЭТАЖ · OPEN SPACE</div>
+      </header>
+
+      <section class="game-shell">
+        <div class="screen-frame">
+          <canvas id="game" width="960" height="540" aria-label="Игра Не палься"></canvas>
+          <div class="scanlines"></div>
+          <div id="toast" class="toast"></div>
+          <div id="screen-overlay" class="screen-overlay">
+            <div class="title-card">
+              <div class="eyebrow">ALMATY / TURAR BUSINESS CENTER · 7F</div>
+              <h1>НЕ ПАЛЬСЯ</h1>
+              <div class="title-strap">office stealth simulator · HD pixel edition</div>
+              <p class="pitch">Ты — Викентий, худой айтишник с длинными волосами в хвостике.<br />Твоя цель — продержаться до 19:30, бегая за кофе, куря на балконе и прячась в монстере,<br />пока лысый и пузатый начальник Федор Павлович ходит с проверками.</p>
+              <button id="start-btn" class="pixel-btn">ВЫЙТИ НА СМЕНУ <span>↵</span></button>
+              <div class="controls-mini">WASD — ходить · E — контекстное действие (подсвечено золотом) · H — спрятаться · P — пауза</div>
+            </div>
+          </div>
+          <div id="pause-overlay" class="screen-overlay hidden">
+            <div class="pause-card">
+              <div class="eyebrow">ВНУТРЕННИЙ РЕЖИМ</div>
+              <h2>ПАУЗА</h2>
+              <p>Федор Павлович тоже поставил жизнь на паузу.</p>
+              <button id="resume-btn" class="pixel-btn">ПРОДОЛЖИТЬ <span>↵</span></button>
+            </div>
+          </div>
+          <div id="end-overlay" class="screen-overlay hidden">
+            <div class="end-card">
+              <div id="end-kicker" class="eyebrow">СМЕНА ОКОНЧЕНА</div>
+              <h2 id="end-title">ТЫ ВЫЖИЛ</h2>
+              <p id="end-copy"></p>
+              <div id="end-stats" class="end-stats"></div>
+              <button id="restart-btn" class="pixel-btn">ЕЩЁ ОДИН ДЕНЬ <span>↵</span></button>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <footer class="footerbar">
+        <div><span class="keycap">WASD</span> движение <span class="keycap">E</span> действие у подсветки <span class="keycap">H</span> спрятаться (растения/шкафы) <span class="keycap">P</span> пауза</div>
+        <div class="footer-tip">Пайплайн: Интерактивные места подсвечены маркерами [E]. При ТРЕВОГЕ беги к столу в Excel или прячься!</div>
+      </footer>
+    </main>
+    <script src="game.js"></script>
+  </body>
+</html>
