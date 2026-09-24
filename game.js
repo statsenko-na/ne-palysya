@@ -265,6 +265,7 @@
   let eventQueue = [];
   let banner = null;          // крупная плашка события
   let heartbeat = 0;
+  let tutorial = { step: 0, t: 0 }; // подсказки для первого дня
   let phoneAnim = 0;          // 0..1 — выезд телефона
   let phoneBuzz = 0;          // новое уведомление
   let danger = 0;             // 0..1 — начальник рядом, а ты прокрастинируешь
@@ -359,6 +360,7 @@
     todo = pickTodo();
     officeEvent = null;
     banner = null;
+    tutorial = { step: store.get('tutorialDone', false) ? 99 : 0, t: 0 };
     nextEvent = 32 + rand() * 12;
     eventQueue = shuffleEvents();
     Object.assign(player, { x: SEAT.x, y: WD.ROW1_Y + 62, action: 'none', actionTimer: 0, coffeeBoost: 0, speed: CFG.playerSpeed, chatWith: null, hideSpot: null, facingX: -1 });
@@ -369,7 +371,6 @@
     addLog('Директор Начальникович пьёт чай в кабинете. Пока.');
     setMode('playing');
     banner = { text: `${today().name} · ДЕНЬ ${dayIndex + 1}/5`, sub: today().mod, t: 0 };
-    toast('Кайфуй, но когда Д.Н. рядом — сиди в Excel. Tab — телефон со списком дел.', 4.5);
   }
   function startGame() { playSound('click'); resetGame(); }
   function pauseGame() {
@@ -990,6 +991,7 @@
     updateCoworkers(dt);
     updateAmbient(dt);
     updateEvents(dt);
+    updateTutorial(dt);
 
     // Сердцебиение: начальник близко, а ты прокрастинируешь
     const d = dist(boss, player);
@@ -1664,6 +1666,43 @@
     ctx.restore();
   }
 
+  // Обучение: подсказки со стрелкой на первых минутах, пока игрок не освоится
+  const TUTORIAL = [
+    { text: 'Подойди к своему столу сзади и нажми E — это Excel', target: () => ({ x: SEAT.x, y: SEAT.y - 58 }), done: () => player.action === 'work' },
+    { text: 'Tab / Q — телефон: там список дел, бонусы и чат', target: null, done: () => player.action === 'phone' },
+    { text: 'Поболтай с коллегой: встань перед его столом и жми E', target: () => ({ x: coworkers[1].x, y: coworkers[1].desk.y - 60 }), done: () => player.action === 'chat' || stats.chats > 0 },
+    { text: 'Жёлтый конус — взгляд Д.Н. Прокрастинируешь в нём — растёт «?»', target: () => ({ x: boss.x, y: boss.y - 84 }), done: () => tutorial.t > 7 },
+  ];
+  function updateTutorial(dt) {
+    if (tutorial.step >= TUTORIAL.length) return;
+    tutorial.t += dt;
+    const cur = TUTORIAL[tutorial.step];
+    if (tutorial.step === 3 && (boss.state === 'office' || boss.state === 'gone')) { tutorial.t = 0; return; }
+    if (cur.done()) {
+      tutorial.step++;
+      tutorial.t = 0;
+      if (tutorial.step >= TUTORIAL.length) store.set('tutorialDone', true);
+    }
+  }
+  function drawTutorial() {
+    if (mode !== 'playing' || tutorial.step >= TUTORIAL.length) return;
+    const cur = TUTORIAL[tutorial.step];
+    if (tutorial.step === 3 && boss.state === 'office') return;
+    const bounce = Math.sin(performance.now() / 180) * 3;
+    if (cur.target) {
+      const p = cur.target();
+      ctx.fillStyle = '#f2bb38';
+      ctx.beginPath(); ctx.moveTo(p.x - 6, p.y - 10 + bounce); ctx.lineTo(p.x + 6, p.y - 10 + bounce); ctx.lineTo(p.x, p.y + bounce); ctx.fill();
+      ctx.strokeStyle = '#172027'; ctx.lineWidth = 1; ctx.stroke();
+    }
+    ctx.font = `700 8px ${FONT_SANS}`;
+    const text = `💡 ${cur.text}`;
+    const w = ctx.measureText(text).width + 20;
+    const y = H - 48;
+    ctx.fillStyle = 'rgba(242,187,56,0.95)'; roundRect(W / 2 - w / 2, y, w, 16, 4); ctx.fill();
+    T(text, W / 2, y + 8.4, 8, '#172027', 'center', 700, FONT_SANS);
+  }
+
   function drawObjective() {
     if (mode !== 'playing' || player.action === 'phone') return;
     const next = todo.find(t => !t.done);
@@ -1699,6 +1738,7 @@
     drawBubbles();
     ctx.setTransform(S, 0, 0, S, 0, 0);
     drawHUD();
+    drawTutorial();
     drawObjective();
     drawPhone();
     drawBanner();
@@ -1736,6 +1776,44 @@
   window.addEventListener('keyup', e => { keys.delete(getControlKey(e)); });
   window.addEventListener('blur', () => keys.clear());
 
+  // Сенсорное управление: виртуальный стик + кнопки
+  const stick = document.getElementById('stick');
+  const knob = document.getElementById('stick-knob');
+  if (stick) {
+    let sid = null;
+    const setDir = (dx, dy) => {
+      ['w', 'a', 's', 'd'].forEach(k => keys.delete(k));
+      if (dx < -0.35) keys.add('a');
+      if (dx > 0.35) keys.add('d');
+      if (dy < -0.35) keys.add('w');
+      if (dy > 0.35) keys.add('s');
+      knob.style.transform = `translate(calc(-50% + ${dx * 60}%), calc(-50% + ${dy * 60}%))`;
+    };
+    const move = e => {
+      const t = [...e.changedTouches].find(tt => tt.identifier === sid);
+      if (!t) return;
+      const r = stick.getBoundingClientRect();
+      let dx = (t.clientX - (r.left + r.width / 2)) / (r.width / 2);
+      let dy = (t.clientY - (r.top + r.height / 2)) / (r.height / 2);
+      const len = Math.hypot(dx, dy);
+      if (len > 1) { dx /= len; dy /= len; }
+      setDir(dx, dy);
+      e.preventDefault();
+    };
+    stick.addEventListener('touchstart', e => { sid = e.changedTouches[0].identifier; getAudio(); move(e); }, { passive: false });
+    stick.addEventListener('touchmove', move, { passive: false });
+    const end = e => { if ([...e.changedTouches].some(tt => tt.identifier === sid)) { sid = null; setDir(0, 0); } };
+    stick.addEventListener('touchend', end);
+    stick.addEventListener('touchcancel', end);
+    document.querySelectorAll('.tbtn').forEach(b => b.addEventListener('touchstart', e => {
+      e.preventDefault();
+      const act = b.dataset.act;
+      if (act === 'p') { if (mode === 'playing' || mode === 'paused') pauseGame(); return; }
+      if (mode !== 'playing') return;
+      if (act === 'e') interact(); else if (act === 'h') quickHide(); else if (act === 'q') togglePhone();
+    }, { passive: false }));
+  }
+
   ui.start.addEventListener('click', startGame);
   ui.resume.addEventListener('click', pauseGame);
   ui.restart.addEventListener('click', startGame);
@@ -1747,6 +1825,7 @@
     setBoss(x, y, state = 'look') { boss.x = x; boss.y = y; boss.state = state; boss.stateTimer = 99; boss.path = []; },
     skip(seconds) { for (let i = 0; i < seconds * 20 && mode === 'playing'; i++) update(0.05); },
     setDay(d) { dayIndex = clampDay(d); },
+    get tutorial() { return tutorial.step; },
     get day() { return dayIndex; },
     set(v) { if ('usefulness' in v) usefulness = v.usefulness; if ('stealth' in v) stealth = v.stealth; if ('fun' in v) fun = v.fun; },
     interact, quickHide, togglePhone, startInspection, blocked, findPath, nav, startEvent,

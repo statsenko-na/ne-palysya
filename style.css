@@ -129,6 +129,17 @@ h2 { color: #fff5d0; font-size: clamp(16px, 2.8vw, 26px); }
 .end-grade span { color: #9fc; font-size: 11px; }
 .end-stats { grid-template-columns: repeat(3, 1fr); }
 
+/* Сенсорное управление: только на устройствах без мыши */
+.touch { display: none; }
+@media (pointer: coarse) {
+  .touch { display: block; position: absolute; inset: 8px; z-index: 4; pointer-events: none; opacity: .7; }
+  .stick { position: absolute; left: 3%; bottom: 6%; width: 22%; max-width: 150px; aspect-ratio: 1; border-radius: 50%; background: rgba(255,255,255,.08); border: 2px solid rgba(255,255,255,.25); pointer-events: auto; touch-action: none; }
+  .stick-knob { position: absolute; left: 50%; top: 50%; width: 40%; height: 40%; border-radius: 50%; background: rgba(242,187,56,.7); transform: translate(-50%, -50%); }
+  .touch-btns { position: absolute; right: 3%; bottom: 6%; display: grid; grid-template-columns: repeat(2, 56px); gap: 10px; pointer-events: auto; }
+  .tbtn { width: 56px; height: 56px; border-radius: 50%; border: 2px solid rgba(255,255,255,.4); background: rgba(12,24,28,.7); color: #fff; font-weight: 700; font-size: 18px; touch-action: none; }
+  .tbtn-e { background: rgba(242,187,56,.85); color: #172027; }
+}
+
 @media (max-width: 768px) {
   .cabinet { width: calc(100vw - 16px); margin: 8px auto; }
   .topbar { margin-bottom: 8px; padding: 0 10px; }
@@ -137,4 +148,11 @@ h2 { color: #fff5d0; font-size: clamp(16px, 2.8vw, 26px); }
   .scanlines { inset: 4px; }
   .footerbar { flex-direction: column; align-items: flex-start; gap: 7px; font-size: 8px; }
   .toast { max-width: 90%; font-size: 9px; }
+}
+
+/* Низкий экран (телефон в альбомной ориентации): только игра */
+@media (max-height: 520px) {
+  .topbar, .footerbar { display: none; }
+  .cabinet { margin: 4px auto; width: min(100vw - 8px, (100vh - 8px) * 16 / 9); }
+  .screen-frame { padding: 2px; max-height: none; }
 }
