@@ -1,10 +1,10 @@
 # Версия проекта
 
-Текущая версия: `0.5.1`
+Текущая версия: `0.6.0`
 
 Дата: `2026-09-24`
 
-Статус: playable prototype / vertical slice.
+Статус: playable prototype / animated vertical slice.
 
 ## Правило версий
 

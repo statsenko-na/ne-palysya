@@ -11,6 +11,10 @@
   vikentiyArtwork.src = 'assets/vikentiy-sprite-v1.png';
   const fedorArtwork = new Image();
   fedorArtwork.src = 'assets/fedor-pavlovich-sprite-v1.png';
+  const vikentiyWalkArtwork = new Image();
+  vikentiyWalkArtwork.src = 'assets/vikentiy-walk-v1.png';
+  const fedorWalkArtwork = new Image();
+  fedorWalkArtwork.src = 'assets/fedor-walk-v1.png';
   const coworkerAtlas = new Image();
   coworkerAtlas.src = 'assets/coworkers-atlas-v1.png';
 
@@ -157,9 +161,9 @@
   // Office Geometry (960x540 space)
   const office = {
     bounds: { x: 30, y: 58, w: 900, h: 454 },
-    desk: { x: 675, y: 220, w: 110, h: 60, label: 'ВИКЕНТИЙ' },
+    desk: { x: 680, y: 150, w: 98, h: 90, label: 'ВИКЕНТИЙ' },
     zones: [
-      { id: 'desk', x: 670, y: 192, w: 122, h: 88, label: 'ТВОЙ СТОЛ (ОТКРЫТЬ EXCEL)', short: 'Твой стол', type: 'work' },
+      { id: 'desk', x: 680, y: 150, w: 98, h: 90, label: 'ТВОЙ СТОЛ (ОТКРЫТЬ EXCEL)', short: 'Твой стол', type: 'work' },
       { id: 'coffee', x: 124, y: 54, w: 70, h: 48, label: 'КОФЕМАШИНА (СВАРИТЬ ЭСПРЕССО)', short: 'Кофемашина', type: 'coffee' },
       { id: 'kitchen_fridge', x: 28, y: 94, w: 76, h: 72, label: 'ХОЛОДИЛЬНИК (ПРОКРАСТИНАЦИЯ)', short: 'Холодильник', type: 'kitchen' },
       { id: 'kitchen_water', x: 151, y: 106, w: 43, h: 48, label: 'КУЛЕР С ВОДОЙ', short: 'Кулер', type: 'water' },
@@ -178,13 +182,13 @@
     { id: 'plant_balcony', x: 884, y: 264, w: 44, h: 54, label: 'ЛАВР В КОРИДОРЕ' },
   ];
 
-  // Coworker desks (Renamed per user request: Айаршын, Влад, Александр, Глеб)
+  // Coworker desks (Top row aligned to background: Айаршын, Влад, Александр, Глеб, Викентий)
   const desks = [
-    { x: 230, y: 128, w: 112, h: 80, name: 'Айаршын', role: 'Риск-аналитик', spriteIndex: 0 },
-    { x: 340, y: 128, w: 112, h: 80, name: 'Влад', role: 'Скор-модели', spriteIndex: 1 },
-    { x: 449, y: 128, w: 112, h: 80, name: 'Александр', role: 'Верификатор', spriteIndex: 2 },
-    { x: 566, y: 128, w: 112, h: 80, name: 'Глеб', role: 'Андеррайтер', spriteIndex: 3 },
-    { x: 675, y: 128, w: 112, h: 80, name: 'Викентий', role: 'IT & Риск-разработка', player: true },
+    { x: 220, y: 140, w: 96, h: 80, chairX: 269, chairY: 207, name: 'Айаршын', role: 'Риск-аналитик', spriteIndex: 0 },
+    { x: 335, y: 140, w: 96, h: 80, chairX: 383, chairY: 207, name: 'Влад', role: 'Скор-модели', spriteIndex: 1 },
+    { x: 450, y: 140, w: 96, h: 80, chairX: 498, chairY: 207, name: 'Александр', role: 'Верификатор', spriteIndex: 2 },
+    { x: 565, y: 140, w: 96, h: 80, chairX: 614, chairY: 207, name: 'Глеб', role: 'Андеррайтер', spriteIndex: 3 },
+    { x: 680, y: 140, w: 96, h: 80, chairX: 729, chairY: 207, name: 'Викентий', role: 'IT & Риск-разработка', player: true },
   ];
 
   // Patrol route for Boss
@@ -202,22 +206,24 @@
 
   // Player state: Skinny IT-guy with ponytail in black t-shirt
   const player = {
-    x: 728,
-    y: 257,
+    x: 729,
+    y: 207,
     r: 9,
     baseSpeed: 96,
     speed: 96,
     action: 'none',
     actionTimer: 0,
     facing: 0,
+    facingX: 1,
     walkFrame: 0,
+    walkTimer: 0,
     coffeeBoost: 0,
   };
 
   // Boss state: Bald, stout, round belly in business shirt with tie
   const boss = {
     x: 730,
-    y: 160,
+    y: 260,
     r: 12,
     speed: 52,
     point: 0,
@@ -227,7 +233,9 @@
     inspectTimer: 0,
     flash: 0,
     walkFrame: 0,
+    walkTimer: 0,
     facing: Math.PI,
+    facingX: -1,
   };
 
   let particles = [];
@@ -633,10 +641,14 @@
       const len = Math.hypot(dx, dy);
       dx /= len;
       dy /= len;
+      if (Math.abs(dx) > 0.05) player.facingX = dx < 0 ? -1 : 1;
       player.x += dx * player.speed * dt;
       player.y += dy * player.speed * dt;
       player.facing = Math.atan2(dy, dx);
-      player.walkFrame += dt * 11 * (player.speed / player.baseSpeed);
+      player.walkTimer += dt * (player.coffeeBoost > 0 ? 11 : 7.5);
+      player.walkFrame = Math.floor(player.walkTimer) % 4;
+    } else {
+      player.walkFrame = 0;
     }
 
     const b = office.bounds;
@@ -688,13 +700,31 @@
       if (d < 5) {
         boss.point = (boss.point + 1) % patrol.length;
         boss.stateTimer = 2.2 + rand() * 2.5;
+        boss.walkFrame = 0;
       } else {
         const vx = (target.x - boss.x) / d;
         const vy = (target.y - boss.y) / d;
+        if (Math.abs(vx) > 0.05) boss.facingX = vx < 0 ? -1 : 1;
         boss.x += vx * boss.speed * dt;
         boss.y += vy * boss.speed * dt;
         boss.facing = Math.atan2(vy, vx);
-        boss.walkFrame += dt * 6;
+        const prevFrame = Math.floor(boss.walkTimer) % 4;
+        boss.walkTimer += dt * 5.5;
+        boss.walkFrame = Math.floor(boss.walkTimer) % 4;
+        if (prevFrame !== boss.walkFrame && (boss.walkFrame === 1 || boss.walkFrame === 3)) {
+          for (let k = 0; k < 2; k++) {
+            particles.push({
+              x: boss.x + (rand() - 0.5) * 14,
+              y: boss.y + 18,
+              vx: (rand() - 0.5) * 8,
+              vy: -2 - rand() * 3,
+              size: 2 + rand() * 1.5,
+              life: 0.35 + rand() * 0.2,
+              maxLife: 0.55,
+              color: 'rgba(160, 175, 160, 0.5)',
+            });
+          }
+        }
       }
       nextBossCheck -= dt;
       if (nextBossCheck <= 0) startInspection();
@@ -704,11 +734,29 @@
       if (d > 5) {
         const vx = (target.x - boss.x) / d;
         const vy = (target.y - boss.y) / d;
+        if (Math.abs(vx) > 0.05) boss.facingX = vx < 0 ? -1 : 1;
         boss.x += vx * (boss.speed + 18) * dt;
         boss.y += vy * (boss.speed + 18) * dt;
         boss.facing = Math.atan2(vy, vx);
-        boss.walkFrame += dt * 10;
+        const prevFrame = Math.floor(boss.walkTimer) % 4;
+        boss.walkTimer += dt * 8.5;
+        boss.walkFrame = Math.floor(boss.walkTimer) % 4;
+        if (prevFrame !== boss.walkFrame && (boss.walkFrame === 1 || boss.walkFrame === 3)) {
+          for (let k = 0; k < 3; k++) {
+            particles.push({
+              x: boss.x + (rand() - 0.5) * 16,
+              y: boss.y + 18,
+              vx: (rand() - 0.5) * 12,
+              vy: -3 - rand() * 4,
+              size: 2 + rand() * 2,
+              life: 0.4 + rand() * 0.2,
+              maxLife: 0.6,
+              color: 'rgba(235, 65, 55, 0.5)',
+            });
+          }
+        }
       } else {
+        boss.walkFrame = 0;
         boss.inspectTimer -= dt;
         if (boss.inspectTimer <= 0) finishInspection();
       }
@@ -1156,9 +1204,9 @@
     for (const d of desks) {
       if (d.player) continue;
       drawCoworker(d);
-      const nameX = d.x + 42;
-      drawNameplate(d.name.toUpperCase(), nameX, d.y + 127, COLORS.blue, 8.5);
-      pixelText(d.role.toUpperCase(), nameX, d.y + 139, COLORS.paper, 8, 'center');
+      const nameX = d.chairX || (d.x + 48);
+      drawNameplate(d.name.toUpperCase(), nameX, 134, COLORS.blue, 8.5);
+      pixelText(d.role.toUpperCase(), nameX, 144, COLORS.paper, 7.5, 'center');
     }
   }
 
@@ -1224,56 +1272,71 @@
   }
 
   function drawCoworker(d) {
+    const cx = d.chairX || (d.x + 48);
+    const cy = d.chairY || (d.y + 60);
+    const bob = Math.sin(performance.now() / 600 + cx) * 1.0;
+
     if (coworkerAtlas.complete && coworkerAtlas.naturalWidth) {
-      drawAtlasSprite(coworkerAtlas, d.spriteIndex ?? 0, d.x + 42, d.y + 112, 55);
+      drawAtlasSprite(coworkerAtlas, d.spriteIndex ?? 0, cx, cy + 7 + bob, 46);
+
+      // Typing animation on keyboard
+      const typing = Math.floor(performance.now() / 220 + cx) % 3;
+      if (typing === 0) {
+        rect(cx - 7, 185, 4, 2, '#dfb08c');
+        rect(cx + 3, 184, 4, 2, '#dfb08c');
+      } else {
+        rect(cx - 6, 184, 4, 2, '#dfb08c');
+        rect(cx + 4, 185, 4, 2, '#dfb08c');
+      }
       return;
     }
 
-    const cx = d.x + 42;
-    const cy = d.y + 54;
-    const bob = Math.sin(performance.now() / 400 + d.x) * 1.2;
+    // Procedural fallback if atlas image is not loaded
+    const fcx = d.chairX ? (d.chairX - 6) : (d.x + 42);
+    const fcy = d.chairY ? (d.chairY - 6) : (d.y + 54);
+    const fbob = Math.sin(performance.now() / 400 + d.x) * 1.2;
 
     if (d.name === 'Айаршын') {
       // Айаршын: stylish dark bob hair, turquoise jumper
-      rect(cx + 3, cy - 12 + bob, 18, 12, '#24140c'); // hair
-      rect(cx + 5, cy - 9 + bob, 14, 11, '#dfb08c'); // face
-      rect(cx + 6, cy - 7 + bob, 3, 2, COLORS.white); rect(cx + 14, cy - 7 + bob, 3, 2, COLORS.white);
-      rect(cx + 7, cy - 7 + bob, 1, 2, COLORS.ink); rect(cx + 15, cy - 7 + bob, 1, 2, COLORS.ink);
-      rect(cx + 10, cy - 3 + bob, 4, 1, '#9c5d52'); rect(cx + 4, cy - 10 + bob, 2, 8, '#382318');
-      rect(cx + 1, cy - 2 + bob, 22, 12, '#188d94'); // turquoise jumper
-      rect(cx + 3, cy + bob, 4, 7, '#44b6ad'); rect(cx + 18, cy + 1 + bob, 3, 8, '#116a74');
+      rect(fcx + 3, fcy - 12 + fbob, 18, 12, '#24140c'); // hair
+      rect(fcx + 5, fcy - 9 + fbob, 14, 11, '#dfb08c'); // face
+      rect(fcx + 6, fcy - 7 + fbob, 3, 2, COLORS.white); rect(fcx + 14, fcy - 7 + fbob, 3, 2, COLORS.white);
+      rect(fcx + 7, fcy - 7 + fbob, 1, 2, COLORS.ink); rect(fcx + 15, fcy - 7 + fbob, 1, 2, COLORS.ink);
+      rect(fcx + 10, fcy - 3 + fbob, 4, 1, '#9c5d52'); rect(fcx + 4, fcy - 10 + fbob, 2, 8, '#382318');
+      rect(fcx + 1, fcy - 2 + fbob, 22, 12, '#188d94'); // turquoise jumper
+      rect(fcx + 3, fcy + fbob, 4, 7, '#44b6ad'); rect(fcx + 18, fcy + 1 + fbob, 3, 8, '#116a74');
     } else if (d.name === 'Влад') {
       // Влад: hoodie, large over-ear headphones
-      rect(cx + 3, cy - 12 + bob, 18, 12, '#1b2224'); // hair
-      rect(cx + 5, cy - 9 + bob, 14, 11, '#d6ab89'); // face
-      rect(cx, cy - 11 + bob, 4, 10, '#de433e'); // red headphones
-      rect(cx + 20, cy - 11 + bob, 4, 10, '#de433e');
-      rect(cx + 6, cy - 7 + bob, 3, 2, COLORS.white); rect(cx + 14, cy - 7 + bob, 3, 2, COLORS.white);
-      rect(cx + 7, cy - 7 + bob, 1, 2, COLORS.ink); rect(cx + 15, cy - 7 + bob, 1, 2, COLORS.ink);
-      rect(cx + 10, cy - 3 + bob, 4, 1, '#805448'); rect(cx + 7, cy - 12 + bob, 11, 2, '#303b3d');
-      rect(cx + 1, cy - 2 + bob, 22, 12, '#38464c'); // grey hoodie
-      rect(cx + 8, cy - 1 + bob, 8, 7, '#56686b'); rect(cx + 11, cy + 5 + bob, 2, 4, COLORS.yellow);
+      rect(fcx + 3, fcy - 12 + fbob, 18, 12, '#1b2224'); // hair
+      rect(fcx + 5, fcy - 9 + fbob, 14, 11, '#d6ab89'); // face
+      rect(fcx, fcy - 11 + fbob, 4, 10, '#de433e'); // red headphones
+      rect(fcx + 20, fcy - 11 + fbob, 4, 10, '#de433e');
+      rect(fcx + 6, fcy - 7 + fbob, 3, 2, COLORS.white); rect(fcx + 14, fcy - 7 + fbob, 3, 2, COLORS.white);
+      rect(fcx + 7, fcy - 7 + fbob, 1, 2, COLORS.ink); rect(fcx + 15, fcy - 7 + fbob, 1, 2, COLORS.ink);
+      rect(fcx + 10, fcy - 3 + fbob, 4, 1, '#805448'); rect(fcx + 7, fcy - 12 + fbob, 11, 2, '#303b3d');
+      rect(fcx + 1, fcy - 2 + fbob, 22, 12, '#38464c'); // grey hoodie
+      rect(fcx + 8, fcy - 1 + fbob, 8, 7, '#56686b'); rect(fcx + 11, fcy + 5 + fbob, 2, 4, COLORS.yellow);
     } else if (d.name === 'Александр') {
       // Александр: glasses, neat plaid shirt
-      rect(cx + 3, cy - 12 + bob, 18, 12, '#2e251e'); // hair
-      rect(cx + 5, cy - 9 + bob, 14, 11, '#deb18f'); // face
-      rect(cx + 6, cy - 6 + bob, 4, 3, COLORS.ink); // glasses
-      rect(cx + 13, cy - 6 + bob, 4, 3, COLORS.ink);
-      rect(cx + 7, cy - 5 + bob, 2, 1, '#bde1e6'); rect(cx + 14, cy - 5 + bob, 2, 1, '#bde1e6');
-      rect(cx + 10, cy - 4 + bob, 3, 2, '#c68c70'); rect(cx + 10, cy - 1 + bob, 4, 1, '#7d443c');
-      rect(cx + 10, cy - 6 + bob, 3, 1, COLORS.ink);
-      rect(cx + 1, cy - 2 + bob, 22, 12, '#664032'); // shirt
-      rect(cx + 3, cy + 1 + bob, 3, 8, '#a77150'); rect(cx + 12, cy - 1 + bob, 2, 11, '#ddc08a');
+      rect(fcx + 3, fcy - 12 + fbob, 18, 12, '#2e251e'); // hair
+      rect(fcx + 5, fcy - 9 + fbob, 14, 11, '#deb18f'); // face
+      rect(fcx + 6, fcy - 6 + fbob, 4, 3, COLORS.ink); // glasses
+      rect(fcx + 13, fcy - 6 + fbob, 4, 3, COLORS.ink);
+      rect(fcx + 7, fcy - 5 + fbob, 2, 1, '#bde1e6'); rect(fcx + 14, fcy - 5 + fbob, 2, 1, '#bde1e6');
+      rect(fcx + 10, fcy - 4 + fbob, 3, 2, '#c68c70'); rect(fcx + 10, fcy - 1 + fbob, 4, 1, '#7d443c');
+      rect(fcx + 10, fcy - 6 + fbob, 3, 1, COLORS.ink);
+      rect(fcx + 1, fcy - 2 + fbob, 22, 12, '#664032'); // shirt
+      rect(fcx + 3, fcy + 1 + fbob, 3, 8, '#a77150'); rect(fcx + 12, fcy - 1 + fbob, 2, 11, '#ddc08a');
     } else if (d.name === 'Глеб') {
       // Глеб: white tee, relaxed posture
-      rect(cx + 3, cy - 12 + bob, 18, 12, '#242526');
-      rect(cx + 5, cy - 9 + bob, 14, 11, '#d4a887');
-      rect(cx + 6, cy - 7 + bob, 3, 2, COLORS.white); rect(cx + 14, cy - 7 + bob, 3, 2, COLORS.white);
-      rect(cx + 7, cy - 7 + bob, 1, 2, COLORS.ink); rect(cx + 15, cy - 7 + bob, 1, 2, COLORS.ink);
-      rect(cx + 10, cy - 3 + bob, 4, 1, '#965c4a'); rect(cx + 4, cy - 12 + bob, 12, 2, '#353b3b');
-      rect(cx + 1, cy - 2 + bob, 22, 12, COLORS.white); // white tee
-      rect(cx + 10, cy - 2 + bob, 4, 12, '#34758a');
-      rect(cx + 3, cy + 1 + bob, 3, 7, '#d8e2db'); rect(cx + 17, cy + 1 + bob, 3, 7, '#d8e2db');
+      rect(fcx + 3, fcy - 12 + fbob, 18, 12, '#242526');
+      rect(fcx + 5, fcy - 9 + fbob, 14, 11, '#d4a887');
+      rect(fcx + 6, fcy - 7 + fbob, 3, 2, COLORS.white); rect(fcx + 14, fcy - 7 + fbob, 3, 2, COLORS.white);
+      rect(fcx + 7, fcy - 7 + fbob, 1, 2, COLORS.ink); rect(fcx + 15, fcy - 7 + fbob, 1, 2, COLORS.ink);
+      rect(fcx + 10, fcy - 3 + fbob, 4, 1, '#965c4a'); rect(fcx + 4, fcy - 12 + fbob, 12, 2, '#353b3b');
+      rect(fcx + 1, fcy - 2 + fbob, 22, 12, COLORS.white); // white tee
+      rect(fcx + 10, fcy - 2 + fbob, 4, 12, '#34758a');
+      rect(fcx + 3, fcy + 1 + fbob, 3, 7, '#d8e2db'); rect(fcx + 17, fcy + 1 + fbob, 3, 7, '#d8e2db');
     }
   }
 
@@ -1334,19 +1397,59 @@
       return;
     }
 
-    if (vikentiyArtwork.complete && vikentiyArtwork.naturalWidth) {
-      const bob = isWalking ? Math.sin(player.walkFrame) * 1.6 : 0;
+    // Seated working at desk
+    if (player.action === 'work' && playerAtDesk()) {
+      const deskX = 729;
+      const deskY = 207;
+      const typeBob = Math.sin(performance.now() / 320) * 1.0;
+
+      // Chair shadow
+      ctx.fillStyle = 'rgba(12, 20, 24, 0.4)';
+      ctx.beginPath();
+      ctx.ellipse(deskX, deskY + 12, 14, 5, 0, 0, TAU);
+      ctx.fill();
+
+      if (vikentiyWalkArtwork.complete && vikentiyWalkArtwork.naturalWidth) {
+        drawStripFrame(vikentiyWalkArtwork, 0, deskX, deskY + 9 + typeBob, 64, false);
+      } else if (vikentiyArtwork.complete && vikentiyArtwork.naturalWidth) {
+        drawSpriteByHeight(vikentiyArtwork, deskX, deskY + 9 + typeBob, 64);
+      }
+
+      // Fast typing hands on keyboard
+      const tTick = Math.floor(performance.now() / 140) % 2;
+      rect(deskX - 8, 185 + tTick, 5, 3, '#dfb08c');
+      rect(deskX + 4, 186 - tTick, 5, 3, '#dfb08c');
+
+      // Green reflection from monitors
+      rect(deskX - 35, 155, 30, 16, 'rgba(87, 184, 103, 0.25)');
+      rect(deskX + 8, 155, 26, 16, 'rgba(65, 195, 205, 0.25)');
+
+      drawActionBadge('📊 РАБОТАЕТ В EXCEL (РИСК-МОДЕЛИ)', deskX, 130, COLORS.green);
+      return;
+    }
+
+    const hasWalk = vikentiyWalkArtwork.complete && vikentiyWalkArtwork.naturalWidth;
+    const hasStatic = vikentiyArtwork.complete && vikentiyArtwork.naturalWidth;
+
+    if (hasWalk || hasStatic) {
+      const bob = isWalking ? 0 : Math.sin(performance.now() / 450) * 1.2;
       ctx.fillStyle = 'rgba(12, 20, 24, 0.32)';
       ctx.beginPath(); ctx.ellipse(x, y + 13, 15, 5, 0, 0, TAU); ctx.fill();
-      drawSpriteByHeight(vikentiyArtwork, x, y + 14 + bob, 72);
+
+      if (hasWalk) {
+        const frame = isWalking ? player.walkFrame : 0;
+        drawStripFrame(vikentiyWalkArtwork, frame, x, y + 14 + bob, 72, player.facingX < 0);
+      } else {
+        drawSpriteByHeight(vikentiyArtwork, x, y + 14 + bob, 72);
+      }
 
       if (player.coffeeBoost > 0 || player.action === 'coffee') {
-        rect(x + 13, y + 2 + bob, 8, 12, COLORS.white);
-        rect(x + 14, y + 6 + bob, 6, 5, COLORS.green);
-        rect(x + 15, y - 3 + bob, 2, 4, 'rgba(255,255,255,0.8)');
+        rect(x + 13 * player.facingX, y + 2 + bob, 8, 12, COLORS.white);
+        rect(x + 14 * player.facingX, y + 6 + bob, 6, 5, COLORS.green);
+        rect(x + 15 * player.facingX, y - 3 + bob, 2, 4, 'rgba(255,255,255,0.8)');
       } else if (player.action === 'smoke') {
-        rect(x + 15, y + 4 + bob, 8, 2, COLORS.white);
-        rect(x + 22, y + 3 + bob, 3, 3, '#ff3824');
+        rect(x + 15 * player.facingX, y + 4 + bob, 8, 2, COLORS.white);
+        rect(x + 22 * player.facingX, y + 3 + bob, 3, 3, '#ff3824');
       }
 
       if (player.action === 'work') drawActionBadge('📊 РАБОТАЕТ В EXCEL', x, y - 58, COLORS.green);
@@ -1468,11 +1571,20 @@
       ctx.stroke();
     }
 
-    if (fedorArtwork.complete && fedorArtwork.naturalWidth) {
-      const walkBob = isWalking ? Math.sin(boss.walkFrame) * 1.2 : 0;
+    const hasBossWalk = fedorWalkArtwork.complete && fedorWalkArtwork.naturalWidth;
+    const hasBossStatic = fedorArtwork.complete && fedorArtwork.naturalWidth;
+
+    if (hasBossWalk || hasBossStatic) {
+      const bob = isWalking ? 0 : Math.sin(performance.now() / 500) * 1.0;
       ctx.fillStyle = 'rgba(12, 20, 24, 0.4)';
       ctx.beginPath(); ctx.ellipse(x, y + 18, 22, 7, 0, 0, TAU); ctx.fill();
-      drawSpriteByHeight(fedorArtwork, x, y + 20 + walkBob, 78);
+
+      if (hasBossWalk) {
+        const frame = isWalking ? boss.walkFrame : 0;
+        drawStripFrame(fedorWalkArtwork, frame, x, y + 20 + bob, 78, boss.facingX < 0);
+      } else {
+        drawSpriteByHeight(fedorArtwork, x, y + 20 + walkBob, 78);
+      }
 
       if (boss.state === 'inspect') {
         const alertBlink = Math.floor(performance.now() / 200) % 2 === 0;
@@ -1583,6 +1695,21 @@
     ctx.save();
     ctx.imageSmoothingEnabled = false;
     ctx.drawImage(sprite, Math.round(centerX - width / 2), Math.round(feetY - height), Math.round(width), Math.round(height));
+    ctx.restore();
+  }
+
+  function drawStripFrame(strip, frameIndex, centerX, feetY, height, flipX = false) {
+    const fw = strip.naturalWidth / 4;
+    const fh = strip.naturalHeight;
+    const sx = (Math.abs(Math.floor(frameIndex)) % 4) * fw;
+    const scale = height / fh;
+    const dw = fw * scale;
+    const dh = height;
+    ctx.save();
+    ctx.imageSmoothingEnabled = false;
+    ctx.translate(Math.round(centerX), Math.round(feetY));
+    if (flipX) ctx.scale(-1, 1);
+    ctx.drawImage(strip, sx, 0, fw, fh, Math.round(-dw / 2), Math.round(-dh), Math.round(dw), Math.round(dh));
     ctx.restore();
   }
 

@@ -4,7 +4,9 @@
 
 ## Запуск
 
-Открой `index.html` в браузере. Сборка и зависимости не нужны.
+- **В браузере онлайн (GitHub Pages)**: [https://statsenko-na.github.io/ne-palysya/](https://statsenko-na.github.io/ne-palysya/)
+  *(Для первого включения в репозитории: **Settings** → **Pages** → **Build and deployment** → **Source: GitHub Actions**).*
+- **Локально**: просто дважды кликни по `index.html` в любой ОС. Сборка, сервер и зависимости не нужны.
 
 ## Управление
 
