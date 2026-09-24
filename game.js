@@ -109,6 +109,7 @@
       else if (type === 'bump') tone('sine', 90, 60, 0.07, 0.07);
       else if (type === 'suspect') tone('triangle', 700, 900, 0.1, 0.05);
       else if (type === 'kpi') tone('sine', 900, 1300, 0.06, 0.03);
+      else if (type === 'thump') { tone('sine', 70, 40, 0.12, 0.16); tone('sine', 64, 38, 0.1, 0.1, 0.16); }
     } catch (_) { /* звук необязателен */ }
   }
 
@@ -240,6 +241,12 @@
   let last = 0;
   let kpiTick = 0;
   let uiDirty = true;
+  let officeEvent = null;     // текущее офисное событие
+  let nextEvent = 40;
+  let eventQueue = [];
+  let banner = null;          // крупная плашка события
+  let heartbeat = 0;
+  let danger = 0;             // 0..1 — начальник рядом, а ты прокрастинируешь
 
   function resetStats() {
     stats = { coffees: 0, cigarettes: 0, videos: 0, fridge: 0, chats: 0, chatted: new Set(), catches: 0, inspectPass: 0, praise: 0, plantHideInspect: 0, printed: 0, workedSeconds: 0 };
@@ -330,6 +337,10 @@
     coverTokens = 0;
     particles = []; floaters = []; bubbles = []; logEntries = [];
     todo = pickTodo();
+    officeEvent = null;
+    banner = null;
+    nextEvent = 32 + rand() * 12;
+    eventQueue = shuffleEvents();
     Object.assign(player, { x: SEAT.x, y: WD.ROW1_Y + 62, action: 'none', actionTimer: 0, coffeeBoost: 0, speed: CFG.playerSpeed, chatWith: null, hideSpot: null, facingX: -1 });
     Object.assign(boss, { x: WD.bossHome.x, y: WD.bossHome.y, state: 'office', stateTimer: 5, path: [], target: null, suspicion: 0, catchCooldown: 0, quoteTimer: 4, praiseTimer: 0, warned: false, facing: Math.PI / 2 });
     coworkers.forEach((c, i) => { c.cooldown = 0; c.talkTimer = 0; c.idleTimer = 5 + i * 3; c.alert = 0; });
@@ -345,6 +356,59 @@
     if (mode === 'playing') setMode('paused');
     else if (mode === 'paused') setMode('playing');
   }
+
+  // ---------- ОФИСНЫЕ СОБЫТИЯ ----------
+  const FOODS = [
+    { name: 'баурсаки', text: 'Глеб принёс баурсаки от бабушки!', color: '#d8a050' },
+    { name: 'торт', text: 'У Айаршын день рождения — торт на кухне!', color: '#f0d0e0' },
+    { name: 'самса', text: 'Кто-то принёс самсу из «Ташкентской»!', color: '#e0b060' },
+  ];
+  const EVENTS = {
+    food: { dur: 28, title: 'УГОЩЕНИЕ НА КУХНЕ' },
+    call: { dur: 22, title: 'Ф.П. НА СОЗВОНЕ С ПРАВЛЕНИЕМ' },
+    internet: { dur: 22, title: 'УПАЛ ИНТЕРНЕТ' },
+    jam: { dur: 30, title: 'КСЕРОКС ЗАЖЕВАЛ БУМАГУ' },
+  };
+  const FEAST_ZONE = { id: 'feast', type: 'feast', x: 76, y: 170, w: 90, h: 86, short: 'Угощение' };
+  function shuffleEvents() {
+    const ids = ['call', 'internet', 'jam'];
+    for (let i = ids.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [ids[i], ids[j]] = [ids[j], ids[i]]; }
+    ids.splice(Math.floor(rand() * 2), 0, 'food');
+    ids.push('food');
+    return ids;
+  }
+  function startEvent(id) {
+    const def = EVENTS[id];
+    officeEvent = { id, t: def.dur, dur: def.dur, used: false };
+    let text = def.title;
+    if (id === 'food') { officeEvent.food = pick(FOODS); text = officeEvent.food.text; }
+    if (id === 'call') {
+      text = 'Ф.П. ушёл на созвон с правлением — у тебя окно!';
+      if (boss.state !== 'inspect' && boss.state !== 'lecture') bossGoTo(WD.bossHome, 'return', 'кабинет');
+      say('boss', 'Алло! Да, Ерлан Серикович, всё под контролем!', 3);
+    }
+    if (id === 'internet') { text = 'Интернет упал: YouTube недоступен, Excel работает быстрее.'; say('vlad', 'Интернет всё. Я домой?', 2.6); }
+    if (id === 'jam') { text = 'Ксерокс зажевал бумагу. Почини — Ф.П. оценит (+KPI).'; say('alexandr', 'Он опять жуёт! Кто-нибудь?', 2.6); }
+    banner = { text: def.title, sub: text, t: 0 };
+    playSound('success');
+    addLog(`Событие: ${text}`, 'info');
+  }
+  function endEvent() {
+    if (officeEvent && officeEvent.id === 'call') { nextBossCheck = Math.max(nextBossCheck, 6); if (boss.state === 'office') boss.stateTimer = 1.5; }
+    officeEvent = null;
+  }
+  function updateEvents(dt) {
+    if (officeEvent) {
+      officeEvent.t -= dt;
+      if (officeEvent.id === 'call' && boss.state === 'office') boss.stateTimer = Math.max(boss.stateTimer, 1);
+      if (officeEvent.t <= 0) endEvent();
+    } else if (boss.state !== 'inspect') {
+      nextEvent -= dt;
+      if (nextEvent <= 0 && eventQueue.length) { startEvent(eventQueue.shift()); nextEvent = 38 + rand() * 18; }
+    }
+    if (banner) { banner.t += dt; if (banner.t > 4) banner = null; }
+  }
+  const eventIs = id => officeEvent && officeEvent.id === id;
 
   // ---------- ВЗАИМОДЕЙСТВИЯ ----------
   const HIDDEN = new Set(['plant_hide', 'cabinet_hide', 'printer_hide']);
@@ -369,6 +433,9 @@
     if (player.action === 'chat') return { prompt: 'Болтаете… (шаг — прервать)', target: `chat_${player.chatWith}` };
     const plant = nearestPlant();
     if (plant) return { prompt: `E / H — спрятаться: ${plant.label}`, target: plant.id, plant };
+    if (eventIs('food') && !officeEvent.used && rectContains(FEAST_ZONE, player.x, player.y)) {
+      return { prompt: `E — урвать ${officeEvent.food.name} (+10 кайфа, нервы в норме)`, target: 'feast', zone: FEAST_ZONE };
+    }
     const z = currentZone();
     if (!z) return null;
     const prompts = {
@@ -378,8 +445,8 @@
       water: 'E — налить воды из кулера',
       smoke: player.action === 'smoke' ? 'E — потушить сигарету' : 'E — перекур с видом на горы',
       archive: 'E / H — затаиться за шкафами',
-      printer: 'E — распечатать мем · H — спрятаться за ксероксом',
-      server: player.action === 'youtube' ? 'E — закрыть вкладку' : 'E — YouTube на гигабитном канале',
+      printer: eventIs('jam') && !officeEvent.used ? 'E — вытащить зажёванную бумагу (+KPI) · H — спрятаться' : 'E — распечатать мем · H — спрятаться за ксероксом',
+      server: player.action === 'youtube' ? 'E — закрыть вкладку' : (eventIs('internet') ? 'Интернета нет. Только Excel, только хардкор.' : 'E — YouTube на гигабитном канале'),
     };
     if (z.type === 'chat') {
       const c = coworkerById(z.coworker);
@@ -404,6 +471,13 @@
     if (a === 'smoke' && reason === 'done') stats.cigarettes++;
     if (a === 'youtube' && reason === 'done') stats.videos++;
     if (a === 'printer' && reason === 'done') { stats.printed++; floater(player.x, player.y - 64, 'МЕМ НАПЕЧАТАН', '#bfe3f0'); }
+    if (a === 'fixjam' && reason === 'done') {
+      usefulness = clamp(usefulness + 9, 0, 100);
+      floater(player.x, player.y - 64, 'КСЕРОКС ПОЧИНЕН +9 KPI', '#57d08a');
+      addLog('Викентий починил ксерокс. Герой отдела.', 'good');
+      if (boss.seesPlayer || dist(boss, player) < 150) { say('boss', 'О! Технарь! Вот это я понимаю!', 2.8); stats.praise++; }
+      else say('alexandr', 'Спасибо! Он снова жуёт только иногда.', 2.6);
+    }
     player.action = 'none';
     player.actionTimer = 0;
     player.hideSpot = null;
@@ -495,7 +569,24 @@
         playSound('hide');
         toast('Затаился между шкафами. Папки закрывают с головой.', 2.2);
         break;
+      case 'feast':
+        officeEvent.used = true;
+        startAction('eat', 2.4);
+        fun += 10; stealth = clamp(stealth + 5, 0, 100);
+        stats.feasts = (stats.feasts || 0) + 1;
+        playSound('coffee');
+        say('player', `${officeEvent.food.name[0].toUpperCase()}${officeEvent.food.name.slice(1)}! Жизнь удалась.`, 2.6);
+        floater(player.x, player.y - 64, '+10 КАЙФ', officeEvent.food.color);
+        addLog(`Урвал ${officeEvent.food.name} на кухне.`, 'good');
+        break;
       case 'printer':
+        if (eventIs('jam') && !officeEvent.used) {
+          officeEvent.used = true;
+          startAction('fixjam', 3);
+          playSound('click');
+          say('player', 'Так, где тут у него зажевалось...', 2.6);
+          break;
+        }
         startAction('printer', 3.5);
         playSound('click');
         say('player', pick(LINES.thoughts.printer), 3);
@@ -503,6 +594,7 @@
         break;
       case 'server':
         if (player.action === 'youtube') { endAction('cancel'); toast('Вкладка закрыта.', 1.4); return; }
+        if (eventIs('internet')) { say('player', 'Интернета нет... Придётся работать?!', 2.4); return; }
         startAction('youtube', 8);
         playSound('click');
         say('player', pick(LINES.thoughts.youtube), 3.2);
@@ -671,7 +763,7 @@
     boss.quoteTimer -= dt;
     boss.praiseTimer = Math.max(0, boss.praiseTimer - dt);
 
-    if (mode === 'playing' && boss.state !== 'inspect' && boss.state !== 'lecture') {
+    if (mode === 'playing' && boss.state !== 'inspect' && boss.state !== 'lecture' && !eventIs('call')) {
       nextBossCheck -= dt;
       if (nextBossCheck < 2.5 && !boss.warned) {
         boss.warned = true;
@@ -796,7 +888,7 @@
     const a = player.action;
     if (a === 'work') {
       const base = player.coffeeBoost > 0 ? CFG.workKpiCoffee : CFG.workKpi;
-      const mult = boss.watchingWork ? CFG.watchedKpiMultiplier : 1;
+      const mult = (boss.watchingWork ? CFG.watchedKpiMultiplier : 1) * (eventIs('internet') ? 1.5 : 1);
       usefulness = clamp(usefulness + base * mult * dt, 0, 100);
       stealth = clamp(stealth + 0.4 * dt, 0, 100);
       stats.workedSeconds += dt;
@@ -847,6 +939,17 @@
     updateBoss(dt);
     updateCoworkers(dt);
     updateAmbient(dt);
+    updateEvents(dt);
+
+    // Сердцебиение: начальник близко, а ты прокрастинируешь
+    const d = dist(boss, player);
+    const risky = (SLACK.has(player.action) || (boss.state === 'inspect' && !playerIsWorking() && !HIDDEN.has(player.action))) && boss.state !== 'office';
+    const target = risky && d < 200 ? clamp(1 - (d - 50) / 150, 0, 1) : 0;
+    danger += (target - danger) * Math.min(1, dt * 4);
+    if (danger > 0.15) {
+      heartbeat -= dt;
+      if (heartbeat <= 0) { playSound('thump'); heartbeat = 0.9 - danger * 0.5; }
+    }
 
     for (let i = particles.length - 1; i >= 0; i--) {
       const p = particles[i];
@@ -931,6 +1034,7 @@
 
   // ---------- РЕНДЕР ----------
   function R(x, y, w, h, c) { ctx.fillStyle = c; ctx.fillRect(x, y, w, h); }
+  function E(x, y, rx, ry, c) { ctx.fillStyle = c; ctx.beginPath(); ctx.ellipse(x, y, rx, ry, 0, 0, TAU); ctx.fill(); }
   function T(text, x, y, size, color, align = 'center', weight = 700, font = FONT) {
     ctx.font = `${weight} ${size}px ${font}`;
     ctx.textAlign = align;
@@ -1027,6 +1131,11 @@
         R(sx > 0 ? cx : cx - th, sy > 0 ? cy : cy - c, th, c, col);
       }
     }
+    if (eventIs('food') && !officeEvent.used) {
+      const a = 0.5 + Math.sin(t * 5) * 0.3;
+      ctx.strokeStyle = `rgba(242,187,56,${a})`; ctx.lineWidth = 1.2;
+      ctx.beginPath(); ctx.ellipse(120, 212, 50, 30, 0, 0, TAU); ctx.stroke();
+    }
     for (const p of WD.plants) {
       const active = info && info.target === p.id;
       ctx.strokeStyle = active ? `rgba(120,230,130,${0.7 + Math.sin(t * 6) * 0.3})` : 'rgba(120,230,130,0.16)';
@@ -1036,7 +1145,7 @@
   }
 
   function drawVisionCone() {
-    if (mode === 'menu') return;
+    if (mode === 'menu' || boss.state === 'office') return;
     const range = boss.state === 'inspect' ? CFG.visionRangeInspect : CFG.visionRange;
     const alert = boss.state === 'inspect';
     const sus = boss.suspicion / 100;
@@ -1142,10 +1251,26 @@
 
   // Динамические детали, привязанные к спрайтам мебели
   const decor = {
+    kitchen_table: () => {
+      if (!eventIs('food')) return;
+      const t = performance.now() / 1000;
+      if (!officeEvent.used) {
+        E(120, 203, 11, 5, '#f4f1e6');
+        for (let i = 0; i < 7; i++) E(113 + (i % 4) * 4.5, 201 + Math.floor(i / 4) * 3.5, 2.4, 1.8, officeEvent.food.color);
+        for (let i = 0; i < 3; i++) { const a = t * 2 + i * 2.1; R(120 + Math.cos(a) * 14, 198 + Math.sin(a) * 6, 1.2, 1.2, '#fff3a0'); }
+      } else {
+        E(120, 203, 11, 5, '#f4f1e6'); E(118, 202, 1.5, 1, officeEvent.food.color);
+      }
+    },
     rack_row1: () => drawRackLeds(374, 22),
     rack_row2: () => drawRackLeds(480, 42),
     copier: () => {
-      if (player.action === 'printer') {
+      if (eventIs('jam') && !officeEvent.used) {
+        const w = Math.sin(performance.now() / 90) * 1.5;
+        R(412 + w, 466, 12, 8, '#f5f2e8'); R(414 + w, 468, 8, 0.6, '#999');
+        if (Math.floor(performance.now() / 300) % 2) R(441, 467, 3, 3, '#f33');
+      }
+      if (player.action === 'printer' || player.action === 'fixjam') {
         const x = 406 + Math.abs(Math.sin(performance.now() / 300)) * 40;
         R(x, 450, 3, 12, 'rgba(120,255,210,0.8)');
       }
@@ -1257,6 +1382,7 @@
       work: ['EXCEL · РИСК-МОДЕЛИ', '#2f9a5a'], smoke: ['ПЕРЕКУР', '#b3261e'], youtube: ['▶ YOUTUBE 4K', '#b3261e'],
       fridge: ['ШАРИТ В ХОЛОДИЛЬНИКЕ', '#c9861e'], chat: ['БОЛТАЕТ', '#c9861e'], plant_hide: ['В ЛИСТВЕ', '#2f7a3a'],
       cabinet_hide: ['ЗА ШКАФАМИ', '#2a6a8a'], printer_hide: ['ЗА КСЕРОКСОМ', '#2a6a8a'], printer: ['ПЕЧАТЬ МЕМА', '#2a6a8a'],
+      eat: ['ЖУЁТ', '#c9861e'], fixjam: ['ЧИНИТ КСЕРОКС', '#2f9a5a'],
     };
     const lab = labels[player.action];
     if (lab && !bubbles.some(b => b.owner === 'player')) {
@@ -1298,6 +1424,34 @@
       ctx.beginPath(); ctx.arc(p.x, p.y, p.size, 0, TAU); ctx.fill();
     }
     ctx.globalAlpha = 1;
+  }
+
+  function drawDanger() {
+    if (danger < 0.05) return;
+    const pulse = 0.6 + Math.sin(performance.now() / (120 - danger * 40)) * 0.4;
+    const v = ctx.createRadialGradient(W / 2, H / 2 + 20, 200, W / 2, H / 2 + 20, 560);
+    v.addColorStop(0, 'rgba(180,20,20,0)');
+    v.addColorStop(1, `rgba(180,20,20,${0.35 * danger * pulse})`);
+    ctx.fillStyle = v;
+    ctx.fillRect(0, WD.HUD_H, W, H - WD.HUD_H);
+  }
+
+  function drawBanner() {
+    if (!banner) return;
+    const t = banner.t;
+    const slide = t < 0.25 ? t / 0.25 : (t > 3.7 ? (4 - t) / 0.3 : 1);
+    const y = WD.HUD_H + 10 - (1 - slide) * 30;
+    ctx.save();
+    ctx.globalAlpha = clamp(slide, 0, 1);
+    ctx.font = `700 8px ${FONT_SANS}`;
+    const subW = ctx.measureText(banner.sub).width;
+    ctx.font = `900 11px ${FONT_SANS}`;
+    const w = Math.max(ctx.measureText(banner.text).width, subW, 180) + 30;
+    ctx.fillStyle = 'rgba(12,20,24,0.95)'; roundRect(W / 2 - w / 2, y, w, 32, 3); ctx.fill();
+    R(W / 2 - w / 2, y, w, 2, '#f2bb38');
+    T(`★ ${banner.text} ★`, W / 2, y + 11, 11, '#f2bb38', 'center', 900, FONT_SANS);
+    T(banner.sub, W / 2, y + 24, 8, '#f5edd9', 'center', 700, FONT_SANS);
+    ctx.restore();
   }
 
   function drawLighting() {
@@ -1354,7 +1508,7 @@
     // мини-портрет
     R(x0 + 5, 10, 26, 28, '#e0b088'); R(x0 + 11, 11, 12, 2.5, '#fff'); R(x0 + 8, 24, 20, 3, '#3a2a1e'); R(x0 + 8, 18, 8, 3, '#222'); R(x0 + 20, 18, 8, 3, '#222'); R(x0 + 5, 33, 26, 5, '#9ab8e0'); R(x0 + 16, 33, 3, 5, '#c02a2a');
     const status = {
-      office: 'Ф.П. в кабинете: чай и чак-чак',
+      office: eventIs('call') ? `Ф.П. на созвоне с правлением · ${Math.ceil(officeEvent.t)} с` : 'Ф.П. в кабинете: чай и чак-чак',
       patrol: `Ф.П. идёт: ${boss.spotDesc}`,
       look: 'Ф.П. озирается по сторонам',
       return: 'Ф.П. возвращается в кабинет',
@@ -1371,6 +1525,7 @@
     if (intelTimer > 0 && boss.state !== 'inspect') info.push(`📅 проверка через ${Math.max(0, Math.ceil(nextBossCheck))} с`);
     if (coverTokens) info.push('🛡 прикрытие');
     if (player.coffeeBoost > 0) info.push(`☕ ${Math.ceil(player.coffeeBoost)} с`);
+    if (officeEvent && officeEvent.id !== 'call') info.push(`★ ${EVENTS[officeEvent.id].title.toLowerCase()} · ${Math.ceil(officeEvent.t)} с`);
     T(info.join('   '), x0 + 38, 37.5, 5.5, '#f2bb38', 'left', 700, FONT_SANS);
 
     // Контекстная подсказка
@@ -1408,10 +1563,12 @@
     drawScene();
     drawParticles();
     drawLighting();
+    drawDanger();
     drawOverheads();
     drawBubbles();
     ctx.setTransform(S, 0, 0, S, 0, 0);
     drawHUD();
+    drawBanner();
     if (flash > 0) R(0, 0, W, H, `rgba(224,68,62,${flash * 0.35})`);
   }
 
@@ -1451,10 +1608,12 @@
   // Отладочный доступ для автотестов (scripts/qa.js)
   window.NP_DEBUG = {
     get state() { return { mode, player: { ...player }, boss: { ...boss, path: boss.path.length }, stealth, usefulness, fun, clockMinutes, stats: { ...stats, chatted: stats.chatted.size }, todo, coverTokens, intelTimer }; },
-    teleport(x, y) { player.x = x; player.y = y; },
+    teleport(x, y) { player.x = x; player.y = y; player.action = 'none'; player.actionTimer = 0; player.hideSpot = null; },
     setBoss(x, y, state = 'look') { boss.x = x; boss.y = y; boss.state = state; boss.stateTimer = 99; boss.path = []; },
     skip(seconds) { for (let i = 0; i < seconds * 20 && mode === 'playing'; i++) update(0.05); },
-    interact, quickHide, startInspection, blocked, findPath, nav,
+    set(v) { if ('usefulness' in v) usefulness = v.usefulness; if ('stealth' in v) stealth = v.stealth; if ('fun' in v) fun = v.fun; },
+    interact, quickHide, startInspection, blocked, findPath, nav, startEvent,
+    get event() { return officeEvent; },
   };
 
   if (window.location.hash === '#play' || window.location.search.includes('play')) startGame();

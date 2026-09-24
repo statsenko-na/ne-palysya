@@ -132,7 +132,23 @@ function loadPlaywright() {
   st = await page.evaluate(() => NP_DEBUG.state);
   check('проверка пройдена в Excel', st.stats.inspectPass >= 1 || st.boss.mode === 'raid', `pass=${st.stats.inspectPass} mode=${st.boss.mode}`);
 
-  // 13. Прогон всей смены
+  // 13. Офисные события: угощение, ксерокс, созвон
+  await page.evaluate(() => { NP_DEBUG.setBoss(706, 446, 'office'); NP_DEBUG.startEvent('food'); NP_DEBUG.teleport(120, 244); });
+  await page.keyboard.press('KeyE');
+  st = await page.evaluate(() => ({ ...NP_DEBUG.state, ev: NP_DEBUG.event }));
+  check('событие «угощение»', st.ev && st.ev.used === true && st.player.action === 'eat', JSON.stringify(st.ev));
+  await page.screenshot({ path: path.join(outDir, '07-food.png') });
+  await page.evaluate(() => { NP_DEBUG.set({ usefulness: 40 }); NP_DEBUG.startEvent('jam'); NP_DEBUG.teleport(460, 456); });
+  const kBefore = await page.evaluate(() => NP_DEBUG.state.usefulness);
+  await page.keyboard.press('KeyE');
+  await page.waitForTimeout(3300);
+  st = await page.evaluate(() => NP_DEBUG.state);
+  check('событие «ксерокс» даёт KPI', st.usefulness > kBefore + 5, `${kBefore.toFixed(1)} → ${st.usefulness.toFixed(1)}`);
+  await page.evaluate(() => { NP_DEBUG.setBoss(470, 452, 'look'); NP_DEBUG.startEvent('call'); NP_DEBUG.skip(10); });
+  st = await page.evaluate(() => NP_DEBUG.state);
+  check('событие «созвон» уводит Ф.П. в кабинет', ['return', 'office'].includes(st.boss.state), st.boss.state);
+
+  // 14. Прогон всей смены
   await page.evaluate(() => NP_DEBUG.skip(260));
   await page.waitForTimeout(300);
   st = await page.evaluate(() => NP_DEBUG.state);
