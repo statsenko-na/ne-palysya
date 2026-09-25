@@ -1066,12 +1066,12 @@
     ui.endTitle.textContent = win ? 'ТЫ ВЫЖИЛ!' : (result === 'fired' ? 'ТЕБЯ УВОЛИЛИ!' : 'УВОЛЕН ЗА KPI!');
     if (win) {
       ui.endCopy.textContent = usefulness > 60
-        ? '«Викентий, вы — опора рисков!» — Д.Н. хлопает по плечу. За окном горит Кок-Тобе, а ты даже немного поработал.'
+        ? '«Отличная работа, вы — опора отдела!» — начальник хлопает по плечу. За окном горит Кок-Тобе, а ты даже немного поработал.'
         : 'Ты дожил до 19:30. Огни Алматы, пробки на Аль-Фараби и ни одного лишнего отчёта.';
     } else if (result === 'fired') {
-      ui.endCopy.textContent = 'Д.Н. сверил логи прокси и записи камер: перекуры, ролики и холодильник Влада. Пропуск заблокирован.';
+      ui.endCopy.textContent = 'Начальник сверил логи прокси и записи камер: перекуры, ролики и чужой обед на кухне. Пропуск заблокирован.';
     } else {
-      ui.endCopy.textContent = 'KPI упал до нуля: отчёты копились, пока ты кайфовал. «Голодранцы нам не нужны!» — сказал Д.Н.';
+      ui.endCopy.textContent = 'KPI упал до нуля: отчёты копились, пока ты кайфовал. «Бездельники нам не нужны!» — сказал начальник.';
     }
     const bestKey = `best.${dayIndex}`;
     const best = store.get(bestKey, 0);
@@ -1081,7 +1081,7 @@
     if (win) { dayIndex = dayIndex < DAYS.length - 1 ? dayIndex + 1 : 0; store.set('day', dayIndex); }
     ui.grade.innerHTML = win ? `<b>${grade}</b><span>${title} · ${score} очков${record ? ' · НОВЫЙ РЕКОРД!' : ` · рекорд ${Math.max(best, score)}`}</span>` : '';
     ui.endKicker.textContent = win ? `${dayName} ПЕРЕЖИТ · 19:30` : `${dayName} · КРИТИЧЕСКИЙ ЗАЛЁТ`;
-    if (win && dayName === 'ПЯТНИЦА') ui.endCopy.textContent = 'Неделя пережита! Викентий врубает «Группу крови» в наушниках и уходит в закат над Алатау. В понедельник всё сначала.';
+    if (win && dayName === 'ПЯТНИЦА') ui.endCopy.textContent = 'Неделя пережита! Ты врубаешь любимый рок в наушниках и уходишь в закат над Алатау. В понедельник всё сначала.';
     ui.restart.innerHTML = win ? `${dayIndex === 0 ? 'НОВАЯ НЕДЕЛЯ' : DAYS[dayIndex].name} <span>↵</span>` : 'ПЕРЕИГРАТЬ ДЕНЬ <span>↵</span>';
     ui.grade.classList.toggle('hidden', !win);
     ui.endStats.innerHTML = [
