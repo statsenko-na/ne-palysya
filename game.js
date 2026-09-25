@@ -1800,45 +1800,102 @@
   // Сенсорное управление: виртуальный стик + кнопки
   const stick = document.getElementById('stick');
   const knob = document.getElementById('stick-knob');
-  if (stick) {
+  const touchZoneLeft = document.getElementById('touch-zone-left');
+
+  if (stick && knob) {
     let sid = null;
+    let centerX = 0;
+    let centerY = 0;
+
     const setDir = (dx, dy) => {
-      ['w', 'a', 's', 'd'].forEach(k => keys.delete(k));
-      if (dx < -0.35) keys.add('a');
-      if (dx > 0.35) keys.add('d');
-      if (dy < -0.35) keys.add('w');
-      if (dy > 0.35) keys.add('s');
-      knob.style.transform = `translate(calc(-50% + ${dx * 60}%), calc(-50% + ${dy * 60}%))`;
+      // Порог чувствительности 0.22 — отзывчиво и без ложных подергиваний
+      if (dx < -0.22) keys.add('a'); else keys.delete('a');
+      if (dx > 0.22) keys.add('d'); else keys.delete('d');
+      if (dy < -0.22) keys.add('w'); else keys.delete('w');
+      if (dy > 0.22) keys.add('s'); else keys.delete('s');
+      knob.style.transform = `translate(calc(-50% + ${dx * 36}px), calc(-50% + ${dy * 36}px))`;
     };
-    const move = e => {
+
+    const handleTouchStart = e => {
+      if (sid !== null) return;
+      const t = e.changedTouches[0];
+      sid = t.identifier;
+      getAudio();
+
+      const r = stick.getBoundingClientRect();
+      centerX = r.left + r.width / 2;
+      centerY = r.top + r.height / 2;
+
+      // Если касание далеко от стика (в левой зоне) — центрируем относительно точки касания
+      const distFromStick = Math.hypot(t.clientX - centerX, t.clientY - centerY);
+      if (distFromStick > r.width * 0.9) {
+        centerX = t.clientX;
+        centerY = t.clientY;
+      }
+
+      handleTouchMove(e);
+      e.preventDefault();
+    };
+
+    const handleTouchMove = e => {
       const t = [...e.changedTouches].find(tt => tt.identifier === sid);
       if (!t) return;
-      const r = stick.getBoundingClientRect();
-      let dx = (t.clientX - (r.left + r.width / 2)) / (r.width / 2);
-      let dy = (t.clientY - (r.top + r.height / 2)) / (r.height / 2);
+      let dx = (t.clientX - centerX) / 42;
+      let dy = (t.clientY - centerY) / 42;
       const len = Math.hypot(dx, dy);
       if (len > 1) { dx /= len; dy /= len; }
       setDir(dx, dy);
       e.preventDefault();
     };
-    stick.addEventListener('touchstart', e => { sid = e.changedTouches[0].identifier; getAudio(); move(e); }, { passive: false });
-    stick.addEventListener('touchmove', move, { passive: false });
-    const end = e => { if ([...e.changedTouches].some(tt => tt.identifier === sid)) { sid = null; setDir(0, 0); } };
-    stick.addEventListener('touchend', end);
-    stick.addEventListener('touchcancel', end);
-    document.querySelectorAll('.tbtn').forEach(b => b.addEventListener('touchstart', e => {
-      e.preventDefault();
-      const act = b.dataset.act;
-      if (act === 'p') { if (mode === 'playing' || mode === 'paused') pauseGame(); return; }
-      if (mode !== 'playing') return;
-      if (act === 'e') interact(); else if (act === 'h') quickHide(); else if (act === 'q') togglePhone();
-    }, { passive: false }));
+
+    const handleTouchEnd = e => {
+      if ([...e.changedTouches].some(tt => tt.identifier === sid)) {
+        sid = null;
+        ['w', 'a', 's', 'd'].forEach(k => keys.delete(k));
+        knob.style.transform = 'translate(-50%, -50%)';
+      }
+    };
+
+    [stick, touchZoneLeft].filter(Boolean).forEach(el => {
+      el.addEventListener('touchstart', handleTouchStart, { passive: false });
+      el.addEventListener('touchmove', handleTouchMove, { passive: false });
+      el.addEventListener('touchend', handleTouchEnd, { passive: false });
+      el.addEventListener('touchcancel', handleTouchEnd, { passive: false });
+    });
+
+    window.addEventListener('touchmove', handleTouchMove, { passive: false });
+    window.addEventListener('touchend', handleTouchEnd, { passive: false });
+    window.addEventListener('touchcancel', handleTouchEnd, { passive: false });
+
+    document.querySelectorAll('.tbtn').forEach(b => {
+      const trigger = e => {
+        e.preventDefault();
+        getAudio();
+        b.classList.add('active');
+        const act = b.dataset.act;
+        if (act === 'p') { if (mode === 'playing' || mode === 'paused') pauseGame(); return; }
+        if (mode !== 'playing') return;
+        if (act === 'e') interact();
+        else if (act === 'h') quickHide();
+        else if (act === 'q') togglePhone();
+      };
+      b.addEventListener('touchstart', trigger, { passive: false });
+      b.addEventListener('touchend', () => b.classList.remove('active'), { passive: true });
+      b.addEventListener('touchcancel', () => b.classList.remove('active'), { passive: true });
+    });
   }
 
-  ui.start.addEventListener('click', startGame);
-  ui.start.addEventListener('touchstart', enterFullscreen, { passive: true });
-  ui.resume.addEventListener('click', pauseGame);
-  ui.restart.addEventListener('click', startGame);
+  const addTap = (el, fn) => {
+    if (!el) return;
+    el.addEventListener('click', fn);
+    el.addEventListener('touchend', e => {
+      e.preventDefault();
+      fn();
+    }, { passive: false });
+  };
+  addTap(ui.start, startGame);
+  addTap(ui.resume, pauseGame);
+  addTap(ui.restart, startGame);
 
   // Отладочный доступ для автотестов (scripts/qa.js)
   window.NP_DEBUG = {
