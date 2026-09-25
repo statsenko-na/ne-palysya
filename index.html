@@ -44,13 +44,16 @@
                 <li><b>Excel на виду</b> — если начальник видит, что ты работаешь, KPI растёт втрое, а он хвалит.</li>
                 <li><b>Коллеги</b> — у каждого свой бонус: прикрыть, слить календарь, поправить отчёт, угостить.</li>
                 <li><b>Второй ряд</b> — соседи ноют и проёбываются. Д.Н. отвлекается на них — это твоё окно.</li>
-                <li><b>Обед 13:00</b> в «Мюнхене», очередь в туалет, жара, перфоратор, сборы на ДР, летучки и пятничное пиво.</li>
+                <li><b>Обед 13:00</b> в «Мюнхене», синий биотуалет с очередью, Маджикистан, автошка Серёги, жара, сборы на ДР и пятничное пиво.</li>
               </ul>
               <div class="btn-row">
                 <button id="start-btn" class="pixel-btn">ВЫЙТИ НА СМЕНУ <span>↵</span></button>
                 <button class="pixel-btn pixel-btn-alt shop-open">🛒 АПГРЕЙДЫ <span>U</span></button>
+                <button class="pixel-btn pixel-btn-alt auto-open">🍿 АВТОПИЛОТ</button>
+                <button class="pixel-btn pixel-btn-alt onb-open">❓ КАК ИГРАТЬ <span>I</span></button>
               </div>
-              <div class="controls-mini">WASD / ЦФЫВ / стрелки — ходить · E / У / Пробел — действие · H / Р — спрятаться · Tab / Q / Й — телефон · P / З / Esc — пауза · U / Г — апгрейды</div>
+              <label class="speed-row">⏱ Скорость времени <input class="speed-range" type="range" min="0.5" max="3" step="0.25" value="1" /> <b class="speed-val">×1</b></label>
+              <div class="controls-mini">WASD / ЦФЫВ / стрелки — ходить · E / У / Пробел — действие · H / Р — спрятаться · Tab / Q / Й — телефон · P / З / Esc — пауза · U / Г — апгрейды · I / Ш — как играть</div>
             </div>
           </div>
           <div id="pause-overlay" class="screen-overlay hidden">
@@ -59,6 +62,8 @@
               <h2>ПАУЗА</h2>
               <p>Начальник тоже поставил жизнь на паузу. И чай.</p>
               <button id="resume-btn" class="pixel-btn">ПРОДОЛЖИТЬ <span>↵</span></button>
+              <button class="pixel-btn pixel-btn-alt onb-open">❓ КАК ИГРАТЬ <span>I</span></button>
+              <label class="speed-row">⏱ Скорость времени <input class="speed-range" type="range" min="0.5" max="3" step="0.25" value="1" /> <b class="speed-val">×1</b></label>
             </div>
           </div>
           <div id="end-overlay" class="screen-overlay hidden">
@@ -72,6 +77,103 @@
               <div class="btn-row">
                 <button id="restart-btn" class="pixel-btn">ЕЩЁ ОДИН ДЕНЬ <span>↵</span></button>
                 <button class="pixel-btn pixel-btn-alt shop-open">🛒 АПГРЕЙДЫ <span>U</span></button>
+                <button class="pixel-btn pixel-btn-alt auto-open">🍿 АВТОПИЛОТ</button>
+              </div>
+            </div>
+          </div>
+          <div id="onboarding" class="screen-overlay hidden">
+            <div class="onb-card">
+              <div class="onb-top"><span class="eyebrow">КАК ИГРАТЬ · <b id="onb-num">1/8</b></span><button id="onb-skip" class="onb-skip">ПРОПУСТИТЬ ✕</button></div>
+              <div class="onb-slides">
+                <section class="onb-slide">
+                  <div class="onb-art"><div class="spr spr-vik"></div></div>
+                  <div class="onb-text">
+                    <h3>Ты — Викентий</h3>
+                    <p>Айтишник-рокер из отдела кредитных рисков «Фирдом Банка», 7 этаж БЦ «Угар», Алматы. Отвечаешь за проект в <b>Маджикистане</b>, где всё всегда лежит.</p>
+                    <p><b>Цель смены:</b> дожить с 08:50 до 19:30 и накайфоваться — кофе, перекуры с видом на Алатау, болтовня, YouTube. Но так, чтобы начальник думал, что ты пашешь.</p>
+                    <p><b>Зачем:</b> за смену дают очки (кайф + KPI + дела − залёты) и оценку от D до S. Неделя Пн–Пт, у каждого дня свой характер.</p>
+                  </div>
+                </section>
+                <section class="onb-slide">
+                  <div class="onb-art onb-bars">
+                    <div class="mbar"><span>НЕЗАМЕТНОСТЬ</span><i style="--v:80%;--c:#f2bb38"></i></div>
+                    <div class="mbar"><span>KPI</span><i style="--v:45%;--c:#57b867"></i></div>
+                    <div class="mbar"><span>КАЙФ</span><i style="--v:60%;--c:#c76ad8"></i></div>
+                  </div>
+                  <div class="onb-text">
+                    <h3>Три шкалы наверху</h3>
+                    <p><b>Незаметность</b> — репутация. Падает, когда тебя палят. <b>0 = уволен.</b></p>
+                    <p><b>KPI</b> — польза для банка. Без работы тает сам. <b>0 = уволен за неэффективность.</b></p>
+                    <p><b>Кайф</b> — твои очки. Копится от прокрастинации.</p>
+                    <p class="onb-why">Почему нельзя только работать: будет мало кайфа и низкая оценка. Почему нельзя только отдыхать: KPI уйдёт в ноль. Весь смысл — в балансе.</p>
+                  </div>
+                </section>
+                <section class="onb-slide">
+                  <div class="onb-art"><div class="spr spr-boss"></div><div class="cone"></div></div>
+                  <div class="onb-text">
+                    <h3>Директор Начальникович</h3>
+                    <p>Лысый, в очках, ходит по этажу. Перед ним <b>жёлтый конус взгляда</b>. Стены его перекрывают, стекло балкона — нет.</p>
+                    <p>Если прокрастинируешь в конусе, над ним растёт <b>«?» → «!»</b>. На 100% — <b>залёт</b>: −22 незаметности, −6 KPI и нотация.</p>
+                    <p><b>«Кхм-кхм…»</b> значит, что через пару секунд начнётся <b>проверка</b>: он идёт к твоему столу или устраивает рейд по этажу. Беги в Excel или прячься.</p>
+                  </div>
+                </section>
+                <section class="onb-slide">
+                  <div class="onb-art onb-emoji">💻🪴🗄️🚽</div>
+                  <div class="onb-text">
+                    <h3>Работа — лучшая маскировка</h3>
+                    <p>Свой стол: подойди <b>сзади</b> (со стороны окна) и нажми <b>E</b>. Сидишь в Excel — KPI растёт. А если Д.Н. видит, как ты работаешь, — <b>×3 KPI</b> и похвала.</p>
+                    <p><b>Укрытия (H):</b> четыре растения, шкафы архива, за ксероксом и синий биотуалет. В укрытии Д.Н. тебя не видит.</p>
+                    <p class="onb-why">Лайфхак: сиди в Excel, когда он рядом, и сбегай, когда он ушёл в кабинет пить чай с чак-чаком.</p>
+                  </div>
+                </section>
+                <section class="onb-slide">
+                  <div class="onb-art onb-emoji">☕🚬▶️🧊</div>
+                  <div class="onb-text">
+                    <h3>Где кайфовать</h3>
+                    <table class="onb-table">
+                      <tr><td>☕ Кофемашина</td><td>+кайф, +35% к скорости</td><td class="ok">не палево</td></tr>
+                      <tr><td>💧 Кулер, 🖨 мем на ксероксе</td><td>немного кайфа</td><td class="ok">не палево</td></tr>
+                      <tr><td>🚬 Балкон с видом на Кок-Тобе</td><td>+4 кайфа/с</td><td class="bad">палево</td></tr>
+                      <tr><td>▶️ YouTube в серверной</td><td>+5 кайфа/с, KPI тает</td><td class="bad">палево</td></tr>
+                      <tr><td>🧊 Чужой холодильник</td><td>+3 кайфа/с</td><td class="bad">палево</td></tr>
+                      <tr><td>💬 Болтовня с коллегой</td><td>+кайф и бонус</td><td class="bad">палево</td></tr>
+                      <tr><td>📱 Телефон (Tab)</td><td>+1.2 кайфа/с, можно ходить</td><td class="bad">палево</td></tr>
+                    </table>
+                  </div>
+                </section>
+                <section class="onb-slide">
+                  <div class="onb-art onb-people"><div class="spr spr-cw0"></div><div class="spr spr-cw3"></div><div class="spr spr-ex1"></div></div>
+                  <div class="onb-text">
+                    <h3>Люди</h3>
+                    <p><b>Первый ряд</b> (встань перед столом, нажми E): Айаршын, тимлид разработки, прикроет от залёта. Влад сольёт время проверки. Александр поправит отчёт (+KPI). Глеб, дата-сайентист, угостит куртом (+незаметность).</p>
+                    <p><b>Второй ряд</b> ноет и проёбывается: Серёга с вечно падающей «автошкой» (автокредиты), Асель из комплаенса со сторис, стажёр Ержан с танчиками. Когда Д.Н. замечает их, он <b>идёт отчитывать</b> — это твоё окно.</p>
+                  </div>
+                </section>
+                <section class="onb-slide">
+                  <div class="onb-art onb-emoji">🍲🚽🎂🍺</div>
+                  <div class="onb-text">
+                    <h3>Распорядок дня</h3>
+                    <p><b>13:00–14:30 — обед в «Мюнхене»</b> («Надо идти на обед, ЖУКИ КАЛОЕДЫ!»). Выход — слева в коридоре. Бизнес-ланч «хрючево дня» даёт незаметность. Пропустил обед — голоден, кайф −20%.</p>
+                    <p><b>Биотуалет</b> в углу опенспейса — только через очередь. Внутри тебя не видно.</p>
+                    <p><b>События:</b> сбор на ДР через Kaspi, жара, перфоратор, учения по землетрясению, летучка у доски, Маджикистан лёг (ты ответственный!), у Серёги упала автошка.</p>
+                    <p><b>Пятница:</b> в 17:00 Д.Н. уезжает «на встречу», а коллеги иногда зовут в «Мюнхен» на пиво.</p>
+                  </div>
+                </section>
+                <section class="onb-slide">
+                  <div class="onb-art onb-emoji">📱🛒🍿</div>
+                  <div class="onb-text">
+                    <h3>Телефон, апгрейды, управление</h3>
+                    <p><b>Телефон (Tab / Q):</b> список дел (+8 кайфа за каждое), бонусы и чат отдела в WhatsApp. Ближайшее дело всегда внизу справа.</p>
+                    <p><b>Апгрейды (U):</b> за смену дают KPI-коины. На них можно купить кресло, второй монитор, вентилятор, гитару и прочее. Всё это видно на твоём столе.</p>
+                    <p><b>Автопилот 🍿:</b> Викентий играет сам — смотри и угорай. Ползунок ⏱ ускоряет время.</p>
+                    <p class="onb-keys"><b>WASD</b> ходить · <b>E</b> действие · <b>H</b> спрятаться · <b>Tab</b> телефон · <b>P</b> пауза · <b>U</b> апгрейды · <b>I</b> эта справка · на телефоне — стик и кнопки</p>
+                  </div>
+                </section>
+              </div>
+              <div class="onb-nav">
+                <button id="onb-prev" class="pixel-btn pixel-btn-alt">← НАЗАД</button>
+                <div id="onb-dots" class="onb-dots"></div>
+                <button id="onb-next" class="pixel-btn">ДАЛЕЕ →</button>
               </div>
             </div>
           </div>
@@ -90,7 +192,7 @@
       </section>
 
       <footer class="footerbar">
-        <div><span class="keycap">WASD</span> движение <span class="keycap">E</span> действие <span class="keycap">H</span> укрытие <span class="keycap">Tab</span> телефон <span class="keycap">P</span> пауза <span class="keycap">U</span> апгрейды</div>
+        <div><span class="keycap">WASD</span> движение <span class="keycap">E</span> действие <span class="keycap">H</span> укрытие <span class="keycap">Tab</span> телефон <span class="keycap">P</span> пауза <span class="keycap">U</span> апгрейды <span class="keycap">I</span> как играть</div>
         <div class="footer-tip">Стены и мебель непроходимы. Растения, архив и ксерокс — укрытия. «?» над Д.Н. — он что-то заподозрил.</div>
       </footer>
     </main>

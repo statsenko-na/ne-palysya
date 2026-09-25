@@ -36,7 +36,7 @@
     shiftSeconds: 240,         // реальная длительность смены 08:50–19:30
     shiftStart: 8 * 60 + 50,
     shiftEnd: 19 * 60 + 30,
-    playerSpeed: 92,
+    playerSpeed: 100,          // Викентий быстрее Д.Н. (50 на обходе, 70 на проверке)
     coffeeBoost: 1.35,
     coffeeSeconds: 16,
     bossSpeed: 50,
@@ -94,6 +94,8 @@
     set(k, v) { try { localStorage.setItem(`nepalsya.${k}`, JSON.stringify(v)); } catch (_) { /* приватный режим */ } },
   };
   let dayIndex = clampDay(store.get('day', 0));
+  let timeScale = clamp0(Number(store.get('timeScale', 1)) || 1, 0.5, 3);
+  function clamp0(v, a, b) { return Math.max(a, Math.min(b, v)); }
   let coins = store.get('coins', 0) | 0;
   let owned = store.get('upgrades', {}) || {};
   const has = id => !!owned[id];
@@ -104,9 +106,9 @@
   const keys = new Set();
   const physicalKeyAliases = {
     KeyW: 'w', KeyA: 'a', KeyS: 's', KeyD: 'd',
-    KeyE: 'e', KeyH: 'h', KeyP: 'p', KeyQ: 'q', KeyM: 'm', KeyU: 'u', Space: 'e', Tab: 'q',
+    KeyE: 'e', KeyH: 'h', KeyP: 'p', KeyQ: 'q', KeyM: 'm', KeyU: 'u', KeyI: 'i', Space: 'e', Tab: 'q',
   };
-  const russianKeyAliases = { ц: 'w', ф: 'a', ы: 's', в: 'd', у: 'e', р: 'h', з: 'p', й: 'q', ь: 'm', г: 'u' };
+  const russianKeyAliases = { ц: 'w', ф: 'a', ы: 's', в: 'd', у: 'e', р: 'h', з: 'p', й: 'q', ь: 'm', г: 'u', ш: 'i' };
   function getControlKey(event) {
     const key = (event.key || '').toLowerCase();
     return physicalKeyAliases[event.code] || russianKeyAliases[key] || key;
@@ -158,7 +160,9 @@
       else if (type === 'thump') { tone('sine', 70, 40, 0.12, 0.16); tone('sine', 64, 38, 0.1, 0.1, 0.16); }
       else if (type === 'siren') { for (let i = 0; i < 4; i++) tone('sawtooth', 520, 900, 0.22, 0.07, i * 0.24); }
       else if (type === 'drill') { for (let i = 0; i < 6; i++) tone('square', 90 + Math.random() * 40, 0, 0.05, 0.035, i * 0.06); }
-      else if (type === 'flush') { tone('sine', 300, 80, 0.5, 0.08); tone('triangle', 900, 200, 0.4, 0.03, 0.1); }
+      else if (type === 'flush') { tone('sine', 420, 90, 0.35, 0.08); tone('sine', 220, 900, 0.12, 0.05, 0.3); tone('sine', 300, 1100, 0.1, 0.04, 0.42); }
+      else if (type === 'slam') { tone('square', 140, 60, 0.07, 0.1); tone('triangle', 260, 120, 0.09, 0.06, 0.03); }
+      else if (type === 'knock') { tone('square', 200, 150, 0.04, 0.06); tone('square', 200, 150, 0.04, 0.06, 0.12); tone('square', 200, 150, 0.04, 0.06, 0.24); }
       else if (type === 'clink') { tone('triangle', 1400, 0, 0.12, 0.07); tone('triangle', 1800, 0, 0.2, 0.05, 0.08); }
       else if (type === 'coin') { tone('square', 880, 0, 0.06, 0.05); tone('square', 1320, 0, 0.12, 0.05, 0.06); }
     } catch (_) { /* звук необязателен */ }
@@ -308,6 +312,7 @@
   let day = {};               // дневные флаги: обед, пиво, туалет, голод
   let phoneSafe = 0;          // бонус Серёги: телефон не палево
   let nextDrill = 0;          // тик перфоратора
+  let walkers = [];           // люди, выходящие из биотуалета
 
   function resetStats() {
     stats = { coffees: 0, cigarettes: 0, videos: 0, fridge: 0, chats: 0, chatted: new Set(), catches: 0, inspectPass: 0, praise: 0, plantHideInspect: 0, printed: 0, workedSeconds: 0, lunch: 0, toilet: 0, scolds: 0, complaints: 0 };
@@ -374,6 +379,49 @@
   function closeShop() {
     shopOpen = false;
     ui.shop.classList.add('hidden');
+  }
+
+  // Ползунок скорости времени (меню и пауза)
+  function setTimeScale(v) {
+    timeScale = clamp0(Number(v) || 1, 0.5, 3);
+    store.set('timeScale', timeScale);
+    document.querySelectorAll('.speed-range').forEach(r => { r.value = String(timeScale); });
+    document.querySelectorAll('.speed-val').forEach(el => { el.textContent = `×${+timeScale.toFixed(2)}`; });
+  }
+  // ---------- ОНБОРДИНГ «КАК ИГРАТЬ» ----------
+  const onb = { open: false, i: 0, thenStart: false, el: $('onboarding') };
+  const onbSlides = () => onb.el ? [...onb.el.querySelectorAll('.onb-slide')] : [];
+  function renderSlide() {
+    const slides = onbSlides();
+    slides.forEach((sl, k) => sl.classList.toggle('active', k === onb.i));
+    $('onb-num').textContent = `${onb.i + 1}/${slides.length}`;
+    $('onb-dots').innerHTML = slides.map((_, k) => `<i class="${k === onb.i ? 'on' : ''}"></i>`).join('');
+    $('onb-prev').style.visibility = onb.i ? 'visible' : 'hidden';
+    const last = onb.i === slides.length - 1;
+    $('onb-next').innerHTML = last ? (onb.thenStart ? 'НАЧАТЬ СМЕНУ ↵' : 'ПОНЯТНО ✓') : 'ДАЛЕЕ →';
+  }
+  function openOnboarding(thenStart = false) {
+    if (!onb.el) return;
+    if (mode === 'playing') setMode('paused');
+    onb.open = true; onb.i = 0; onb.thenStart = thenStart;
+    onb.el.classList.remove('hidden');
+    ui.overlay.classList.add('hidden');
+    renderSlide();
+  }
+  function closeOnboarding(start) {
+    if (!onb.open) return;
+    onb.open = false;
+    onb.el.classList.add('hidden');
+    ui.overlay.classList.toggle('hidden', mode !== 'menu');
+    store.set('onboardingDone', true);
+    if (start && onb.thenStart) resetGame();
+  }
+  function onbStep(d) {
+    const n = onbSlides().length;
+    if (onb.i + d >= n) { closeOnboarding(true); return; }
+    onb.i = Math.max(0, onb.i + d);
+    playSound('click');
+    renderSlide();
   }
 
   function setMode(next) {
@@ -445,12 +493,14 @@
     Object.assign(player, { x: SEAT.x, y: WD.ROW1_Y + 62, action: 'none', actionTimer: 0, coffeeBoost: 0, speed: CFG.playerSpeed, chatWith: null, hideSpot: null, facingX: -1 });
     Object.assign(boss, { x: WD.bossHome.x, y: WD.bossHome.y, state: 'office', stateTimer: 5, path: [], target: null, suspicion: 0, catchCooldown: 0, quoteTimer: 4, praiseTimer: 0, warned: false, facing: Math.PI / 2 });
     coworkers.forEach((c, i) => { c.cooldown = 0; c.talkTimer = 0; c.idleTimer = 5 + i * 3; c.alert = 0; c.away = false; c.slack = null; c.slackTimer = 10 + rand() * 12; c.scoldCooldown = 0; });
-    day = { lunchCalled: false, lunchOpen: false, fed: false, hungry: false, bossLunch: false, beer: null, toiletCd: 0, queue: 0, queueTotal: 0 };
+    day = { lunchCalled: false, lunchOpen: false, fed: false, hungry: false, bossLunch: false, beer: null, toiletCd: 0, queue: 0, queueTotal: 0, qShift: 0, knock: 3, cabinDoor: 0, npcInside: 0, npcTimer: 20 };
+    walkers = [];
     phoneSafe = 0;
     if (has('lava')) fun += 3;
     addLog(`${today().name}: ${today().mod}.`);
     addLog('08:50 — Викентий пришёл в БЦ «Угар». Хвостик поправлен, в наушниках — «Кино».');
     addLog('Директор Начальникович пьёт чай в кабинете. Пока.');
+    addLog('Напоминание: ты ответственный за Маджикистан. Там опять что-то моргает.');
     setMode('playing');
     banner = { text: `${today().name} · ДЕНЬ ${dayIndex + 1}/5`, sub: today().mod, t: 0 };
   }
@@ -471,8 +521,11 @@
   }
 
   function startGame() {
+    stopAutopilot();
     playSound('click');
     enterFullscreen();
+    // Первый запуск: сначала подробный онбординг, потом смена
+    if (!store.get('onboardingDone', false) && mode === 'menu') { openOnboarding(true); return; }
     resetGame();
   }
   function pauseGame() {
@@ -485,6 +538,7 @@
   const FOODS = [
     { name: 'баурсаки', text: 'Глеб принёс баурсаки от бабушки!', color: '#d8a050' },
     { name: 'самса', text: 'Кто-то принёс самсу из «Ташкентской»!', color: '#e0b060' },
+    { name: 'апорт', text: 'Александр привёз апорт из Талгара!', color: '#d8402a' },
     { name: 'курт', text: 'Айаршын привёз курт из аула!', color: '#efe8d4' },
   ];
   const EVENTS = {
@@ -495,12 +549,14 @@
     bday: { dur: 30, title: 'СБОР НА ДЕНЬ РОЖДЕНИЯ' },
     heat: { dur: 32, title: 'ЖАРА: КОНДИЦИОНЕР СДОХ' },
     noise: { dur: 28, title: 'ПЕРФОРАТОР У СОСЕДЕЙ' },
-    drill: { dur: 22, title: 'УЧЕБНАЯ ПОЖАРНАЯ ТРЕВОГА' },
+    drill: { dur: 22, title: 'УЧЕНИЯ: ЗЕМЛЕТРЯСЕНИЕ' },
     standup: { dur: 20, title: 'ЛЕТУЧКА У ДОСКИ' },
+    majik: { dur: 26, title: 'МАДЖИКИСТАН ЛЁГ' },
+    autoshka: { dur: 18, title: 'У СЕРЁГИ УПАЛА АВТОШКА' },
   };
   const FEAST_ZONE = { id: 'feast', type: 'feast', x: 76, y: 170, w: 90, h: 86, short: 'Угощение' };
   function shuffleEvents() {
-    const pool = ['call', 'internet', 'jam', 'bday', 'heat', 'noise', 'drill', 'standup'];
+    const pool = ['call', 'internet', 'jam', 'bday', 'heat', 'noise', 'drill', 'standup', 'majik', 'autoshka'];
     for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
     const ids = pool.slice(0, 5);
     ids.splice(Math.floor(rand() * 2), 0, 'food');
@@ -522,17 +578,17 @@
     if (id === 'bday') {
       const hero = pick(coworkers.filter(c => !c.away));
       officeEvent.food = { name: 'торт', color: '#f0d0e0' };
-      text = `ДР у ${hero.name === 'Жанна' ? 'Жанны' : hero.name + 'а'}: сбор по 5000 ₸ (−${CFG.bdayFee} кайфа). Торт — на кухне.`;
+      text = `ДР у ${nameCase(hero.name, 0)}: сбор по 5000 ₸ (−${CFG.bdayFee} кайфа). Торт — на кухне.`;
       fun = Math.max(0, fun - CFG.bdayFee);
       floater(player.x, player.y - 70, `−5000 ₸ · −${CFG.bdayFee} КАЙФА`, '#ff8a7a');
       say('alexandr', LINES.bday[0], 3);
-      setTimeout(() => { if (mode === 'playing') say('zhanna', LINES.bday[1], 3); }, 1600);
+      setTimeout(() => { if (mode === 'playing') say('asel', LINES.bday[1], 3); }, 1600);
       addLog(`Сбор на ДР: минус 5000 ₸. KPI за это не дают.`, 'bad');
     }
     if (id === 'heat') { text = has('fan') ? 'Жара! Но у тебя вентилятор 🌀. Кулер даёт больше кайфа.' : 'Жара: кайф копится медленнее. Кулер спасает. Можно пожаловаться Д.Н. у его двери.'; complainWave('heat'); }
     if (id === 'noise') { text = has('headphones') ? 'Перфоратор! Шумодав 🎧 спасает Excel. Д.Н. хуже слышит шорохи.' : 'Перфоратор: Excel медленнее, зато Д.Н. хуже замечает. Пожаловаться — у двери Д.Н.'; complainWave('noise'); }
     if (id === 'drill') {
-      text = 'Все к выходу слева! Жми E у двери «ВЫХОД», пока идёт тревога.';
+      text = 'Алматы же! Все к выходу слева — жми E у двери «ВЫХОД», пока идут учения.';
       playSound('siren');
       if (!bossBusy() || boss.state === 'scold') bossGoOut(def.dur + 2, 'drill');
       say('boss', pick(LINES.boss.drill), 3);
@@ -542,6 +598,23 @@
       text = 'Д.Н. собирает всех у доски (архив, слева внизу). Встань рядом и жми E!';
       if (!bossBusy()) { bossGoTo(WD.standupSpot, 'standup', 'летучка'); boss.stateTimer = def.dur; }
       say('boss', pick(LINES.boss.standup), 3);
+    }
+    if (id === 'majik') {
+      officeEvent.work = 0;
+      text = 'Ты ответственный за Маджикистан! Сядь в Excel на 4 с и подними его (+10 KPI).';
+      say('boss', pick(LINES.majik.boss), 3);
+      setTimeout(() => { if (mode === 'playing') say('player', pick(LINES.majik.down), 2.8); }, 1400);
+    }
+    if (id === 'autoshka') {
+      const c = coworkerById('seryoga');
+      text = 'Серёга в панике, Д.Н. бежит к нему разбираться — у тебя окно!';
+      if (c && !c.away) {
+        say('seryoga', pick(LINES.majik.autoshka), 3, '#ffd4c8');
+        if (!bossBusy() && boss.state !== 'standup') {
+          boss.scoldTarget = c.id; boss.inspectTimer = 0;
+          bossGoTo({ x: c.desk.seatX, y: c.desk.y + WD.DESK_DEPTH + 14 }, 'scold', 'к Серёге: автошка');
+        }
+      }
     }
     banner = { text: def.title, sub: text, t: 0 };
     playSound('success');
@@ -568,8 +641,14 @@
       } else if (mode === 'playing') {
         stealth = clamp(stealth - 8, 0, 100);
         toast('Ты не вышел на учения. Д.Н. запомнил. −8 незаметности.', 2.8);
-        addLog('Викентий проигнорировал пожарную тревогу. Замечание.', 'bad');
+        addLog('Викентий проигнорировал учения по землетрясению. Замечание.', 'bad');
       }
+    }
+    if (ev.id === 'majik' && !ev.used && mode === 'playing') {
+      stealth = clamp(stealth - 10, 0, 100);
+      say('boss', 'Маджикистан так и лежит! Викентий, объяснительную!', 3);
+      addLog('Маджикистан пролежал весь день. −10 незаметности.', 'bad');
+      toast('Маджикистан не поднят: −10 незаметности.', 2.4);
     }
     if (ev.id === 'standup') {
       if (player.action === 'standup') {
@@ -595,6 +674,18 @@
         nextDrill -= dt;
         if (nextDrill <= 0) { playSound('drill'); shake = Math.max(shake, 0.12); nextDrill = 1.2 + rand() * 2.4; }
       }
+      if (officeEvent.id === 'majik' && !officeEvent.used && player.action === 'work') {
+        officeEvent.work += dt;
+        if (officeEvent.work >= 4) {
+          officeEvent.used = true;
+          usefulness = clamp(usefulness + 10, 0, 100);
+          say('player', pick(LINES.majik.fixed), 3);
+          floater(player.x, player.y - 64, 'МАДЖИКИСТАН ПОДНЯТ +10 KPI', '#57d08a');
+          addLog('Викентий поднял Маджикистан. Там снова работает. Пока.', 'good');
+          if (boss.seesPlayer || boss.watchingWork) { say('boss', 'Вот! Ответственный человек!', 2.6); stats.praise++; }
+          playSound('success');
+        }
+      }
       if (officeEvent.id === 'heat' && rand() < dt * 0.12) { const c = pick(coworkers.filter(k => !k.away)); if (c) say(c.id, pick(LINES.complaints.heat), 2.4, '#ffe6c8'); }
       if (officeEvent.t <= 0) endEvent();
     } else if (!['inspect', 'goout', 'out'].includes(boss.state) && !lunchTime()) {
@@ -610,6 +701,15 @@
   const lunchTime = () => clockMinutes >= CFG.lunchOpen - 5 && clockMinutes < CFG.lunchOpen + 50;
   function updateSchedule(dt) {
     day.toiletCd = Math.max(0, day.toiletCd - dt);
+    day.cabinDoor = Math.max(0, day.cabinDoor - dt);
+    day.qShift = Math.max(0, day.qShift - dt * 30);
+    for (const wk of walkers) { wk.t += dt; wk.x += 26 * dt; wk.y -= 34 * dt; }
+    walkers = walkers.filter(wk => wk.t < 1.6);
+    // Кабинка живёт своей жизнью: иногда туда заходит кто-то из соседнего отдела
+    if (player.action !== 'queue' && player.action !== 'toilet') {
+      if (day.npcInside > 0) { day.npcInside -= dt; if (day.npcInside <= 0) { day.cabinDoor = 0.7; walkers.push({ x: WD.toiletDoor.x, y: WD.toiletDoor.y, t: 0, look: Math.floor(rand() * 4) }); playSound('slam'); } }
+      else if ((day.npcTimer -= dt) <= 0) { day.npcInside = 5 + rand() * 4; day.npcTimer = 25 + rand() * 25; day.cabinDoor = 0.5; }
+    }
     phoneSafe = Math.max(0, phoneSafe - dt);
     const m = clockMinutes;
     // 12:55 — Викентий зовёт всех на обед
@@ -669,7 +769,10 @@
   const AWAY = new Set(['toilet', 'lunch', 'evac']); // Викентия нет в опенспейсе — не рисуем
   const SLACK_BASE = new Set(['smoke', 'youtube', 'fridge', 'chat', 'phone']);
   const SLACK = { has: a => SLACK_BASE.has(a) && !(a === 'phone' && phoneSafe > 0) };
-  const withName = n => ({ 'Жанна': 'Жанной', 'Серёга': 'Серёгой' }[n] || `${n}ом`);
+  // Склонения имён: родительный, дательный, творительный
+  const NAME_CASES = { 'Асель': ['Асель', 'Асель', 'Асель'], 'Серёга': ['Серёги', 'Серёге', 'Серёгой'] };
+  const nameCase = (n, i) => (NAME_CASES[n] ? NAME_CASES[n][i] : n + ['а', 'у', 'ом'][i]);
+  const withName = n => nameCase(n, 2);
   function nearestPlant() {
     let best = null;
     for (const p of WD.plants) {
@@ -688,8 +791,8 @@
     if (player.action === 'cabinet_hide') return { prompt: 'E / H — выйти из-за шкафов', target: 'archive' };
     if (player.action === 'printer_hide') return { prompt: 'E / H — вылезти из-за ксерокса', target: 'printer' };
     if (player.action === 'chat') return { prompt: 'Болтаете… (шаг — прервать)', target: `chat_${player.chatWith}` };
-    if (player.action === 'queue') return { prompt: `Очередь в туалет: впереди ${day.queue} чел. (шаг — потерять место)`, target: 'toilet' };
-    if (player.action === 'toilet') return { prompt: 'Занято. Единственное место без Д.Н.', target: 'toilet' };
+    if (player.action === 'queue') return { prompt: `Очередь в биотуалет: впереди ${day.queue} чел. (шаг — потерять место)`, target: 'toilet' };
+    if (player.action === 'toilet') return { prompt: 'В синей кабинке. Единственное место без Д.Н.', target: 'toilet' };
     if (player.action === 'lunch') return { prompt: 'Обед в «Мюнхене»: жуёшь хрючево дня…', target: 'exit' };
     if (player.action === 'evac') return { prompt: 'Стоишь на улице с коллегами. Свежий воздух!', target: 'exit' };
     if (player.action === 'standup') return { prompt: 'Летучка: киваешь с умным видом…', target: 'standup' };
@@ -710,7 +813,7 @@
       printer: eventIs('jam') && !officeEvent.used ? 'E — вытащить зажёванную бумагу (+KPI) · H — спрятаться' : 'E — распечатать мем · H — спрятаться за ксероксом',
       server: player.action === 'youtube' ? 'E — закрыть вкладку' : (eventIs('internet') ? 'Интернета нет. Только Excel, только хардкор.' : 'E — YouTube на гигабитном канале'),
       exit: exitPrompt(),
-      toilet: day.toiletCd > 0 ? `Туалет: пока не хочется (${Math.ceil(day.toiletCd)} с)` : 'E — встать в очередь в туалет',
+      toilet: day.toiletCd > 0 ? `Биотуалет: пока не хочется (${Math.ceil(day.toiletCd)} с)` : 'E — встать в очередь в синюю кабинку',
       complain: eventIs('heat') || eventIs('noise')
         ? (boss.state === 'office' ? `E — пожаловаться Д.Н. на ${eventIs('heat') ? 'жару' : 'шум'}` : 'Д.Н. нет в кабинете — жаловаться некому')
         : 'Дверь Д.Н. Стучать без повода — плохая идея.',
@@ -724,6 +827,8 @@
     return { prompt: prompts[z.type], target: z.id, zone: z };
   }
 
+  // Очередь в биотуалет: 0 — первый у двери, дальше вправо вдоль южной стены
+  const queueSlot = i => ({ x: WD.toiletDoor.x + 26 + i * 17, y: WD.toiletDoor.y });
   function exitPrompt() {
     if (day.beer) return 'E — в «Мюнхен» на пятничное пиво 🍺 (закончить неделю)';
     if (eventIs('drill')) return 'E — эвакуироваться по тревоге';
@@ -749,7 +854,8 @@
         player.action = 'none';
         startAction('toilet', CFG.toiletSeconds);
         say('player', pick(LINES.toilet.inside), 3);
-        playSound('hide');
+        day.cabinDoor = 0.6;
+        playSound('slam');
         return;
       }
       day.queue = 0;
@@ -759,7 +865,8 @@
       stats.toilet++;
       day.toiletCd = CFG.toiletCooldown;
       playSound('flush');
-      player.x = WD.toiletDoor.x; player.y = WD.toiletDoor.y + 16;
+      day.cabinDoor = 0.8;
+      player.x = WD.toiletDoor.x; player.y = WD.toiletDoor.y;
       floater(player.x, player.y - 64, 'ПОЛЕГЧАЛО', '#8fd0f0');
     }
     if (a === 'lunch' && reason === 'done') {
@@ -936,8 +1043,8 @@
         if (day.toiletCd > 0) { say('player', pick(LINES.toilet.busy), 2); return; }
         day.queue = 1 + Math.floor(rand() * 3);
         day.queueTotal = day.queue;
-        player.x = WD.toiletDoor.x + 26 + day.queue * 16; player.y = WD.toiletDoor.y + 12;
-        player.facingX = -1;
+        day.qShift = 0; day.knock = 2 + rand() * 3;
+        player.queueTarget = queueSlot(day.queue); // сам идёт в конец очереди
         startAction('queue', day.queue * CFG.toiletPerPerson);
         say('player', pick(LINES.toilet.queue), 2.6);
         return;
@@ -1265,7 +1372,7 @@
       if (target) {
         boss.scoldTarget = target.id;
         boss.inspectTimer = 0;
-        bossGoTo({ x: target.desk.seatX, y: target.desk.y + WD.DESK_DEPTH + 14 }, 'scold', `к ${target.name === 'Жанна' ? 'Жанне' : target.name === 'Серёга' ? 'Серёге' : target.name + 'у'}`);
+        bossGoTo({ x: target.desk.seatX, y: target.desk.y + WD.DESK_DEPTH + 14 }, 'scold', `к ${nameCase(target.name, 1)}`);
         say('boss', `${target.name}! Это что такое?!`, 2);
         playSound('suspect');
       }
@@ -1305,6 +1412,107 @@
     }
   }
 
+  // ---------- АВТОПИЛОТ ----------
+  // Викентий играет сам: зритель смотрит, читает реплики и угорает. WASD/стрелки — взять управление.
+  const auto = { on: false, goal: null, path: [], stuckT: 0, stuckN: 0, last: null, workT: 0, phoneT: 0, restartTimer: null };
+  const zoneCenter = id => { const z = WD.zones.find(q => q.id === id); return z ? { x: z.x + z.w / 2, y: z.y + z.h / 2 } : null; };
+  function autoGoal(kind, pt, extra = {}) { auto.goal = { kind, pt, ...extra }; auto.path = findPath(player, pt); auto.stuckT = 0; auto.stuckN = 0; }
+  function autoDanger() { return boss.state === 'inspect' || boss.warned || (boss.seesPlayer && boss.suspicion > 35); }
+  function autoThink() {
+    const z = id => zoneCenter(id);
+    if (autoDanger()) {
+      if (dist(player, SEAT) < 300 || boss.mode === 'desk') { autoGoal('desk', z('desk')); return; }
+      const pl = WD.plants.slice().sort((a, b) => dist(a, player) - dist(b, player))[0];
+      autoGoal('hide', { x: pl.x, y: pl.y + 12 }); return;
+    }
+    if (eventIs('drill') && player.action !== 'evac') { autoGoal('exit', z('exit')); return; }
+    if (eventIs('standup')) { autoGoal('standup', z('standup')); return; }
+    if (eventIs('majik') && !officeEvent.used) { autoGoal('desk', z('desk'), { work: 6 }); return; }
+    if ((eventIs('food') || eventIs('bday')) && !officeEvent.used) { autoGoal('feast', { x: 120, y: 236 }); return; }
+    if (day.beer) { autoGoal('exit', z('exit')); return; }
+    if (clockMinutes >= CFG.lunchOpen && clockMinutes < CFG.lunchClose && !day.fed) { autoGoal('exit', z('exit')); return; }
+    if (usefulness < 38) { autoGoal('desk', z('desk'), { work: 9 + rand() * 5 }); return; }
+    const opts = [
+      ['desk', 3, () => autoGoal('desk', z('desk'), { work: 5 + rand() * 6 })],
+      ['coffee', player.coffeeBoost > 0 ? 0 : 2, () => autoGoal('coffee', z('coffee'))],
+      ['smoke', 2, () => autoGoal('smoke', { x: 870, y: 230 })],
+      ['server', eventIs('internet') ? 0 : 1.5, () => autoGoal('server', { x: 870, y: 436 })],
+      ['fridge', 1, () => autoGoal('fridge', z('fridge'))],
+      ['water', 1, () => autoGoal('water', z('water'))],
+      ['printer', 0.8, () => autoGoal('printer', { x: 470, y: 456 })],
+      ['toilet', day.toiletCd > 0 ? 0 : 1, () => autoGoal('toilet', z('toilet'))],
+      ['phone', 1, () => autoGoal('phone', { x: player.x, y: player.y })],
+    ];
+    const free = coworkers.filter(c => !c.away && c.cooldown <= 0);
+    if (free.length) { const c = free[Math.floor(rand() * free.length)]; opts.push(['chat', 2.5, () => autoGoal('chat', zoneCenter(`chat_${c.id}`))]); }
+    const sum = opts.reduce((a, o) => a + o[1], 0);
+    let r = rand() * sum;
+    for (const o of opts) { r -= o[1]; if (r <= 0) { o[2](); return; } }
+    opts[0][2]();
+  }
+  function autoArrive() {
+    const g = auto.goal;
+    auto.goal = null;
+    if (g.kind === 'phone') { togglePhone(); auto.phoneT = 4 + rand() * 4; return; }
+    if (g.kind === 'hide') { quickHide(); return; }
+    if (g.kind === 'desk') auto.workT = g.work || 6;
+    if (g.kind === 'desk' && player.action === 'work') return;
+    interact();
+  }
+  // Возвращает направление движения на кадр; действия запускает сам
+  function autoSteer(dt) {
+    const a = player.action;
+    const danger = autoDanger();
+    if (a === 'work') {
+      auto.workT -= dt;
+      if (auto.workT > 0 || danger || (eventIs('majik') && !officeEvent.used)) return [0, 0];
+      player.y = SEAT.y; endAction('cancel');
+    } else if (a === 'phone') {
+      auto.phoneT -= dt;
+      if (auto.phoneT > 0 && !danger) return [0, 0];
+      togglePhone();
+    } else if (HIDDEN.has(a) && !AWAY.has(a)) {
+      if (danger || boss.suspicion > 0 || (boss.state !== 'gone' && dist(boss, player) < 180)) return [0, 0];
+      interact(); return [0, 0];
+    } else if (SLACK.has(a) && danger && a !== 'chat') {
+      endAction('cancel');
+    } else if (a !== 'none') return [0, 0]; // идёт действие с таймером: кофе, перекур, очередь, обед…
+    if (!auto.goal) autoThink();
+    const g = auto.goal;
+    if (!g) return [0, 0];
+    if (danger && g.kind !== 'desk' && g.kind !== 'hide') { autoThink(); }
+    const wp = auto.path[0] || g.pt;
+    const d = dist(player, wp);
+    if (d < 4) {
+      if (auto.path.length) auto.path.shift();
+      if (!auto.path.length && dist(player, g.pt) < 5) { autoArrive(); return [0, 0]; }
+      return [0, 0];
+    }
+    // застрял — пересчитать путь, потом бросить цель
+    if (auto.last && dist(auto.last, player) < 0.3) auto.stuckT += dt; else auto.stuckT = 0;
+    auto.last = { x: player.x, y: player.y };
+    if (auto.stuckT > 0.8) {
+      auto.stuckT = 0; auto.stuckN++;
+      if (auto.stuckN > 3) { auto.goal = null; return [0, 0]; }
+      auto.path = findPath(player, g.pt);
+    }
+    return [(wp.x - player.x) / d, (wp.y - player.y) / d];
+  }
+  function startAutopilot() {
+    stopAutopilot();
+    playSound('click');
+    enterFullscreen();
+    resetGame();
+    auto.on = true; auto.goal = null; auto.path = [];
+    toast('🍿 АВТОПИЛОТ: смотри и угорай. WASD — взять управление.', 3.2);
+  }
+  function stopAutopilot(msg) {
+    if (!auto.on) return;
+    auto.on = false; auto.goal = null;
+    clearTimeout(auto.restartTimer);
+    if (msg) toast(msg, 2);
+  }
+
   // ---------- ИГРОК ----------
   function updatePlayer(dt) {
     let dx = 0;
@@ -1313,6 +1521,8 @@
     if (keys.has('arrowright') || keys.has('d')) dx += 1;
     if (keys.has('arrowup') || keys.has('w')) dy -= 1;
     if (keys.has('arrowdown') || keys.has('s')) dy += 1;
+    if (auto.on && (dx || dy)) stopAutopilot('Управление у тебя. Автопилот выключен.');
+    if (auto.on) [dx, dy] = autoSteer(dt);
 
     if (player.coffeeBoost > 0) {
       player.coffeeBoost = Math.max(0, player.coffeeBoost - dt);
@@ -1324,7 +1534,7 @@
     if (player.action === 'lunch' || player.action === 'evac') { dx = 0; dy = 0; } // ты на улице
     if (dx || dy) {
       if (player.action !== 'none' && player.action !== 'coffee' && player.action !== 'water' && player.action !== 'phone') {
-        if (player.action === 'toilet') { player.x = WD.toiletDoor.x; player.y = WD.toiletDoor.y + 16; }
+        if (player.action === 'toilet') { player.x = WD.toiletDoor.x; player.y = WD.toiletDoor.y; day.cabinDoor = 0.6; }
         if (player.action === 'work') { player.y = SEAT.y; }
         if (player.action === 'plant_hide' && player.hideSpot) player.y = player.hideSpot.y + 14;
         endAction('cancel');
@@ -1345,7 +1555,31 @@
 
     const a = player.action;
     const funBefore = fun;
-    if (a === 'queue') day.queue = Math.max(1, Math.ceil(player.actionTimer / CFG.toiletPerPerson));
+    if (a === 'queue') {
+      const left = Math.max(1, Math.ceil(player.actionTimer / CFG.toiletPerPerson));
+      if (left < day.queue) {
+        // кто-то вышел из кабинки: хлопок двери, очередь сдвигается
+        day.queue = left;
+        day.qShift = 17;
+        day.cabinDoor = 0.7;
+        walkers.push({ x: WD.toiletDoor.x, y: WD.toiletDoor.y, t: 0, look: (day.queueTotal - left + 2) % QUEUE_LOOK.length });
+        playSound('slam');
+        player.queueTarget = queueSlot(day.queue);
+      }
+      // Викентий сам подходит и продвигается в очереди
+      const tgt = player.queueTarget;
+      if (tgt) {
+        const d = Math.hypot(tgt.x - player.x, tgt.y - player.y);
+        if (d > 1) {
+          const step = Math.min(d, CFG.playerSpeed * 0.8 * dt);
+          player.x += (tgt.x - player.x) / d * step; player.y += (tgt.y - player.y) / d * step;
+          player.facingX = tgt.x < player.x ? -1 : 1;
+          player.moving = true; player.walkTimer += dt * 8;
+        } else player.facingX = -1;
+      }
+      day.knock -= dt;
+      if (day.knock <= 0) { say('queue', pick(LINES.toilet.knock), 2.2, '#e8f0ff'); playSound('knock'); day.knock = 3.5 + rand() * 3; }
+    }
     if (a === 'work') {
       const base = player.coffeeBoost > 0 ? CFG.workKpiCoffee : CFG.workKpi;
       const gear = (has('chair') ? 1.2 : 1) * (has('monitor') ? 1.15 : 1) * (eventIs('noise') && !has('headphones') ? 0.7 : 1);
@@ -1522,6 +1756,7 @@
       [stats.praise, 'похвал Д.Н.'],
     ].map(s => `<div class="end-stat"><b>${s[0]}</b><span>${s[1]}</span></div>`).join('');
     playSound(win ? 'success' : 'caught');
+    if (auto.on) { const keep = true; clearTimeout(auto.restartTimer); auto.restartTimer = setTimeout(() => { if (keep && mode === 'ended') startAutopilot(); }, 7000); }
     addLog(win ? '19:30 — смена окончена. Свобода!' : 'Трудовой договор расторгнут.', win ? 'good' : 'bad');
   }
 
@@ -1534,6 +1769,12 @@
     ctx.textBaseline = 'middle';
     ctx.fillStyle = color;
     ctx.fillText(text, x, y);
+  }
+  // Текст, ужатый по ширине, чтобы не наезжал на соседние элементы HUD
+  function TF(text, x, y, size, maxW, color, align = 'left', weight = 700) {
+    ctx.font = `${weight} ${size}px ${FONT_SANS}`;
+    const w = ctx.measureText(text).width;
+    T(text, x, y, w > maxW ? size * maxW / w : size, color, align, weight, FONT_SANS);
   }
   function roundRect(x, y, w, h, r) {
     ctx.beginPath();
@@ -1754,18 +1995,37 @@
       T(SLACK_ICONS[c.slack], c.x + 16, y, 10, '#fff', 'center', 700, FONT_SANS);
     }
   }
-  // Очередь в туалет: безымянные люди из соседнего отдела
-  const QUEUE_LOOK = [['#6a4a8a', '#2b1f14'], ['#3f7a9a', '#1a1a1a'], ['#9a5a3a', '#5a3a1a']];
-  function drawQueuePerson(i) {
-    const x = WD.toiletDoor.x + 20 + i * 16;
-    const y = WD.toiletDoor.y + 12;
-    const [shirt, hair] = QUEUE_LOOK[i % 3];
-    const sway = Math.sin(performance.now() / 400 + i) * 0.6;
-    drawShadow(x, y, 7, 2.5);
-    R(x - 4, y - 12, 3, 12, '#2c3440'); R(x + 1, y - 12, 3, 12, '#2c3440');
-    R(x - 6 + sway, y - 28, 12, 17, shirt); R(x - 6 + sway, y - 28, 12, 2, 'rgba(255,255,255,0.2)');
-    E(x + sway, y - 33, 5, 5.5, '#e0b088'); R(x - 5 + sway, y - 39, 10, 4, hair);
-    R(x - 3 + sway, y - 32, 1.2, 1.2, '#222');
+  // Очередь в биотуалет: люди из соседних отделов (процедурный пиксель-арт)
+  const QUEUE_LOOK = [
+    { shirt: '#e8e4d8', tie: '#b3261e', pants: '#2c3440', hair: '#1c1612', skin: '#e0b088', style: 'short' },
+    { shirt: '#5a8a4a', tie: null, pants: '#3a3a44', hair: '#3a2416', skin: '#c8905e', style: 'bun' },
+    { shirt: '#3f6a9a', tie: '#1a2a4a', pants: '#23262c', hair: '#0e0e10', skin: '#d8a070', style: 'bald' },
+    { shirt: '#b0508a', tie: null, pants: '#2a2a30', hair: '#6a3a1a', skin: '#e6b890', style: 'long' },
+  ];
+  function drawStranger(x, y, look, seed, alpha = 1, walking = false) {
+    const L = QUEUE_LOOK[look % QUEUE_LOOK.length];
+    const t = performance.now() / 1000 + seed * 1.7;
+    const shift = walking ? Math.sin(t * 10) * 1.5 : (Math.sin(t * 1.3) > 0.6 ? 0.8 : 0); // переминается с ноги на ногу
+    const sway = walking ? 0 : Math.sin(t * 0.9) * 0.5;
+    ctx.save(); ctx.globalAlpha = alpha;
+    drawShadow(x, y, 8, 2.6);
+    R(x - 4.5, y - 16 + shift, 4, 15 - shift, L.pants); R(x + 0.5, y - 16 - shift, 4, 15 + shift, L.pants);
+    R(x - 5.5, y - 2, 5.5, 2.5, '#161616'); R(x + 0.5, y - 2, 5.5, 2.5, '#161616');
+    const bx = x + sway;
+    R(bx - 7, y - 35, 14, 20, L.shirt); R(bx - 7, y - 35, 14, 2, 'rgba(255,255,255,0.18)'); R(bx + 4, y - 35, 3, 20, 'rgba(0,0,0,0.15)');
+    R(bx - 9, y - 33, 3, 15, L.shirt); R(bx + 6, y - 33, 3, 15, L.shirt);
+    R(bx - 9, y - 18, 3, 3, L.skin); R(bx + 6, y - 18, 3, 3, L.skin);
+    R(bx - 7, y - 16, 14, 2, '#2a2016');
+    if (L.tie) { R(bx - 1, y - 34, 2, 11, L.tie); R(bx - 1.5, y - 35, 3, 2, L.tie); }
+    R(bx - 2, y - 37, 4, 3, L.skin);
+    E(bx, y - 42, 5.5, 6, L.skin);
+    R(bx - 2.8, y - 42, 1.3, 1.5, '#1a1a1a'); R(bx + 1.5, y - 42, 1.3, 1.5, '#1a1a1a');
+    R(bx - 1.2, y - 38.5, 2.4, 0.8, 'rgba(90,40,30,0.7)');
+    if (L.style === 'short') { R(bx - 5.5, y - 48.5, 11, 4, L.hair); R(bx - 5.5, y - 46, 2, 3, L.hair); R(bx + 3.5, y - 46, 2, 3, L.hair); }
+    if (L.style === 'bun') { R(bx - 5.5, y - 48, 11, 4, L.hair); E(bx, y - 50, 3, 2.5, L.hair); }
+    if (L.style === 'bald') { E(bx, y - 46, 4.5, 2, 'rgba(255,255,255,0.35)'); R(bx - 5.8, y - 44, 1.5, 3, L.hair); R(bx + 4.3, y - 44, 1.5, 3, L.hair); }
+    if (L.style === 'long') { R(bx - 6, y - 48.5, 12, 4, L.hair); R(bx - 6.5, y - 46, 2.5, 10, L.hair); R(bx + 4, y - 46, 2.5, 10, L.hair); }
+    ctx.restore();
   }
 
   // Динамические детали, привязанные к спрайтам мебели
@@ -1783,6 +2043,7 @@
     },
     rack_row1: () => drawRackLeds(374, 22),
     r1_4: () => drawDeskUpgrades(),
+    wc_cabin: () => drawCabinState(),
     rack_row2: () => drawRackLeds(480, 42),
     copier: () => {
       if (eventIs('jam') && !officeEvent.used) {
@@ -1822,10 +2083,16 @@
     }
     if (has('chair') && player.action !== 'work') { R(SEAT.x - 9, y - 30, 18, 6, '#2a5a8a'); R(SEAT.x - 9, y - 30, 18, 1.5, '#4a8aca'); }
   }
-  function drawToiletDoor() {
-    const busy = player.action === 'toilet' || player.action === 'queue';
-    const blink = Math.floor(performance.now() / 500) % 2 === 0;
-    R(WD.toiletDoor.x - 6, 267.5, 12, 4, busy ? (blink ? '#e8433e' : '#8a1a1a') : '#2f9a5a');
+  // Защёлка «ЗАНЯТО/СВОБОДНО», приоткрытая дверь и вечная муха над кабинкой
+  function drawCabinState() {
+    const busy = player.action === 'toilet' || player.action === 'queue' || day.npcInside > 0;
+    const x = 248, y = 446;
+    R(x + 11, y + 40, 16, 5, '#e8ecf0');
+    R(x + 11.5, y + 40.5, 15, 4, busy ? '#d23a2e' : '#2f9a4a');
+    T(busy ? 'ЗАНЯТО' : 'СВОБОДНО', x + 19, y + 42.6, 2.8, '#fff', 'center', 700, FONT_SANS);
+    if (day.cabinDoor > 0) { const k = Math.min(1, day.cabinDoor * 2); R(x + 6, y + 12, 5 * k, 49, '#0d1a2a'); }
+    const t = performance.now() / 1000;
+    R(x + 19 + Math.cos(t * 3.1) * 9, y - 6 + Math.sin(t * 4.3) * 4, 1.3, 1.3, '#111');
   }
   function drawRackLeds(ry, h) {
     const t = Math.floor(performance.now() / 160);
@@ -1843,7 +2110,8 @@
     const items = [];
     for (const p of art.props) items.push({ y: p.baseY, draw: () => { ctx.drawImage(p.canvas, p.x, p.y, p.w, p.h); if (decor[p.id]) decor[p.id](); } });
     for (const c of coworkers) items.push({ y: c.y, draw: () => drawCoworker(c) });
-    if (player.action === 'queue') for (let i = 0; i < day.queue; i++) items.push({ y: WD.toiletDoor.y + 12, draw: () => drawQueuePerson(i) });
+    if (player.action === 'queue') for (let i = 0; i < day.queue; i++) items.push({ y: WD.toiletDoor.y - 0.5, draw: () => { const p = queueSlot(i); drawStranger(p.x + day.qShift, p.y, (day.queueTotal - day.queue + i + 2) % QUEUE_LOOK.length, i); } });
+    for (const wk of walkers) items.push({ y: wk.y, draw: () => drawStranger(wk.x, wk.y, wk.look, 9, Math.max(0, 1 - wk.t / 1.6), true) });
     const pBase = player.action === 'work' ? DESK.y - 1 : (player.action === 'plant_hide' && player.hideSpot ? player.hideSpot.y - 1 : player.y);
     items.push({ y: pBase, draw: drawPlayer });
     items.push({ y: boss.state === 'office' ? WD.bossHome.y + 15 : boss.y, draw: drawBoss });
@@ -1853,12 +2121,13 @@
 
   function entityHead(owner) {
     if (owner === 'player') {
-      if (player.action === 'toilet') return { x: WD.toiletDoor.x, y: WD.toiletDoor.y - 20 };
+      if (player.action === 'toilet') return { x: WD.toiletDoor.x, y: WD.toiletDoor.y - 70 };
       if (player.action === 'lunch' || player.action === 'evac') return { x: WD.exitDoor.x + 10, y: WD.exitDoor.y - 30 };
       if (player.action === 'work') return { x: SEAT.x, y: DESK.y - 46 };
       if (player.action === 'plant_hide') return { x: player.x, y: player.y - 30 };
       return { x: player.x, y: player.y - 62 };
     }
+    if (owner === 'queue') { if (player.action !== 'queue' || !day.queue) return null; const q = queueSlot(0); return { x: q.x + day.qShift, y: q.y - 60 }; }
     if (owner === 'boss') {
       if (boss.state === 'out' || boss.state === 'gone') return null;
       return boss.state === 'office' ? { x: boss.x, y: boss.y - 44 } : { x: boss.x, y: boss.y - 68 };
@@ -1895,7 +2164,7 @@
       const pop = Math.min(1, b.t * 8);
       const fade = b.t > b.dur - 0.3 ? (b.dur - b.t) / 0.3 : 1;
       let x = clamp(head.x - w / 2, 4, W - w - 4);
-      const y = Math.max(52, head.y - h - 6);
+      const y = Math.max(banner ? WD.HUD_H + 52 : 52, head.y - h - 6);
       ctx.save();
       ctx.globalAlpha = fade;
       ctx.translate(head.x, y + h);
@@ -1932,11 +2201,11 @@
     }
     // Статус Викентия
     const labels = {
-      work: ['EXCEL · РИСК-МОДЕЛИ', '#2f9a5a'], smoke: ['ПЕРЕКУР', '#b3261e'], youtube: ['▶ YOUTUBE 4K', '#b3261e'],
+      work: [eventIs('majik') && !officeEvent.used ? 'EXCEL · ЧИНИТ МАДЖИКИСТАН' : 'EXCEL · РИСК-МОДЕЛИ', '#2f9a5a'], smoke: ['ПЕРЕКУР', '#b3261e'], youtube: ['▶ YOUTUBE 4K', '#b3261e'],
       fridge: ['ШАРИТ В ХОЛОДИЛЬНИКЕ', '#c9861e'], chat: ['БОЛТАЕТ', '#c9861e'], plant_hide: ['В ЛИСТВЕ', '#2f7a3a'],
       cabinet_hide: ['ЗА ШКАФАМИ', '#2a6a8a'], printer_hide: ['ЗА КСЕРОКСОМ', '#2a6a8a'], printer: ['ПЕЧАТЬ МЕМА', '#2a6a8a'],
       eat: ['ЖУЁТ', '#c9861e'], fixjam: ['ЧИНИТ КСЕРОКС', '#2f9a5a'], phone: [phoneSafe > 0 ? '«НА СОЗВОНЕ» 📱' : 'ЛИСТАЕТ ТЕЛЕФОН', phoneSafe > 0 ? '#2f9a5a' : '#c9861e'],
-      queue: ['В ОЧЕРЕДИ В WC', '#2a6a8a'], standup: ['НА ЛЕТУЧКЕ', '#2f9a5a'], toilet: ['ЗАНЯТО', '#2a6aa0'],
+      queue: ['В ОЧЕРЕДИ В БИОТУАЛЕТ', '#2a6a8a'], standup: ['НА ЛЕТУЧКЕ', '#2f9a5a'], toilet: ['ЗАНЯТО', '#2a6aa0'],
       lunch: ['ОБЕД В «МЮНХЕНЕ»', '#c9861e'], evac: ['НА УЛИЦЕ', '#2f9a5a'],
     };
     const lab = labels[player.action];
@@ -2021,9 +2290,9 @@
     ctx.fillRect(0, WD.HUD_H, W, H - WD.HUD_H);
   }
 
-  function bar(x, y, w, label, value, color, valueColor) {
+  function bar(x, y, w, label, value, color, valueColor, shown) {
     T(label, x, y, 8.5, '#f5edd9', 'left', 700, FONT_SANS);
-    T(`${Math.round(value)}${label === 'КАЙФ' ? '' : '%'}`, x + w, y, 8.5, valueColor || color, 'right', 700);
+    T(`${Math.round(shown === undefined ? value : shown)}${label === 'КАЙФ' ? '' : '%'}`, x + w, y, 8.5, valueColor || color, 'right', 700);
     R(x, y + 5, w, 8, '#0b1417');
     R(x + 1, y + 6, (w - 2) * clamp(value / 100, 0, 1), 6, color);
     R(x + 1, y + 6, (w - 2) * clamp(value / 100, 0, 1), 1.5, 'rgba(255,255,255,0.25)');
@@ -2043,14 +2312,13 @@
     const sc = stealth > 60 ? '#f2bb38' : (stealth > 30 ? '#e68a35' : '#e8433e');
     bar(88, 14, 120, 'НЕЗАМЕТНОСТЬ', stealth, sc);
     bar(222, 14, 110, 'KPI', usefulness, usefulness < 20 ? '#e8433e' : '#57b867');
-    bar(346, 14, 90, 'КАЙФ', Math.min(100, fun), '#c76ad8', '#e0a0f0');
-    if (fun > 100) T(`${Math.round(fun)}`, 436, 14, 7.5, '#e0a0f0', 'right');
+    bar(346, 14, 90, 'КАЙФ', Math.min(100, fun), '#c76ad8', '#e0a0f0', fun);
 
     // Часы
     R(452, 6, 118, 36, '#081012'); R(453, 7, 116, 34, '#122126');
-    T(timeString(clockMinutes), 511, 19, 15, '#fff');
-    R(460, 32, 102, 3, '#0b1417'); R(460, 32, 102 * dayProgress(), 3, '#f2bb38');
-    T(`${today().name} · ДО 19:30${muted ? ' · 🔇' : ''}`, 511, 38, 6, '#9fb', 'center', 700, FONT_SANS);
+    T(timeString(clockMinutes), 511, 17, 14, '#fff');
+    R(460, 27, 102, 2.5, '#0b1417'); R(460, 27, 102 * dayProgress(), 2.5, '#f2bb38');
+    T(`${today().name} · ДО 19:30${timeScale !== 1 ? ` · ×${+timeScale.toFixed(2)}` : ''}${muted ? ' · 🔇' : ''}`, 511, 35.5, 6, '#9fb', 'center', 700, FONT_SANS);
 
     // Радар начальника
     const x0 = 582;
@@ -2073,12 +2341,12 @@
       scold: `Д.Н. отчитывает: ${(coworkerById(boss.scoldTarget) || {}).name || 'кого-то'}`,
       standup: 'Д.Н. ведёт летучку у доски',
     }[boss.state];
-    T(status, x0 + 38, 15, 8.5, alert ? '#fff' : '#f5edd9', 'left', 700, FONT_SANS);
+    TF(status, x0 + 38, 15, 8.5, W - x0 - 54, alert ? '#fff' : '#f5edd9');
     // подозрение
     T('ПОДОЗРЕНИЕ', x0 + 38, 27, 6.5, '#9ab', 'left', 700, FONT_SANS);
     R(x0 + 88, 24, 112, 6, '#0b1417');
     R(x0 + 89, 25, 110 * (boss.suspicion / 100), 4, boss.suspicion > 70 ? '#ff4a3a' : '#f2bb38');
-    if (boss.seesPlayer && mode === 'playing') T('👁 ВИДИТ ТЕБЯ', x0 + 206, 27, 6.5, '#ff8a7a', 'left', 700, FONT_SANS);
+    if (boss.seesPlayer && mode === 'playing') T('👁 ВИДИТ ТЕБЯ', W - 14, 27, 6.5, '#ff8a7a', 'right', 700, FONT_SANS);
     const info = [];
     if (intelTimer > 0 && boss.state !== 'inspect') info.push(`📅 проверка через ${Math.max(0, Math.ceil(nextBossCheck))} с`);
     if (coverTokens) info.push('🛡 прикрытие');
@@ -2086,7 +2354,7 @@
     if (phoneSafe > 0) info.push(`📱 созвон ${Math.ceil(phoneSafe)} с`);
     if (day.hungry) info.push('🍽 голоден');
     if (officeEvent && officeEvent.id !== 'call') info.push(`★ ${EVENTS[officeEvent.id].title.toLowerCase()} · ${Math.ceil(officeEvent.t)} с`);
-    T(info.join('  '), x0 + 38, 37.5, 6.5, '#f2bb38', 'left', 700, FONT_SANS);
+    TF(info.join('  '), x0 + 38, 37.5, 6.5, W - x0 - 54, '#f2bb38');
 
     // Контекстная подсказка
     const act = mode === 'playing' ? getActionInfo() : null;
@@ -2164,7 +2432,7 @@
       cy += lines.length * 9.5 + 2;
     }
     cy += 5;
-    T('💬 ЧАТ «РИСКИ 7 ЭТАЖ»', cx, cy, 9.5, '#f2bb38', 'left', 900, FONT_SANS);
+    T('💬 WhatsApp «РИСКИ 7 ЭТАЖ»', cx, cy, 9.5, '#f2bb38', 'left', 900, FONT_SANS);
     cy += 13;
     const bottom = y + ph - 24;
     for (const e2 of logEntries) {
@@ -2218,6 +2486,17 @@
     T(text, W / 2, y + 9.9, 10, '#172027', 'center', 700, FONT_SANS);
   }
 
+  function drawAutoBadge() {
+    if (!auto.on || mode !== 'playing') return;
+    const blink = Math.floor(performance.now() / 700) % 2 === 0;
+    const text = `🍿 АВТОПИЛОТ ×${+timeScale.toFixed(2)} · ${auto.goal ? AUTO_LABELS[auto.goal.kind] || '' : 'думает…'} · WASD — взять управление`;
+    ctx.font = `700 8.5px ${FONT_SANS}`;
+    const w = ctx.measureText(text).width + 14;
+    ctx.fillStyle = 'rgba(8,16,20,0.88)'; roundRect(10, H - 20, w, 15, 3); ctx.fill();
+    R(10, H - 20, 3, 15, blink ? '#f2bb38' : '#c76ad8');
+    T(text, 17, H - 12.2, 8.5, '#f5edd9', 'left', 700, FONT_SANS);
+  }
+  const AUTO_LABELS = { desk: 'идёт работать', coffee: 'за кофе', smoke: 'на перекур', server: 'в серверную', fridge: 'к холодильнику', water: 'к кулеру', printer: 'печатать мем', toilet: 'в биотуалет', phone: 'залипает в телефон', chat: 'болтать', hide: 'прячется!', exit: 'к выходу', standup: 'на летучку', feast: 'за едой' };
   function drawObjective() {
     if (mode !== 'playing' || player.action === 'phone') return;
     const next = todo.find(t => !t.done);
@@ -2244,7 +2523,6 @@
     drawWallClock(385, 72);
     drawSunbeams();
     drawZoneHints();
-    drawToiletDoor();
     drawVisionCone();
     drawScene();
     drawParticles();
@@ -2256,6 +2534,7 @@
     drawHUD();
     drawTutorial();
     drawObjective();
+    drawAutoBadge();
     drawPhone();
     drawBanner();
     if (flash > 0) R(0, 0, W, H, `rgba(224,68,62,${flash * 0.35})`);
@@ -2264,7 +2543,12 @@
   function loop(t) {
     const dt = Math.min(0.05, (t - last) / 1000 || 0);
     last = t;
-    if (mode === 'playing') update(dt);
+    if (mode === 'playing') {
+      // Скорость времени: подшаги, чтобы коллизии не «проскакивали» при ×2–×3
+      const total = dt * timeScale;
+      const n = Math.max(1, Math.ceil(timeScale));
+      for (let i = 0; i < n && mode === 'playing'; i++) update(total / n);
+    }
     else if (mode === 'menu') { updateBoss(dt); updateCoworkers(dt); updateAmbient(dt); bubbles.forEach(b => { b.t += dt; }); bubbles = bubbles.filter(b => b.t < b.dur); }
     draw();
     requestAnimationFrame(loop);
@@ -2275,6 +2559,14 @@
   window.addEventListener('keydown', e => {
     const key = getControlKey(e);
     if (MOVE_KEYS.includes(key) || ['e', 'h', 'p', 'q', 'enter', ' '].includes(key)) e.preventDefault();
+    if (onb.open) {
+      e.preventDefault();
+      if (key === 'arrowright' || key === 'd' || key === 'enter' || key === 'e') onbStep(1);
+      else if (key === 'arrowleft' || key === 'a') onbStep(-1);
+      else if (key === 'escape' || key === 'i') closeOnboarding(false);
+      return;
+    }
+    if (key === 'i' && (mode === 'menu' || mode === 'paused' || mode === 'ended')) { openOnboarding(false); return; }
     if (shopOpen) {
       if (key === 'escape' || key === 'u' || key === 'enter') { e.preventDefault(); closeShop(); }
       return;
@@ -2397,7 +2689,14 @@
   addTap(ui.resume, pauseGame);
   addTap(ui.restart, startGame);
   ui.shopBtns.forEach(b => addTap(b, openShop));
+  document.querySelectorAll('.auto-open').forEach(b => addTap(b, startAutopilot));
+  document.querySelectorAll('.onb-open').forEach(b => addTap(b, () => openOnboarding(false)));
+  addTap($('onb-next'), () => onbStep(1));
+  addTap($('onb-prev'), () => onbStep(-1));
+  addTap($('onb-skip'), () => closeOnboarding(true));
   addTap(ui.shopClose, closeShop);
+  document.querySelectorAll('.speed-range').forEach(r => r.addEventListener('input', () => setTimeScale(r.value)));
+  setTimeScale(timeScale);
 
   // Отладочный доступ для автотестов (scripts/qa.js)
   window.NP_DEBUG = {
@@ -2417,7 +2716,10 @@
     get coworkers() { return coworkers.map(c => ({ id: c.id, away: c.away, slack: c.slack, extra: !!c.extra })); },
     setClock(mins) { shiftTime = (mins - CFG.shiftStart) / (CFG.shiftEnd - CFG.shiftStart) * CFG.shiftSeconds; clockMinutes = mins; },
     setCoins(v) { coins = v; store.set('coins', v); },
-    buyUpgrade, openShop, closeShop,
+    buyUpgrade, openShop, closeShop, startAutopilot, stopAutopilot,
+    get onboarding() { return { open: onb.open, i: onb.i }; },
+    get auto() { return { on: auto.on, goal: auto.goal && auto.goal.kind }; },
+    get timeScale() { return timeScale; }, setTimeScale,
     forceSlack(id, kind = 'phone') { const c = coworkerById(id); c.slack = kind; c.slackTimer = 30; c.scoldCooldown = 0; c.alert = 0; },
     forceBeer() { day.beer = null; CFG.beerChance = 1; },
   };

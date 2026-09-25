@@ -36,17 +36,25 @@ function loadPlaywright() {
       [{ code: 'KeyA', key: 'ф' }, 'a'], [{ code: 'KeyS', key: 'ы' }, 's'], [{ code: 'KeyD', key: 'в' }, 'd'],
       [{ code: 'KeyE', key: 'у' }, 'e'], [{ code: '', key: 'у' }, 'e'], [{ code: 'KeyH', key: 'р' }, 'h'],
       [{ code: '', key: 'р' }, 'h'], [{ code: 'KeyP', key: 'з' }, 'p'], [{ code: '', key: 'з' }, 'p'],
-      [{ code: 'Space', key: ' ' }, 'e'], [{ code: 'KeyQ', key: 'й' }, 'q'], [{ code: '', key: 'й' }, 'q'], [{ code: 'Tab', key: 'Tab' }, 'q'], [{ code: 'KeyU', key: 'г' }, 'u'], [{ code: '', key: 'г' }, 'u'], [{ code: 'ArrowUp', key: 'ArrowUp' }, 'arrowup'], [{ code: 'Enter', key: 'Enter' }, 'enter'],
+      [{ code: 'Space', key: ' ' }, 'e'], [{ code: 'KeyQ', key: 'й' }, 'q'], [{ code: '', key: 'й' }, 'q'], [{ code: 'Tab', key: 'Tab' }, 'q'], [{ code: 'KeyU', key: 'г' }, 'u'], [{ code: 'KeyI', key: 'ш' }, 'i'], [{ code: '', key: 'ш' }, 'i'], [{ code: '', key: 'г' }, 'u'], [{ code: 'ArrowUp', key: 'ArrowUp' }, 'arrowup'], [{ code: 'Enter', key: 'Enter' }, 'enter'],
     ];
     return cases.map(([ev, want]) => ({ ev, want, got: f(ev) })).filter(c => c.got !== c.want);
   });
   check('раскладки EN/RU', layout.length === 0, JSON.stringify(layout));
 
-  // 2. Старт по Enter
+  // 2. Первый запуск: онбординг, листание стрелками, старт с последнего слайда
   await page.keyboard.press('Enter');
   await page.waitForTimeout(200);
-  let st = await page.evaluate(() => NP_DEBUG.state);
-  check('старт по Enter', st.mode === 'playing');
+  let onb = await page.evaluate(() => NP_DEBUG.onboarding);
+  check('онбординг при первом запуске', onb.open && onb.i === 0, JSON.stringify(onb));
+  await page.keyboard.press('ArrowRight'); await page.keyboard.press('ArrowRight');
+  onb = await page.evaluate(() => NP_DEBUG.onboarding);
+  check('онбординг листается стрелками', onb.i === 2, JSON.stringify(onb));
+  await page.screenshot({ path: path.join(outDir, '18-onboarding.png') });
+  for (let i = 0; i < 6; i++) await page.keyboard.press('ArrowRight');
+  await page.waitForTimeout(200);
+  let st = await page.evaluate(() => ({ ...NP_DEBUG.state, onbOpen: NP_DEBUG.onboarding.open }));
+  check('старт по Enter после онбординга', st.mode === 'playing' && !st.onbOpen, st.mode);
 
   // 3. Движение с русской раскладкой (код KeyD, символ «в»)
   const x0 = st.player.x;
@@ -162,7 +170,7 @@ function loadPlaywright() {
 
   // 13b. Новые механики v0.10
   // Туалет: сначала очередь, потом внутрь
-  await page.evaluate(() => { NP_DEBUG.setBoss(706, 446, 'office'); NP_DEBUG.teleport(128, 300); });
+  await page.evaluate(() => { NP_DEBUG.setBoss(706, 446, 'office'); NP_DEBUG.teleport(270, 516); });
   await page.keyboard.press('KeyE');
   st = await page.evaluate(() => NP_DEBUG.state);
   check('туалет: сначала очередь', st.player.action === 'queue', st.player.action);
@@ -173,7 +181,7 @@ function loadPlaywright() {
   check('туалет после очереди', st.stats.toilet === 1, `toilet=${st.stats.toilet} action=${st.player.action}`);
 
   // Второй ряд проёбывается — Д.Н. идёт отчитывать
-  await page.evaluate(() => { NP_DEBUG.teleport(520, 260); NP_DEBUG.forceSlack('damir', 'game'); NP_DEBUG.setBoss(728, 380, 'look', -Math.PI / 2); });
+  await page.evaluate(() => { NP_DEBUG.teleport(520, 260); NP_DEBUG.forceSlack('yerzhan', 'game'); NP_DEBUG.setBoss(728, 380, 'look', -Math.PI / 2); });
   await page.evaluate(() => NP_DEBUG.skip(0.2));
   st = await page.evaluate(() => NP_DEBUG.state);
   check('Д.Н. идёт отчитывать соседа', st.boss.state === 'scold', st.boss.state);
@@ -223,6 +231,28 @@ function loadPlaywright() {
   await page.evaluate(() => { NP_DEBUG.buyUpgrade('monitor'); NP_DEBUG.buyUpgrade('lava'); NP_DEBUG.teleport(728, 200); });
   await page.waitForTimeout(200);
   await page.screenshot({ path: path.join(outDir, '15-desk-upgrades.png') });
+
+  // Автопилот: Викентий сам играет, скорость времени
+  const ap = await page.evaluate(() => {
+    NP_DEBUG.setTimeScale(2);
+    NP_DEBUG.startAutopilot();
+    const x0 = NP_DEBUG.state.player.x;
+    let moved = 0, acts = new Set();
+    for (let i = 0; i < 120; i++) { NP_DEBUG.skip(0.5); const s = NP_DEBUG.state; moved = Math.max(moved, Math.abs(s.player.x - x0)); acts.add(s.player.action); }
+    const r = { on: NP_DEBUG.auto.on, moved, acts: [...acts], ts: NP_DEBUG.timeScale };
+    NP_DEBUG.stopAutopilot(); NP_DEBUG.setTimeScale(1);
+    return r;
+  });
+  check('автопилот играет сам', ap.on && ap.moved > 100 && ap.acts.length >= 3 && ap.ts === 2, JSON.stringify(ap));
+  await page.screenshot({ path: path.join(outDir, '19-autopilot.png') });
+
+  // Маджикистан: посидеть в Excel — +KPI
+  const mj = await page.evaluate(() => {
+    NP_DEBUG.setBoss(706, 446, 'office'); NP_DEBUG.set({ usefulness: 40 }); NP_DEBUG.startEvent('majik');
+    NP_DEBUG.teleport(728, 150); NP_DEBUG.interact(); NP_DEBUG.skip(5);
+    return { used: NP_DEBUG.event && NP_DEBUG.event.used, k: NP_DEBUG.state.usefulness };
+  });
+  check('Маджикистан поднят из Excel', mj.used && mj.k > 48, JSON.stringify(mj));
 
   // 14. Прогон всей смены
   await page.evaluate(() => NP_DEBUG.skip(260));
