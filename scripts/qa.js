@@ -592,12 +592,22 @@ const { loadPlaywright } = require('./pw');
   const alj = await page.evaluate(() => {
     NP_DEBUG.setDay(0); NP_DEBUG.restart(); NP_DEBUG.clearEvents();
     NP_DEBUG.set({ fun: 50, usefulness: 50 });
-    NP_DEBUG.triggerAljazira(true); // форсируем катастрофу аудита
+    NP_DEBUG.triggerAljazira('bad'); // форсируем ругань
     for (let i = 0; i < 40; i++) NP_DEBUG.skip(0.1);
     const s = NP_DEBUG.state;
     return { fun: s.fun, kpi: s.usefulness };
   });
-  check('Альджазира: аудит Маджикистана сбрасывает кайф и план в 0', alj.fun === 0 && alj.kpi === 0, JSON.stringify(alj));
+  check('Альджазира: ругань −5 кайфа, план не трогает', alj.fun === 45 && alj.kpi === 50, JSON.stringify(alj));
+
+  const aljD = await page.evaluate(() => {
+    NP_DEBUG.setDay(0); NP_DEBUG.restart(); NP_DEBUG.clearEvents();
+    NP_DEBUG.set({ fun: 50, usefulness: 50 });
+    NP_DEBUG.triggerAljazira('disaster');
+    for (let i = 0; i < 40; i++) NP_DEBUG.skip(0.1);
+    const s = NP_DEBUG.state;
+    return { fun: s.fun, kpi: s.usefulness, done: NP_DEBUG.aljazira.disasterDone };
+  });
+  check('Альджазира: катастрофа обнуляет кайф и план, раз в день', aljD.fun === 0 && aljD.kpi === 0 && aljD.done, JSON.stringify(aljD));
 
   // 5. Сверхурочные: ~30 с Excel после плана снимают сегодняшний выговор, раз в смену
   const otThreshold = await page.evaluate(() => {
@@ -663,6 +673,19 @@ const { loadPlaywright } = require('./pw');
   });
   check('четверг: «Вилка» +20 кайфа, обед ровно час', vk.vilka && vk.fun >= 30 && Math.abs(vk.mins - 60) <= 2, JSON.stringify(vk));
 
+  // Автопилот не застревает в карманах: у двери биотуалета, в архиве, у шкафов
+  const autoPockets = await page.evaluate(() => {
+    const res = [];
+    for (const [x, y] of [[251, 518], [229, 478], [70, 490], [60, 370], [200, 460]]) {
+      NP_DEBUG.setDay(0); NP_DEBUG.clearSavedProgress(); NP_DEBUG.restart(); NP_DEBUG.clearEvents(); NP_DEBUG.setClock(10 * 60); NP_DEBUG.setBoss(706, 446, 'office');
+      NP_DEBUG.startAutopilot(); NP_DEBUG.teleport(x, y);
+      for (let i = 0; i < 60; i++) NP_DEBUG.skip(0.1);
+      const s = NP_DEBUG.state.player; res.push(Math.round(Math.hypot(s.x - x, s.y - y))); NP_DEBUG.stopAutopilot();
+    }
+    return res;
+  });
+  check('автопилот выбирается из архива и кармана у биотуалета', autoPockets.every(d => d > 40), JSON.stringify(autoPockets));
+
   // Обед: уйти можно только с 12:30 до 14:00; пока на обеде — Д.Н. не проверяет и не наказывает
   const lq = await page.evaluate(() => {
     NP_DEBUG.setDay(1); NP_DEBUG.clearSavedProgress(); NP_DEBUG.restart(); NP_DEBUG.clearEvents(); NP_DEBUG.setBoss(706, 446, 'office');
@@ -672,7 +695,7 @@ const { loadPlaywright } = require('./pw');
     NP_DEBUG.setClock(13 * 60 + 50); NP_DEBUG.set({ misses: 1, reprimands: 0 }); NP_DEBUG.teleport(40, 302); NP_DEBUG.interact(); r.go = NP_DEBUG.state.player.action;
     NP_DEBUG.startInspection(true); r.inspectState = NP_DEBUG.state.boss.state;
     r.rep = NP_DEBUG.reprimand('тест', 'тест');
-    NP_DEBUG.startEvent('majik'); NP_DEBUG.skip(15);
+    NP_DEBUG.startEvent('majik'); NP_DEBUG.skip(5); // обед длится 7.5 с: время на обеде идёт ×3
     r.after = { rep: NP_DEBUG.state.reprimands, misses: NP_DEBUG.state.misses, action: NP_DEBUG.state.player.action, boss: NP_DEBUG.state.boss.state };
     return r;
   });
