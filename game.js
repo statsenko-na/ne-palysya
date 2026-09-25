@@ -307,6 +307,7 @@
     ui.overlay.classList.toggle('hidden', next !== 'menu');
     ui.pause.classList.toggle('hidden', next !== 'paused');
     ui.end.classList.toggle('hidden', next !== 'ended');
+    document.body.classList.toggle('is-playing', next === 'playing' || next === 'paused');
   }
 
   function pickTodo() {
@@ -372,7 +373,27 @@
     setMode('playing');
     banner = { text: `${today().name} · ДЕНЬ ${dayIndex + 1}/5`, sub: today().mod, t: 0 };
   }
-  function startGame() { playSound('click'); resetGame(); }
+  function enterFullscreen() {
+    try {
+      const el = document.documentElement;
+      if (!document.fullscreenElement && !document.webkitFullscreenElement) {
+        if (el.requestFullscreen) {
+          el.requestFullscreen().catch(() => {});
+        } else if (el.webkitRequestFullscreen) {
+          el.webkitRequestFullscreen();
+        }
+      }
+      if (screen.orientation && screen.orientation.lock) {
+        screen.orientation.lock('landscape').catch(() => {});
+      }
+    } catch (_) {}
+  }
+
+  function startGame() {
+    playSound('click');
+    enterFullscreen();
+    resetGame();
+  }
   function pauseGame() {
     playSound('click');
     if (mode === 'playing') setMode('paused');
@@ -1815,6 +1836,7 @@
   }
 
   ui.start.addEventListener('click', startGame);
+  ui.start.addEventListener('touchstart', enterFullscreen, { passive: true });
   ui.resume.addEventListener('click', pauseGame);
   ui.restart.addEventListener('click', startGame);
 
