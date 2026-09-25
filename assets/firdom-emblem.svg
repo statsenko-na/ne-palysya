@@ -1,8 +1,8 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-labelledby="title desc">
   <title id="title">Эмблема Фирдом Банка</title>
-  <desc id="desc">Зелёный щит с пиксельной буквой F</desc>
+  <desc id="desc">Зелёный щит с пиксельной буквой Ф</desc>
   <path fill="#4fb84e" d="M8 5h48v31c0 10-9 18-24 23C17 54 8 46 8 36V5Z"/>
-  <path fill="#1f743e" d="M16 13h31v8H25v7h17v8H25v11h-9V13Z"/>
-  <path fill="#b7df63" d="M25 13h22v8H25v7h12v8H25v11h-7V13h7Z"/>
+  <path fill="#1f743e" d="M28 11h9v5h9v4h4v14h-4v4h-9v10h-9V38h-9v-4h-4V20h4v-4h9v-5Zm-6 10v12h6V21h-6Zm15 0v12h6V21h-6Z"/>
+  <path fill="#b7df63" d="M28 11h6v5h-6zM19 16h9v4h-9zM15 20h4v14h-4zM19 34h9v4h-9zM28 38h6v10h-6zM28 16h6v22h-6z"/>
   <path fill="#225933" d="M8 5h48v4H8z" opacity=".32"/>
 </svg>

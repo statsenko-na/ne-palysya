@@ -1,11 +1,11 @@
 ---
 name: office-game-dev
-description: Development, verification, and asset generation runbook for the 'Не палься' (office_game) pixel-art browser game. Use when modifying game.js, adding sprites, adjusting balance, or running QA for the office game.
+description: Development, verification, and asset generation runbook for the 'Не пались' (office_game) pixel-art browser game. Use when modifying game.js, adding sprites, adjusting balance, or running QA for the office game.
 ---
 
-# 'Не палься' (office_game) Development & QA Runbook
+# 'Не пались' (office_game) Development & QA Runbook
 
-This skill defines the technical workflow and quality standards for developing the **"Не палься"** pixel-art office game.
+This skill defines the technical workflow and quality standards for developing the **"Не пались"** pixel-art office game.
 
 ---
 

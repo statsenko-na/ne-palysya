@@ -50,17 +50,19 @@
   const DESK_DEPTH = 42; // столешница 26 + фасад 16
 
   const coworkers = [
-    { id: 'ayarshyn', name: 'Айаршын', role: 'Тимлид разработки', sprite: 0, perk: 'cover' },
-    { id: 'vlad', name: 'Влад', role: 'Скор-модели', sprite: 1, perk: 'intel' },
-    { id: 'alexandr', name: 'Александр', role: 'Верификатор', sprite: 2, perk: 'report' },
-    { id: 'gleb', name: 'Глеб', role: 'Дата-сайентист', sprite: 3, perk: 'snack' },
+    { id: 'aimashyn', name: 'Аймашын', role: 'Тимлид разработки', sprite: 0, perk: 'cover' },
+    { id: 'hlad', name: 'Хлад', role: 'Скор-модели', sprite: 1, perk: 'intel' },
+    { id: 'shurik', name: 'Шурик', role: 'Верификатор', sprite: 2, perk: 'report' },
+    { id: 'bleb', name: 'Блеб', role: 'Дата-сайентист', sprite: 3, perk: 'snack' },
   ];
 
   // Второй ряд: новые соседи — ноют, проёбываются и отвлекают Д.Н. на себя.
   const extras = [
-    { id: 'seryoga', name: 'Серёга', role: 'Автокредиты («автошка»)', sprite: 2, sheet: 'extras', perk: 'callhack', deskIndex: 0 },
+    { id: 'sirgey', name: 'Сиргей', role: 'Автокредиты («автошка»)', sprite: 2, sheet: 'extras', perk: 'callhack', deskIndex: 0 },
     { id: 'asel', name: 'Асель', role: 'Комплаенс', sprite: 0, sheet: 'extras', perk: 'gossip', deskIndex: 3 },
     { id: 'yerzhan', name: 'Ержан', role: 'Стажёр', sprite: 1, sheet: 'extras', perk: 'task', deskIndex: 4 },
+    // Дух офиса: уволился, но место за ним. Не уходит, не проёбывается, Д.Н. его не замечает.
+    { id: 'tigran', name: 'Тигран', role: 'Дух офиса (уволился, место занято)', sprite: 3, sheet: 'extras', perk: 'rocket', deskIndex: 1, ghost: true },
   ];
 
   const desks = [];
@@ -69,7 +71,7 @@
     desks.push({
       id: `r1_${i}`, row: 1, x, y: ROW1_Y, w: DESK_W, h: DESK_DEPTH,
       seatX: x + DESK_W / 2, seatY: ROW1_Y - 4,
-      owner: cw ? cw.id : 'vikentiy',
+      owner: cw ? cw.id : 'bykentiy',
       style: ['tidy', 'hoodie', 'papers', 'calc', 'dev'][i],
     });
   });
@@ -77,7 +79,7 @@
     desks.push({
       id: `r2_${i}`, row: 2, x, y: ROW2_Y, w: DESK_W, h: DESK_DEPTH,
       seatX: x + DESK_W / 2, seatY: ROW2_Y - 4, owner: null,
-      style: ['crt', 'boxes', 'broken', 'empty', 'intern'][i],
+      style: ['crt', 'tigran', 'broken', 'empty', 'intern'][i],
     });
   });
   coworkers.forEach((c, i) => { c.desk = desks[i]; });
@@ -109,7 +111,7 @@
   ];
   desks.forEach(d => furniture.push({ id: d.id, x: d.x, y: d.y + 2, w: d.w, h: d.h - 2 }));
 
-  // Растения-укрытия: pot — коллайдер горшка, hide — точка, куда садится Викентий.
+  // Растения-укрытия: pot — коллайдер горшка, hide — точка, куда садится Быкентий.
   const plants = [
     { id: 'monstera', label: 'МОНСТЕРА', x: 254, y: 238, kind: 'monstera' },
     { id: 'ficus', label: 'ФИКУС', x: 776, y: 262, kind: 'ficus' },
@@ -120,7 +122,7 @@
 
   const colliders = walls.concat(furniture);
 
-  // Интерактивные зоны (где должны стоять ноги Викентия).
+  // Интерактивные зоны (где должны стоять ноги Быкентия).
   const zones = [
     { id: 'desk', type: 'desk', x: playerDesk.x + 4, y: FLOOR_TOP + 2, w: DESK_W - 8, h: ROW1_Y - FLOOR_TOP - 2, short: 'Твой стол' },
     { id: 'coffee', type: 'coffee', x: 96, y: 150, w: 58, h: 30, short: 'Кофемашина' },

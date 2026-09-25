@@ -2,12 +2,12 @@
 
 Запуск: python3 scripts/make_characters.py   (нужны Pillow и numpy)
 
-vikentiy-walk-v3.png — Викентий по референсу: зализанные назад тёмно-русые волосы
+bykentiy-walk-v3.png — Быкентий по референсу: зализанные назад тёмно-русые волосы
                        с хвостиком, высокий лоб, лёгкая щетина, голубые глаза.
-coworkers-v3.png     — Айаршын теперь казах в белой футболке: андеркат-фейд,
+coworkers-v3.png     — Аймашын теперь казах в белой футболке: андеркат-фейд,
                        пучок с косичками сверху, щетина-эспаньолка, серьга.
-extras-v1.png        — второй ряд: Асель (бывший спрайт Айаршын), стажёр Ержан,
-                       Серёга «на созвоне».
+extras-v1.png        — второй ряд: Асель (бывший спрайт Аймашын), стажёр Ержан,
+                       Сиргей «на созвоне», Тигран в аквагриме тигра.
 Исходники v2 не меняются.
 """
 from pathlib import Path
@@ -107,7 +107,7 @@ def recolor(fr, mask, target, keep_shade=True):
         fr[..., i] = np.where(mask, v, fr[..., i])
 
 
-# ---------------- ВИКЕНТИЙ ----------------
+# ---------------- БЫКЕНТИЙ ----------------
 def blend(fr, x, y, col, k):
     if 0 <= y < fr.shape[0] and 0 <= x < fr.shape[1] and fr[y, x, 3] > 200:
         fr[y, x, :3] = (fr[y, x, :3] * (1 - k) + np.array(col) * k).astype(int)
@@ -168,8 +168,8 @@ def paint_face(fr, cx, cy):
 
 
 
-def vikentiy():
-    src = load('vikentiy-walk-v2.png')
+def bykentiy():
+    src = load('bykentiy-walk-v2.png')
     out = src.copy()
     FW = 64
     for f in range(4):
@@ -209,7 +209,7 @@ def vikentiy():
                     put(fr, x, y, (128, 104, 80))
         # 4) резинка хвоста
         put(fr, cx - 8, cy - 7, (20, 20, 24)); put(fr, cx - 9, cy - 7, (20, 20, 24))
-        # 5) лицо по фото: прямые брови, голубо-серые глаза с веком, длинный нос,
+        # 5) лицо по референсу: прямые брови, голубо-серые глаза с веком, длинный нос,
         #    скулы, усы и эспаньолка-щетина, тонкие губы
         paint_face(fr, cx, cy)
         grow = cut.copy()
@@ -217,12 +217,12 @@ def vikentiy():
             grow |= shift(cut, dy2, dx2)
         outline(fr, grow)
         drop_specks(fr)
-    save(out, 'vikentiy-walk-v3.png')
+    save(out, 'bykentiy-walk-v3.png')
 
 
-# ---------------- АЙАРШЫН ----------------
-def ayarshyn(cw):
-    """Из сидящего кадра Глеба: чёрные волосы с фейдом и пучком, щетина, серьга, белая футболка."""
+# ---------------- АЙМАШЫН ----------------
+def aimashyn(cw):
+    """Из сидящего кадра Блеба: чёрные волосы с фейдом и пучком, щетина, серьга, белая футболка."""
     fr = cw[:, 240:320].copy()
     H, W = fr.shape[:2]
     yy, xx = np.mgrid[0:H, 0:W]
@@ -289,7 +289,7 @@ def ayarshyn(cw):
                     (22, 33, (20, 20, 22)), (23, 33, (20, 20, 22)), (22, 34, (20, 20, 22)), (23, 34, (230, 230, 230)),
                     (22, 35, (20, 20, 22)), (23, 35, (20, 20, 22))):
         put(fr, x, y, c)
-    return fr[:, ::-1].copy()  # зеркалим, чтобы не выглядел близнецом Глеба
+    return fr[:, ::-1].copy()  # зеркалим, чтобы не выглядел близнецом Блеба
 
 
 # ---------------- ВТОРОЙ РЯД ----------------
@@ -298,7 +298,7 @@ def hue_swap(fr, mask, target):
 
 
 def asel(cw):
-    """Асель из комплаенса: бывший спрайт Айаршын, блузка горчичная."""
+    """Асель из комплаенса: бывший спрайт Аймашын, блузка горчичная."""
     fr = cw[:, 0:80].copy()
     r, g, b, al = ch(fr)
     teal = (al > 150) & (g > r + 20) & (b > r + 10)
@@ -307,7 +307,7 @@ def asel(cw):
 
 
 def yerzhan(cw):
-    """Стажёр Ержан: из Влада — без наушников, чёрные волосы, зелёное худи."""
+    """Стажёр Ержан: из Хлада — без наушников, чёрные волосы, зелёное худи."""
     fr = cw[:, 80:160].copy()
     H, W = fr.shape[:2]
     yy, xx = np.mgrid[0:H, 0:W]
@@ -323,8 +323,8 @@ def yerzhan(cw):
     return fr
 
 
-def seryoga(cw):
-    """Серёга «на созвоне»: из Александра — рыжий, в синей клетке."""
+def sirgey(cw):
+    """Сиргей «на созвоне»: из Шурика — рыжий, в синей клетке."""
     fr = cw[:, 160:240].copy()
     H, W = fr.shape[:2]
     yy = np.mgrid[0:H, 0:W][0]
@@ -339,14 +339,48 @@ def seryoga(cw):
     return fr
 
 
+def tigran(cw):
+    """Тигран — дух офиса: человек в аквагриме тигра, чёрные волосы, тёмная футболка с ракетой."""
+    fr = cw[:, 240:320].copy()
+    H, W = fr.shape[:2]
+    yy, xx = np.mgrid[0:H, 0:W]
+    r, g, b, al = ch(fr)
+    L = lum(fr)
+    shirt = (al > 150) & (yy > 40) & (yy < 80) & (b >= r - 6) & (L > 110)
+    recolor(fr, shirt, (44, 54, 92))
+    for x, y, c in ((47, 56, (230, 230, 230)), (47, 57, (230, 230, 230)), (46, 58, (230, 230, 230)), (47, 58, (230, 230, 230)),
+                    (48, 58, (230, 230, 230)), (47, 55, (220, 60, 50)), (46, 59, (250, 170, 40)), (48, 59, (250, 170, 40))):
+        put(fr, x, y, c)
+    hair = hair_mask(fr) & (yy < 24) & ~skin_mask(fr)
+    recolor(fr, hair, (30, 26, 28))
+    face = skin_mask(fr) & (yy < 44)
+    recolor(fr, face, (238, 128, 36))
+    face = face | ((al > 200) & (yy < 44) & ell(40, 28, 12, 15, (H, W)) & ~hair)
+    muzzle = face & (ell(40, 37, 6, 4, (H, W)) | ell(34, 23, 3, 1.5, (H, W)) | ell(46, 22, 3, 1.5, (H, W)))
+    fr[muzzle & (lum(fr) > 70), :3] = (246, 240, 228)
+    black = (20, 16, 14)
+    for x, y0, n in ((36, 12, 4), (40, 11, 5), (44, 12, 4)):
+        for y in range(y0, y0 + n):
+            if face[y, x]: put(fr, x, y, black)
+    for y in (29, 32):
+        for x in range(27, 32):
+            if face[y, x + (y == 32)]: put(fr, x + (y == 32), y, black)
+        for x in range(49, 54):
+            if face[y, x - (y == 32)]: put(fr, x - (y == 32), y, black)
+    for x in range(39, 42):
+        put(fr, x, 33, (40, 26, 24))
+    return fr
+
+
 if __name__ == '__main__':
-    vikentiy()
+    bykentiy()
     cw = load('coworkers-v2.png')
     out = cw.copy()
-    out[:, 0:80] = ayarshyn(cw)
+    out[:, 0:80] = aimashyn(cw)
     save(out, 'coworkers-v3.png')
-    ex = np.zeros((cw.shape[0], 240, 4), int)
+    ex = np.zeros((cw.shape[0], 320, 4), int)
     ex[:, 0:80] = asel(cw)
     ex[:, 80:160] = yerzhan(cw)
-    ex[:, 160:240] = seryoga(cw)
+    ex[:, 160:240] = sirgey(cw)
+    ex[:, 240:320] = tigran(cw)
     save(ex, 'extras-v1.png')

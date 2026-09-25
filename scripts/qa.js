@@ -46,6 +46,9 @@ function loadPlaywright() {
   });
   check('раскладки EN/RU', layout.length === 0, JSON.stringify(layout));
 
+  // Для большинства проверок вся неделя открыта (прогрессию проверяем отдельно в конце)
+  await page.evaluate(() => localStorage.setItem('nepalsya.weekDone', 'true'));
+
   // 2. Первый запуск: онбординг, листание стрелками, старт с последнего слайда
   await page.keyboard.press('Enter');
   await page.waitForTimeout(200);
@@ -55,7 +58,7 @@ function loadPlaywright() {
   onb = await page.evaluate(() => NP_DEBUG.onboarding);
   check('онбординг листается стрелками', onb.i === 2, JSON.stringify(onb));
   await page.screenshot({ path: path.join(outDir, '18-onboarding.png') });
-  for (let i = 0; i < 8; i++) await page.keyboard.press('ArrowRight');
+  await page.keyboard.press('ArrowRight'); // первый запуск: 3 ключевых слайда
   await page.waitForTimeout(200);
   let st = await page.evaluate(() => ({ ...NP_DEBUG.state, onbOpen: NP_DEBUG.onboarding.open }));
   check('старт по Enter после онбординга', st.mode === 'playing' && !st.onbOpen, st.mode);
@@ -96,7 +99,7 @@ function loadPlaywright() {
   });
   await page.waitForTimeout(1500);
   st = await page.evaluate(() => NP_DEBUG.state);
-  check('KPI ускоряется при начальнике', st.usefulness - watched > 4, `${watched.toFixed(1)} → ${st.usefulness.toFixed(1)}`);
+  check('работа к плану ускоряется при начальнике (×2)', st.usefulness - watched > 2.5, `${watched.toFixed(1)} → ${st.usefulness.toFixed(1)}`);
   await page.screenshot({ path: path.join(outDir, '02-watched.png') });
 
   // 8. Болтовня с коллегой
@@ -238,7 +241,7 @@ function loadPlaywright() {
 
   // Реальные нажатия: русская раскладка через keyboard.down с кодом клавиши (E/У, H/Р, B/И)
   const rus = await page.evaluate(() => {
-    NP_DEBUG.setClock(11 * 60); NP_DEBUG.set({ stealth: 90, usefulness: 60 }); NP_DEBUG.clearEvents();
+    NP_DEBUG.setClock(11 * 60); NP_DEBUG.set({ reprimands: 0, misses: 0, usefulness: 20 }); NP_DEBUG.clearEvents();
     NP_DEBUG.setBoss(706, 446, 'office'); NP_DEBUG.teleport(728, 150);
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'у', code: '' }));
     const a1 = NP_DEBUG.state.player.action;
@@ -254,7 +257,7 @@ function loadPlaywright() {
 
   // Альт-таб спасает, когда Д.Н. уже подозревает
   const at = await page.evaluate(() => {
-    NP_DEBUG.setClock(11 * 60); NP_DEBUG.set({ stealth: 90, usefulness: 60 }); NP_DEBUG.clearEvents();
+    NP_DEBUG.setClock(11 * 60); NP_DEBUG.set({ reprimands: 0, misses: 0, usefulness: 20 }); NP_DEBUG.clearEvents();
     NP_DEBUG.skip(11); NP_DEBUG.teleport(870, 436); NP_DEBUG.interact();
     NP_DEBUG.setBoss(830, 436, 'look', 0); NP_DEBUG.skip(0.9);
     const before = NP_DEBUG.state.boss.suspicion;
@@ -266,10 +269,10 @@ function loadPlaywright() {
 
   // Летучка: выбор ответа клавишей 2
   const su = await page.evaluate(() => {
-    NP_DEBUG.setClock(11 * 60); NP_DEBUG.set({ stealth: 90, usefulness: 60 }); NP_DEBUG.clearEvents();
+    NP_DEBUG.setClock(11 * 60); NP_DEBUG.set({ reprimands: 0, misses: 0, usefulness: 20 }); NP_DEBUG.clearEvents();
     NP_DEBUG.setBoss(706, 446, 'office'); NP_DEBUG.skip(5); NP_DEBUG.startEvent('standup'); NP_DEBUG.teleport(306, 420); NP_DEBUG.interact();
     for (let i = 0; i < 30 && !(NP_DEBUG.choice && NP_DEBUG.choice.asked); i++) NP_DEBUG.skip(0.5);
-    return { ...NP_DEBUG.choice, mode: NP_DEBUG.state.mode, clock: NP_DEBUG.state.clockMinutes, st: NP_DEBUG.state.stealth, k: NP_DEBUG.state.usefulness, boss: NP_DEBUG.state.boss.state };
+    return { ...NP_DEBUG.choice, mode: NP_DEBUG.state.mode, clock: NP_DEBUG.state.clockMinutes, rep: NP_DEBUG.state.reprimands, k: NP_DEBUG.state.usefulness, boss: NP_DEBUG.state.boss.state };
   });
   await page.screenshot({ path: path.join(outDir, '20-standup-choice.png') });
   await page.keyboard.press('Digit2');
@@ -277,21 +280,14 @@ function loadPlaywright() {
   check('летучка: вопрос и ответ клавишей 2', su && su.asked && su2 && su2.done, JSON.stringify([su, su2]));
   await page.evaluate(() => NP_DEBUG.skip(20));
 
-  // Стукач Ержан: видит, как ты сидишь в телефоне рядом, и сдаёт
-  const sn = await page.evaluate(() => {
-    NP_DEBUG.setClock(11 * 60); NP_DEBUG.set({ stealth: 90, usefulness: 60 }); NP_DEBUG.clearEvents();
-    NP_DEBUG.setBoss(706, 446, 'office'); NP_DEBUG.teleport(728, 380); NP_DEBUG.togglePhone();
-    for (let i = 0; i < 40 && !NP_DEBUG.state.stats.snitched; i++) NP_DEBUG.skip(0.5);
-    const s = NP_DEBUG.state; NP_DEBUG.togglePhone();
-    return { snitched: s.stats.snitched || 0, boss: s.boss.state };
-  });
-  check('стукач Ержан сдаёт Д.Н.', sn.snitched >= 1, JSON.stringify(sn));
+  // Стукача больше нет
+  check('стукач вырезан', await page.evaluate(() => !window.NP_LINES.snitch));
 
   // Апгрейды реально работают: KPI в Excel с креслом и монитором, турка, лава, кактус, гитара
   const up = await page.evaluate(() => {
-    NP_DEBUG.setClock(11 * 60); NP_DEBUG.set({ stealth: 90, usefulness: 60 }); NP_DEBUG.clearEvents();
+    NP_DEBUG.setClock(11 * 60); NP_DEBUG.set({ reprimands: 0, misses: 0, usefulness: 20 }); NP_DEBUG.clearEvents();
     NP_DEBUG.clearEvents();
-    const kpiRate = () => { NP_DEBUG.clearEvents(); NP_DEBUG.setBoss(706, 446, 'office'); NP_DEBUG.set({ usefulness: 20, stealth: 50, fun: 0 }); NP_DEBUG.teleport(728, 150); NP_DEBUG.interact(); NP_DEBUG.skip(5); const s = NP_DEBUG.state; return { k: s.usefulness - 20, st: s.stealth - 50, fun: s.fun }; };
+    const kpiRate = () => { NP_DEBUG.clearEvents(); NP_DEBUG.setBoss(706, 446, 'office'); NP_DEBUG.set({ usefulness: 20, reprimands: 0, fun: 0 }); NP_DEBUG.teleport(728, 150); NP_DEBUG.interact(); NP_DEBUG.skip(5); const s = NP_DEBUG.state; return { k: s.usefulness - 20, fun: s.fun }; };
     NP_DEBUG.setUpgrades({});
     const base = kpiRate();
     NP_DEBUG.setUpgrades({ chair: true, monitor: true, cactus: true, guitar: true });
@@ -315,20 +311,20 @@ function loadPlaywright() {
     return { base, gear, coffee, noisy: noisy.k, quiet: quiet.k, hot, fan };
   });
   check('апгрейды: кресло+монитор ускоряют KPI (×1.38)', Math.abs(up.gear.k / up.base.k - 1.38) < 0.05, JSON.stringify(up));
-  check('апгрейды: кактус ускоряет незаметность, гитара даёт кайф', up.gear.st > up.base.st * 1.8 && up.gear.fun > 1.5 && up.base.fun < 0.01, JSON.stringify(up));
+  check('апгрейды: гитара даёт кайф в Excel', up.gear.fun > 1.5 && up.base.fun < 0.01, JSON.stringify(up));
   check('апгрейды: турка — кофе 24 с', up.coffee === 24, String(up.coffee));
   check('апгрейды: шумодав и вентилятор снимают штрафы', up.quiet > up.noisy * 1.3 && up.fan > up.hot * 1.3, JSON.stringify(up));
 
   // Камеры СБ: прокрастинация в конусе записывается и докладывается Д.Н.
   const sbr = await page.evaluate(() => {
-    NP_DEBUG.setClock(11 * 60); NP_DEBUG.set({ stealth: 90, usefulness: 60 }); NP_DEBUG.clearEvents();
+    NP_DEBUG.setClock(11 * 60); NP_DEBUG.set({ reprimands: 0, misses: 0, usefulness: 20 }); NP_DEBUG.clearEvents();
     NP_DEBUG.setBoss(706, 446, 'office'); NP_DEBUG.startEvent('sb');
     NP_DEBUG.teleport(470, 260); NP_DEBUG.togglePhone();
     for (let i = 0; i < 60 && !NP_DEBUG.state.stats.sbReports; i++) NP_DEBUG.skip(0.25);
     const s = NP_DEBUG.state; NP_DEBUG.togglePhone();
-    return { reports: s.stats.sbReports || 0, stealth: Math.round(s.stealth), sus: Math.round(s.boss.suspicion) };
+    return { reports: s.stats.sbReports || 0, rep: s.reprimands, sus: Math.round(s.boss.suspicion) };
   });
-  check('камеры СБ докладывают о прокрастинации', sbr.reports >= 1 && sbr.stealth <= 82, JSON.stringify(sbr));
+  check('камеры СБ: доклад = выговор', sbr.reports >= 1 && sbr.rep >= 1, JSON.stringify(sbr));
   await page.screenshot({ path: path.join(outDir, '21-sb-cameras.png') });
   // Музыку можно выключить отдельно от звуков (N / Т и кнопка)
   const mus = await page.evaluate(() => {
@@ -341,7 +337,45 @@ function loadPlaywright() {
   });
   check('музыка выключается и включается (N / Т)', /вкл/.test(mus.t0) && /выкл/.test(mus.t1) && /вкл \(/.test(mus.t2) && mus.stored === 'true', JSON.stringify(mus));
 
-  // Автопилот: Викентий сам играет, скорость времени
+  // Выговоры и «не застал на месте»
+  const wd = await page.evaluate(() => {
+    const r = {};
+    NP_DEBUG.setClock(11 * 60); NP_DEBUG.clearEvents(); NP_DEBUG.setUpgrades({}); NP_DEBUG.set({ reprimands: 0, misses: 0, usefulness: 20 });
+    // 1) нет на месте → Д.Н. ждёт; вернулся вовремя → без промаха
+    NP_DEBUG.setBoss(728, 222, 'inspect'); NP_DEBUG.teleport(470, 260); NP_DEBUG.deskCheck();
+    r.state = NP_DEBUG.state.boss.state; r.wait = NP_DEBUG.state.boss.waitT;
+    NP_DEBUG.teleport(728, 150); NP_DEBUG.interact(); NP_DEBUG.skip(0.3);
+    r.back = { misses: NP_DEBUG.state.misses, boss: NP_DEBUG.state.boss.state };
+    // 2) не вернулся → промах
+    NP_DEBUG.setBoss(728, 222, 'inspect'); NP_DEBUG.teleport(470, 260); NP_DEBUG.deskCheck(); NP_DEBUG.skip(5);
+    r.missed = NP_DEBUG.state.misses;
+    // 3) 5-й промах на «Сотруднике» → выговор
+    NP_DEBUG.set({ misses: 4 });
+    NP_DEBUG.setBoss(728, 222, 'inspect'); NP_DEBUG.teleport(470, 260); NP_DEBUG.deskCheck(); NP_DEBUG.skip(5);
+    r.afterLimit = { misses: NP_DEBUG.state.misses, rep: NP_DEBUG.state.reprimands };
+    // 4) кактус: Д.Н. ждёт дольше
+    NP_DEBUG.setUpgrades({ cactus: true }); NP_DEBUG.setBoss(728, 222, 'inspect'); NP_DEBUG.deskCheck(); r.cactusWait = NP_DEBUG.state.boss.waitT;
+    NP_DEBUG.setUpgrades({}); NP_DEBUG.setBoss(706, 446, 'office'); NP_DEBUG.set({ reprimands: 0, misses: 0 });
+    return r;
+  });
+  check('пустой стол: Д.Н. ждёт у стола', wd.state === 'waitDesk' && wd.wait === 2.5, JSON.stringify(wd));
+  check('успел вернуться — без промаха', wd.back.misses === 0 && wd.back.boss !== 'waitDesk', JSON.stringify(wd.back));
+  check('не вернулся — «не застал» +1', wd.missed === 1, String(wd.missed));
+  check('лимит 5 «не застал» → выговор', wd.afterLimit.misses === 0 && wd.afterLimit.rep === 1, JSON.stringify(wd.afterLimit));
+  check('апгрейд кактус: Д.Н. ждёт дольше', wd.cactusWait === 4, String(wd.cactusWait));
+  await page.evaluate(() => { NP_DEBUG.setBoss(728, 222, 'inspect'); NP_DEBUG.teleport(470, 260); NP_DEBUG.deskCheck(); NP_DEBUG.skip(1); });
+  await page.screenshot({ path: path.join(outDir, '22-where-is-bykentiy.png') });
+  await page.evaluate(() => { NP_DEBUG.teleport(728, 150); NP_DEBUG.interact(); NP_DEBUG.skip(0.5); NP_DEBUG.set({ misses: 0 }); });
+
+  // План: сверх плана работа идёт с отдачей ×0.25
+  const pl = await page.evaluate(() => {
+    const t = NP_DEBUG.state.planTarget;
+    NP_DEBUG.set({ usefulness: t - 2 }); NP_DEBUG.addWork(10);
+    return { t, after: NP_DEBUG.state.usefulness };
+  });
+  check('сверх плана — отдача ×0.25', Math.abs(pl.after - (pl.t + 2)) < 0.01, JSON.stringify(pl));
+
+  // Автопилот: Быкентий сам играет, скорость времени
   const ap = await page.evaluate(() => {
     NP_DEBUG.setTimeScale(2);
     NP_DEBUG.startAutopilot();
@@ -379,7 +413,7 @@ function loadPlaywright() {
   await page.evaluate(() => NP_DEBUG.setDay(4));
   await page.keyboard.press('Enter');
   await page.waitForTimeout(200);
-  await page.evaluate(() => { for (let i = 0; i < 20; i++) { NP_DEBUG.set({ usefulness: 90, stealth: 90 }); NP_DEBUG.teleport(870, 230); NP_DEBUG.skip(10); } });
+  await page.evaluate(() => { for (let i = 0; i < 20; i++) { NP_DEBUG.set({ usefulness: 90, reprimands: 0, misses: 0 }); NP_DEBUG.teleport(870, 230); NP_DEBUG.skip(10); } });
   st = await page.evaluate(() => NP_DEBUG.state);
   check('пятница: Д.Н. уезжает после 17:00', ['leaving', 'gone'].includes(st.boss.state), `${st.boss.state} @ ${Math.round(st.clockMinutes)}`);
   await page.screenshot({ path: path.join(outDir, '09-friday.png') });
@@ -394,6 +428,55 @@ function loadPlaywright() {
   check('пятничное пиво завершает смену', beer === 'ended', beer);
   await page.waitForTimeout(200);
   await page.screenshot({ path: path.join(outDir, '17-munich.png') });
+
+  // Три выговора → увольнение; план не сделан к 19:30 → выговор
+  const fin = await page.evaluate(() => {
+    NP_DEBUG.restart(); NP_DEBUG.clearEvents();
+    NP_DEBUG.set({ usefulness: 0, reprimands: 1 }); NP_DEBUG.finish('win');
+    const a = { mode: NP_DEBUG.state.mode, rep: NP_DEBUG.state.reprimands };
+    NP_DEBUG.restart(); NP_DEBUG.clearEvents(); NP_DEBUG.reprimand('тест', 'тест'); NP_DEBUG.reprimand('тест', 'тест'); NP_DEBUG.reprimand('тест', 'тест');
+    return { a, rep3: NP_DEBUG.state.reprimands };
+  });
+  await page.waitForTimeout(1200);
+  const firedMode = await page.evaluate(() => NP_DEBUG.state.mode);
+  check('план не сделан → выговор', fin.a.mode === 'ended' && fin.a.rep === 2, JSON.stringify(fin));
+  check('3 выговора → уволен', fin.rep3 === 3 && firedMode === 'ended', firedMode);
+  await page.screenshot({ path: path.join(outDir, '23-fired.png') });
+
+  // Прогрессия по неделе: в понедельник только ядро, в четверг открыто больше
+  const prog = await page.evaluate(() => {
+    localStorage.setItem('nepalsya.weekDone', 'false');
+    NP_DEBUG.setDay(0); NP_DEBUG.restart();
+    const mon = { u: NP_DEBUG.unlocked, q: NP_DEBUG.eventQueue.length, remote: NP_DEBUG.coworkers.filter(c => c.away).length, todo: NP_DEBUG.state.todo.map(t => t.id) };
+    NP_DEBUG.setDay(3); NP_DEBUG.restart();
+    const thu = { u: NP_DEBUG.unlocked, q: NP_DEBUG.eventQueue.length, away: NP_DEBUG.coworkers.filter(c => c.away).length, todo: NP_DEBUG.state.todo.map(t => t.id) };
+    localStorage.setItem('nepalsya.weekDone', 'true');
+    return { mon, thu };
+  });
+  check('понедельник: только ядро (без событий, коллег, обеда, второго ряда)', prog.mon.q === 0 && !prog.mon.u.coworkers && !prog.mon.u.lunch && prog.mon.remote === 3 && prog.mon.todo.includes('coffee1'), JSON.stringify(prog.mon));
+  check('четверг: второй ряд, летучка, события открыты', prog.thu.u.row2 && prog.thu.u.standup && prog.thu.q > 3 && prog.thu.away === 0 && prog.thu.todo.includes('majik'), JSON.stringify(prog.thu));
+  await page.screenshot({ path: path.join(outDir, '24-thursday-card.png') });
+
+  // Тигран — дух офиса: сидит всегда, не проёбывается, «Поехали!» обнуляет подозрение
+  const tig = await page.evaluate(() => {
+    NP_DEBUG.setDay(0); NP_DEBUG.restart();
+    const mon = NP_DEBUG.coworkers.find(c => c.id === 'tigran');
+    NP_DEBUG.startEvent('drill');
+    const t = NP_DEBUG.coworkers.find(c => c.id === 'tigran');
+    NP_DEBUG.setSuspicion(70); NP_DEBUG.chatPerk('tigran');
+    const sus = NP_DEBUG.state.boss.suspicion;
+    const desk = window.NP_WORLD ? NP_WORLD.desks.find(d => d.id === 'r2_1').owner : 'tigran';
+    return { monAway: mon.away, slack: t.slack, sus, desk, title: document.title };
+  });
+  await new Promise(r => setTimeout(r, 1500));
+  const tigDrill = await page.evaluate(() => NP_DEBUG.coworkers.find(c => c.id === 'tigran').away);
+  check('Тигран: сидит с понедельника, на учениях не уходит', !tig.monAway && !tigDrill && !tig.slack, JSON.stringify(tig) + ' drill:' + tigDrill);
+  check('Тигран: «Поехали!» обнуляет подозрение', tig.sus === 0, String(tig.sus));
+  await page.evaluate(() => { NP_DEBUG.clearEvents && NP_DEBUG.clearEvents(); });
+  await new Promise(r => setTimeout(r, 600));
+  { const box = await page.$eval('#game', el => { const b = el.getBoundingClientRect(); return { x: b.x, y: b.y, w: b.width }; });
+    const k = box.w / 960; await page.screenshot({ path: path.join(outDir, '25-tigran.png'), clip: { x: box.x + 340 * k, y: box.y + 230 * k, width: 160 * k, height: 130 * k } }); }
+  check('стол r2_1 — Тиграна, в заголовке «Не пались»', tig.desk === 'tigran' && tig.title.startsWith('Не пались'), JSON.stringify(tig));
 
   check('нет ошибок в консоли', errors.length === 0, errors.join(' | '));
   await browser.close();
