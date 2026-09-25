@@ -16,12 +16,15 @@ px = src.load()
 for y in range(src.height):
     for x in range(src.width):
         r, g, b, a = px[x, y]
-        if r > 180 and b > 180 and g < 110:
+        if r > 170 and b > 170 and g < 120:
             px[x, y] = (0, 0, 0, 0)
 src = src.crop(src.getbbox())
 k = min(cw / src.width, ch / src.height)
 w, h = max(1, round(src.width * k)), max(1, round(src.height * k))
-small = src.resize((w, h), Image.NEAREST)
+# Сильное уменьшение (Gemini отдаёт ~1000 px): BOX сохраняет детали лица, альфу бинаризуем
+small = src.resize((w, h), Image.BOX if k < 0.5 else Image.NEAREST)
+a = small.getchannel('A').point(lambda v: 255 if v >= 128 else 0)
+small.putalpha(a)
 cell = Image.new('RGBA', (cw, ch), (0, 0, 0, 0))
 cell.paste(small, ((cw - w) // 2, ch - h), small)
 sheet = Image.open(sheet_path).convert('RGBA')
