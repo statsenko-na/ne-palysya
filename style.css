@@ -417,7 +417,7 @@ body.is-playing {
 .mbar i { display: block; height: 10px; background: linear-gradient(90deg, var(--c) var(--v), #0b1417 var(--v)); border: 1px solid #0b1417; }
 .spr { image-rendering: pixelated; background-repeat: no-repeat; }
 .spr-vik { width: 64px; height: 120px; background-image: url(assets/bykentiy-walk-v3.png); background-position: 0 0; transform: scale(1.4); }
-.spr-boss { width: 106px; height: 134px; background-image: url(assets/boss-walk-v2.png); background-position: 0 0; position: relative; z-index: 1; }
+.spr-boss { width: 106px; height: 134px; background-image: url(assets/boss-walk-v3.png); background-position: -848px 0; position: relative; z-index: 1; }
 .spr-cw0, .spr-cw3, .spr-ex1 { width: 80px; height: 112px; background-size: auto; transform: scale(.8); margin: 0 -8px; }
 .spr-cw0 { background-image: url(assets/coworkers-v3.png); background-position: 0 0; }
 .spr-cw3 { background-image: url(assets/coworkers-v3.png); background-position: -240px 0; }
