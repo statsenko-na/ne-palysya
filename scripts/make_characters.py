@@ -6,8 +6,8 @@ bykentiy-walk-v3.png — Быкентий по референсу: зализа�
                        с хвостиком, высокий лоб, лёгкая щетина, голубые глаза.
 coworkers-v3.png     — Аймашын теперь казах в белой футболке: андеркат-фейд,
                        пучок с косичками сверху, щетина-эспаньолка, серьга.
-extras-v1.png        — второй ряд: Асель (бывший спрайт Аймашын), стажёр Ержан,
-                       Сиргей «на созвоне», Тигран в гриме тигра.
+extras-v1.png        — второй ряд: пересобирается только ячейка Сиргея «на созвоне»;
+                       Асель, Альджазира, Тигран и Штази — из исходников assets/*-src.png.
 Исходники v2 не меняются.
 """
 from pathlib import Path
@@ -306,23 +306,6 @@ def asel(cw):
     return fr
 
 
-def yerzhan(cw):
-    """Стажёр Ержан: из Хлада — без наушников, чёрные волосы, зелёное худи."""
-    fr = cw[:, 80:160].copy()
-    H, W = fr.shape[:2]
-    yy, xx = np.mgrid[0:H, 0:W]
-    r, g, b, al = ch(fr)
-    red = (al > 120) & (r > 140) & (g < 90) & (b < 90) & (yy < 40)
-    face = ell(42, 32, 11, 8, (H, W))
-    hair = hair_mask(fr) & (yy < 36) & (lum(fr) < 100) & ~face
-    hair_all = hair | red
-    recolor(fr, hair_all, (40, 36, 40))
-    mx = np.maximum(np.maximum(r, g), b); mn = np.minimum(np.minimum(r, g), b)
-    gray = (al > 150) & (yy > 30) & (mx - mn < 26) & (lum(fr) > 60) & (yy < 80)
-    recolor(fr, gray, (70, 128, 84))
-    return fr
-
-
 def sirgey(cw):
     """Сиргей «на созвоне»: из Шурика — рыжий, в синей клетке."""
     fr = cw[:, 160:240].copy()
@@ -410,9 +393,7 @@ if __name__ == '__main__':
     out = cw.copy()
     out[:, 0:80] = aimashyn(cw)
     save(out, 'coworkers-v3.png')
-    ex = np.zeros((cw.shape[0], 320, 4), int)
-    ex[:, 0:80] = asel(cw)
-    ex[:, 80:160] = yerzhan(cw)
+    # Остальные ячейки второго ряда сделаны по фото / через agy — их не трогаем
+    ex = load('extras-v1.png')
     ex[:, 160:240] = sirgey(cw)
-    ex[:, 240:320] = tigran(cw)
     save(ex, 'extras-v1.png')

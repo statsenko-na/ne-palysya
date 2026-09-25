@@ -15,7 +15,7 @@ description: Генерация спрайтов и картинок для «Н
 ```powershell
 $env:Path = [Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [Environment]::GetEnvironmentVariable("Path","User")
 $d = "C:\Users\Nikolai S\Documents\ClaudeGames\gen"; New-Item -ItemType Directory -Force $d | Out-Null; Set-Location $d
-agy -p "<промпт>. Only generate one image and save it as <name>.png in the current folder. Do not read, create or modify any other files." --model gemini-3.5-flash-medium --effort low --print-timeout 4m --dangerously-skip-permissions --output-format json *> "$d\log.txt"
+agy -p "<промпт>. Only generate one image and save it as <name>.png in the current folder. Do not read, create or modify any other files." --model "Gemini 3.8 Flash (Low)" --print-timeout 4m --dangerously-skip-permissions --output-format json *> "$d\log.txt"
 ```
 Запускай в фоне (`run_in_background`), жди уведомления, не опрашивай.
 
@@ -28,7 +28,7 @@ agy -p "<промпт>. Only generate one image and save it as <name>.png in the
 ## 2. Встраивание
 1. Посмотри картинку (Read). Проверь, что фон пурпурный и персонаж целиком.
 2. Скопируй исходник в `assets/<name>-src.png`.
-3. `python scripts/replace_sprite.py assets/<name>-src.png <sheet> <index> [cell_w] [cell_h]` — убирает хромакей, вписывает с nearest-neighbor, заменяет ячейку. Листы: `assets/extras-v1.png` 80×112 (0 Асель, 1 Ержан, 2 Сиргей, 3 Тигран).
+3. `python scripts/replace_sprite.py assets/<name>-src.png <sheet> <index> [cell_w] [cell_h]` — убирает хромакей, вписывает с nearest-neighbor, заменяет ячейку. Листы: `assets/extras-v1.png` 80×112 (0 Асель, 1 Альджазира, 2 Сиргей, 3 Тигран, 4 Штази).
 4. Удали папку `gen` после переноса.
 
 ## 3. Проверка

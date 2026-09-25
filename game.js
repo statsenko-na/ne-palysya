@@ -18,7 +18,7 @@
   canvas.height = H * S;
 
   // Версия в URL сбрасывает кэш браузера, когда спрайт заменён под тем же именем файла
-  const ASSET_V = '0.18.1';
+  const ASSET_V = '0.21.0';
   function loadImage(src) { const i = new Image(); i.src = `${src}?v=${ASSET_V}`; return i; }
   const img = {
     vik: loadImage('assets/bykentiy-walk-v4.png'),
@@ -58,12 +58,23 @@
     strollChance: 0.35,        // часть «проверок» — просто прогулка по офису без тревоги
     reprimandGrace: 20,        // после выговора Д.Н. выдыхает: столько секунд без подозрения и проверок
     chatCooldown: 30,
-    lunchOpen: 13 * 60,        // обед в «Мюнхене» 13:00–14:30
-    lunchClose: 14 * 60 + 30,
-    lunchSeconds: 9,
+    lunchOpen: 12 * 60 + 30,   // обед каждый день: выйти с 12:30 до 14:00
+    lunchClose: 14 * 60,
+    lunchSeconds: 22.5,        // ровно час игрового времени (240 с на 640 минут)
+    vilkaFun: 20,              // четверг — стейки в «Вилке»: больше кайфа
+    lunchFun: 8,
     toiletPerPerson: 2.2,      // очередь в туалет: секунд на человека
     toiletSeconds: 6,
     toiletCooldown: 45,
+    overtimeSeconds: 30,
+    snusSeconds: 30,           // Д.Н. под снюсом: медленнее и добрее
+    snusSpeed: 0.75,
+    snusSuspicion: 0.6,
+    hideMax: 25,               // сколько секунд подряд можно сидеть в укрытии
+    hideCooldown: 20,          // потом укрытия недоступны       // сверхурочные после плана: снять сегодняшний выговор (раз в смену)
+    peeTimes: [2, 3],          // сколько раз за смену Быкентию приспичит (со среды, когда открыт биотуалет)
+    peeRise: 1.8,              // рост «приспичило» в секунду (0–100): ~55 с до конфуза
+    peeFail: 15,               // −кайфа, если не дотерпел
     beerAt: 17 * 60 + 15,      // пятничное пиво после отъезда Д.Н.
     beerChance: 0.65,
     bdayFee: 10,               // сбор на ДР: минус кайф, KPI не даёт
@@ -73,9 +84,9 @@
   // Множители к базовому балансу: чаще проверки, дальше взгляд, быстрее подозрение, медленнее KPI.
   const DIFFICULTY = {
     // warn — за сколько секунд до проверки «Кхм-кхм»; wait — сколько Д.Н. ждёт у пустого стола; speed — его шаг на проверке
-    easy: { name: 'СТАЖЁР', check: 1.3, vision: 0.9, slack: 0.7, work: 1, plan: 0.8, missLimit: 6, warn: 3.5, wait: 5, speed: 0.9, surprise: 0 },
-    normal: { name: 'СОТРУДНИК', check: 0.8, vision: 1.05, slack: 1.1, work: 1, plan: 1, missLimit: 5, warn: 2, wait: 2.5, speed: 1.15, surprise: 0.3 },
-    hard: { name: 'ВЕТЕРАН', check: 0.65, vision: 1.2, slack: 1.4, work: 1, plan: 1.2, missLimit: 3, warn: 1.5, wait: 2, speed: 1.3, surprise: 0.5 },
+    easy: { name: 'СТАЖЁР', check: 1.3, vision: 0.9, slack: 0.7, work: 1, plan: 0.8, missLimit: 6, warn: 3.5, wait: 5, speed: 0.9, surprise: 0, dayReprimandsMax: 4, weekReprimandsMax: 7 },
+    normal: { name: 'СОТРУДНИК', check: 0.8, vision: 1.05, slack: 1.1, work: 1, plan: 1, missLimit: 5, warn: 2, wait: 2.5, speed: 1.15, surprise: 0.3, dayReprimandsMax: 3, weekReprimandsMax: 5 },
+    hard: { name: 'ВЕТЕРАН', check: 0.65, vision: 1.2, slack: 1.4, work: 1, plan: 1.2, missLimit: 3, warn: 1.5, wait: 2, speed: 1.3, surprise: 0.5, dayReprimandsMax: 2, weekReprimandsMax: 4 },
   };
 
   // ---------- АПГРЕЙДЫ ЗА KPI-КОИНЫ ----------
@@ -97,23 +108,23 @@
   // plan — цель работы на день; tasks — задачи дня (попадают в список дел первыми).
   const DAYS = [
     { name: 'ПОНЕДЕЛЬНИК', short: 'ПН', plan: 60, mod: 'Тяжёлый понедельник: проверки чаще', checkMul: 0.85,
-      news: 'Ядро: Д.Н. и его конус, твой стол и Excel, кофе, балкон, YouTube, укрытия. Цель — план и кайф без 3 выговоров.',
-      tasks: ['coffee1', 'smoke1', 'inspect1'] },
+      news: 'Ядро: Д.Н. и его конус, твой стол и Excel, кофе, балкон, YouTube, укрытия, синий биотуалет. Цель — план и кайф без 3 выговоров.',
+      tasks: ['coffee1', 'smoke1', 'toilet', 'lunch', 'inspect1', 'reportMon'] },
     { name: 'ВТОРНИК', short: 'ВТ', plan: 70, mod: 'Обычный вторник. Подозрительно обычный.',
       news: 'Новое: коллеги первого ряда (E перед их столом) — у каждого бонус. Офисные события: угощение, созвон, ксерокс.',
-      tasks: ['chatAimashyn', 'chatHlad'] },
+      tasks: ['coffee1', 'smoke2', 'toilet', 'lunch', 'chatAimashyn', 'chatHlad', 'printReport'] },
     { name: 'СРЕДА', short: 'СР', plan: 70, mod: 'Среда — маленькая пятница: кайф ×1.25', funMul: 1.25,
-      news: 'Новое: обед 13:00 в «Мюнхене», синий биотуалет, альт-таб (B / ⎇). События: ДР, жара, перфоратор, учения.',
-      tasks: ['lunch', 'toilet'] },
+      news: 'Новое: альт-таб (B / ⎇). События: ДР, жара, перфоратор, учения.',
+      tasks: ['coffee2', 'smoke3', 'toilet2', 'lunch', 'reportTurlo'] },
     { name: 'ЧЕТВЕРГ', short: 'ЧТ', plan: 80, mod: 'Аудит из головного офиса: Д.Н. видит дальше', visionMul: 1.15,
       news: 'Новое: второй ряд (Д.Н. отвлекается на бездельников), летучка с выбором, Маджикистан, камеры СБ.',
-      tasks: ['majik', 'scold'] },
+      tasks: ['coffee1', 'smoke1a', 'toilet', 'lunchVilka', 'majik', 'scold', 'hideAudit'] },
     { name: 'ПЯТНИЦА', short: 'ПТ', plan: 60, mod: 'Пятница! Д.Н. уедет «на встречу» в 17:00', funMul: 1.2, bossLeaves: 17 * 60,
       news: 'Пятница: в 17:00 Д.Н. уезжает, иногда коллеги зовут в «Мюнхен» на пиво. Итог недели по Маджикистану.',
-      tasks: ['cleanFriday', 'planEarly'] },
+      tasks: ['coffee3', 'smoke4', 'toilet', 'lunch', 'cleanFriday', 'planEarly', 'yogurt', 'praise2'] },
   ];
   // С какого дня (индекс) открывается механика
-  const UNLOCK = { coworkers: 1, events1: 1, lunch: 2, toilet: 2, bosskey: 2, events2: 2, almaty: 2, row2: 3, standup: 3, events3: 3 };
+  const UNLOCK = { coworkers: 1, events1: 1, lunch: 0, toilet: 0, bosskey: 2, events2: 2, almaty: 2, row2: 3, standup: 3, events3: 3 };
   const EVENT_TIER = { food: 'events1', call: 'events1', internet: 'events1', jam: 'events1', bday: 'events2', heat: 'events2', noise: 'events2', drill: 'events2', standup: 'events3', majik: 'events3', autoshka: 'events3', arrfr: 'events3', sb: 'events3' };
 
   const store = {
@@ -124,6 +135,7 @@
   let timeScale = clamp0(Number(store.get('timeScale', 1)) || 1, 0.5, 3);
   function clamp0(v, a, b) { return Math.max(a, Math.min(b, v)); }
   let coins = store.get('coins', 0) | 0;
+  let weekReprimands = store.get('weekReprimands', 0) | 0; // выговоры копятся за всю неделю
   let majikArc = store.get('majikArc', 0) | 0; // сюжет недели: сколько раз подняли/уронили Маджикистан
   let diffKey = DIFFICULTY[store.get('difficulty', 'normal')] ? store.get('difficulty', 'normal') : 'normal';
   const diff = () => DIFFICULTY[diffKey];
@@ -132,6 +144,46 @@
   function clampDay(d) { return Math.max(0, Math.min(DAYS.length - 1, d | 0)); }
   const today = () => DAYS[dayIndex];
   const unlocked = f => store.get('weekDone', false) || dayIndex >= (UNLOCK[f] || 0);
+
+  // Автосохранение смены: день, счётчики, флаги дня (примитивы), список дел, статистика, событие
+  const SAVE_VERSION = 2;
+  const DAY_SKIP = new Set(['queue', 'queueTotal', 'qShift', 'knock', 'cabinDoor', 'npcInside', 'npcTimer', 'aljaziraVisiting', 'aljaziraPhase', 'aljaziraPhaseTimer', 'coffeeQueueTimer', 'lastSavedMinute', 'traffic']);
+  function saveProgress() {
+    if (mode !== 'playing' || auto.on) return;
+    const dayFlags = {};
+    for (const [k, v] of Object.entries(day || {})) if (!DAY_SKIP.has(k) && ['number', 'boolean', 'string'].includes(typeof v)) dayFlags[k] = v;
+    store.set('currentSave', {
+      v: SAVE_VERSION, dayIndex, diffKey, clockMinutes, usefulness, fun, reprimands, weekReprimands, planTarget, majikArc,
+      day: dayFlags,
+      todo: todo.map(t => ({ ...t })),
+      stats: { ...stats, chatted: Array.from(stats.chatted || []) },
+      officeEvent: officeEvent ? { id: officeEvent.id, t: officeEvent.t, used: !!officeEvent.used } : null,
+    });
+  }
+  function loadSavedProgress() {
+    const s = store.get('currentSave', null);
+    if (!s || s.v !== SAVE_VERSION || s.dayIndex !== dayIndex || s.diffKey !== diffKey || auto.on) return false;
+    clockMinutes = s.clockMinutes;
+    shiftTime = ((clockMinutes - CFG.shiftStart) / (CFG.shiftEnd - CFG.shiftStart)) * CFG.shiftSeconds;
+    usefulness = s.usefulness;
+    fun = Math.min(100, Math.max(0, s.fun || 0));
+    reprimands = s.reprimands;
+    weekReprimands = s.weekReprimands; store.set('weekReprimands', weekReprimands);
+    planTarget = s.planTarget || planTarget;
+    majikArc = s.majikArc | 0;
+    Object.assign(day, s.day || {});
+    if (Array.isArray(s.todo) && s.todo.length) todo = s.todo;
+    if (s.stats) { Object.assign(stats, s.stats); stats.chatted = new Set(s.stats.chatted || []); }
+    officeEvent = s.officeEvent && EVENTS[s.officeEvent.id] ? { ...EVENTS[s.officeEvent.id], ...s.officeEvent } : null;
+    // Прошедшее время: первая проверка и событие — не мгновенно после загрузки
+    nextBossCheck = Math.max(nextBossCheck, 20);
+    // Сохранились во время обеда — коллеги всё ещё в «Мюнхене»
+    if (day.lunchAway) coworkers.forEach(c => { if (!c.ghost) c.away = true; });
+    return true;
+  }
+  function clearSavedProgress() {
+    store.set('currentSave', null);
+  }
 
   // ---------- ВВОД ----------
   const keys = new Set();
@@ -339,6 +391,12 @@
   let planTarget = 60;        // цель работы на день
   let usefulness = 0;         // работа к плану (не тает)
   let fun = 0;
+  function addFun(n) {
+    const before = fun;
+    fun = Math.min(100, Math.max(0, fun + n));
+    if (stats && fun > before) stats.totalFunEarned = (stats.totalFunEarned || 0) + (fun - before);
+    return fun;
+  }
   let stats;
   let nextBossCheck = 16;
   let intelTimer = 0;
@@ -528,13 +586,14 @@
   // Список дел: сначала задачи дня (обучают новому), потом случайные из открытых механик
   const TODO_NEEDS = { chatAll: 'coworkers', chatAimashyn: 'coworkers', chatHlad: 'coworkers', lunch: 'lunch', toilet: 'toilet', scold: 'row2', majik: 'events3' };
   function pickTodo() {
-    const all = LINES.todoPool.concat(LINES.dayTasks);
+    const all = LINES.dayTasks.concat(LINES.todoPool); // задачи дня важнее одноимённых из пула
     const out = (today().tasks || []).map(id => all.find(t => t.id === id)).filter(Boolean).map(t => ({ ...t, done: false, day: true }));
     const pool = LINES.todoPool.filter(t => !out.some(o => o.id === t.id) && (!TODO_NEEDS[t.id] || unlocked(TODO_NEEDS[t.id])));
     while (out.length < 5 && pool.length) out.push({ ...pool.splice(Math.floor(rand() * pool.length), 1)[0], done: false });
     return out;
   }
   function todoProgress(t) {
+    if (t.stat) return Math.floor(stats[t.stat] || 0);
     switch (t.id) {
       case 'coffee3': return stats.coffees;
       case 'chatAll': return [...stats.chatted].filter(id => MAIN_IDS.has(id)).length;
@@ -565,7 +624,7 @@
       if (t.done) continue;
       if (todoProgress(t) >= t.goal) {
         t.done = true;
-        fun += 8;
+        addFun(8);
         playSound('success');
         toast(`✔ Выполнено: ${t.text}! +8 кайфа`, 2.6);
         addLog(`Список дел: «${t.text}» — готово.`, 'good');
@@ -597,22 +656,43 @@
     Object.assign(boss, { x: WD.bossHome.x, y: WD.bossHome.y, state: 'office', stateTimer: 5, path: [], target: null, suspicion: 0, catchCooldown: 0, quoteTimer: 4, praiseTimer: 0, warned: false, facing: Math.PI / 2 });
     coworkers.forEach((c, i) => { c.cooldown = 0; c.talkTimer = 0; c.idleTimer = 2 + rand() * 12; c.alert = 0; c.away = !!c.remote; c.slack = null; c.slackTimer = 10 + rand() * 12; c.scoldCooldown = 0; c.rocketAt = 660 + rand() * 360; c.draftCd = 0; });
     banterT = 10 + rand() * 12; pendingSays.length = 0;
-    day = { misses: 0, lunchCalled: false, lunchOpen: false, fed: false, hungry: false, bossLunch: false, beer: null, toiletCd: 0, queue: 0, queueTotal: 0, qShift: 0, knock: 3, cabinDoor: 0, npcInside: 0, npcTimer: 20 };
+    day = {
+      misses: 0, lunchCalled: false, lunchOpen: false, fed: false, hungry: false, bossLunch: false, beer: null,
+      toiletCd: 0, queue: 0, queueTotal: 0, qShift: 0, knock: 3, cabinDoor: 0, npcInside: 0, npcTimer: 20,
+      waterCups: 4, waterRecharge: 0,
+      coffeeCups: 0, coffeeJammed: false, coffeeQueueTimer: 0, coffeeQueueChecked: false,
+      excelWorkAcc: 0, overtimeWork: 0,
+      adhocDone: false, adhocAt: 720 + Math.floor(rand() * 210),
+      aljaziraTimer: 85 + rand() * 45, aljaziraVisiting: false, aljaziraPhase: 'desk', aljaziraPhaseTimer: 0,
+      lastSavedMinute: 0,
+      pee: 0, peeActive: false, peeLeft: CFG.peeTimes[0] + Math.floor(rand() * (CFG.peeTimes[1] - CFG.peeTimes[0] + 1)), peeAt: 0,
+    };
+    day.vilka = dayIndex === 3; // четверг — стейки в «Вилке»
+    day.peeAt = CFG.shiftStart + 50 + rand() * 90; // первый раз — между 09:40 и 11:10
     walkers = [];
     bossKeyCd = 0; choice = null; nudge = null;
     shownThisShift.clear();
     phoneSafe = 0;
-    if (has('lava')) fun += 3;
+    if (dayIndex === 0 && !store.get('currentSave', null)) {
+      weekReprimands = 0; store.set('weekReprimands', 0);
+    }
+    const loadedSave = loadSavedProgress();
+    if (has('lava')) addFun(3);
     addLog(`${today().name}: ${today().mod}.`);
-    addLog('08:50 — Быкентий пришёл в БЦ «Угар». Хвостик поправлен, в наушниках — «Кино».');
-    addLog('Директор Начальникович пьёт чай в кабинете. Пока.');
-    addLog('Напоминание: ты ответственный за Маджикистан. Там опять что-то моргает.');
-    if (dayIndex === 0) { majikArc = 0; store.set('majikArc', 0); }
+    if (loadedSave) {
+      addLog(`Продолжение смены: ${timeString(clockMinutes)}, план ${Math.floor(usefulness)}/${planTarget}, кайф ${Math.round(fun)}.`, 'info');
+    } else {
+      addLog('08:50 — Быкентий пришёл в БЦ «Угар». Хвостик поправлен, в наушниках — «Кино».');
+      addLog('Директор Начальникович пьёт чай в кабинете. Пока.');
+      addLog('Напоминание: ты ответственный за Маджикистан. Там опять что-то моргает.');
+    }
+    if (dayIndex === 0 && !loadedSave) { majikArc = 0; store.set('majikArc', 0); }
     // Алматинские дни: смог и утренняя пробка на Аль-Фараби
     day.smog = unlocked('almaty') && dayIndex !== 4 && rand() < 0.3;
-    day.traffic = unlocked('almaty') && !auto.on && rand() < 0.25;
+    day.traffic = !loadedSave && unlocked('almaty') && !auto.on && rand() < 0.25;
     // Второй ряд до четверга на удалёнке
     coworkers.forEach(c => { c.remote = c.extra && !c.ghost && !c.statist && !unlocked('row2'); c.away = c.remote; });
+    if (loadedSave && day.lunchAway) coworkers.forEach(c => { if (!c.ghost) c.away = true; });
     // Обед открывается со среды: до этого обеденных механик нет
     if (!unlocked('lunch')) Object.assign(day, { lunchCalled: true, lunchOpen: true, bossLunch: true, fed: true });
     if (day.smog) addLog('Смог над Алматы: гор не видно, перекур без вида — кайфа меньше.', 'info');
@@ -989,7 +1069,98 @@
       else if ((day.npcTimer -= dt) <= 0) { day.npcInside = 5 + rand() * 4; day.npcTimer = 25 + rand() * 25; day.cabinDoor = 0.5; }
     }
     phoneSafe = Math.max(0, phoneSafe - dt);
+    updatePee(dt);
     const m = clockMinutes;
+
+    // Перезарядка кулера с водой (30 игровых минут)
+    if (day.waterCups <= 0 && day.waterRecharge > 0) {
+      const gameMinutesPassed = dt * ((CFG.shiftEnd - CFG.shiftStart) / CFG.shiftSeconds);
+      day.waterRecharge -= gameMinutesPassed;
+      if (day.waterRecharge <= 0) {
+        day.waterCups = 4;
+        toast('💧 Курьер принёс новую 19-литровую бутыль! Кулер снова полон.', 3);
+        addLog('💧 Курьер установил новую бутыль в кулер. Вода снова есть.', 'good');
+        playSound('coffee');
+      }
+    }
+
+    // Утренняя очередь к кофемашине
+    if (day.coffeeQueueTimer > 0) {
+      day.coffeeQueueTimer = Math.max(0, day.coffeeQueueTimer - dt);
+    }
+    if (m >= 545 && m <= 605 && !day.coffeeQueueChecked) {
+      day.coffeeQueueChecked = true;
+      if (rand() < 0.6) {
+        day.coffeeQueueTimer = 18 + rand() * 12;
+      }
+    }
+
+    // Ад-хок от правления (случается один раз в день между 12:00 и 16:30)
+    if (!day.adhocDone && m >= day.adhocAt) {
+      day.adhocDone = true;
+      const cut = Math.min(usefulness, 12);
+      usefulness = Math.max(0, usefulness - cut);
+      playSound('caught'); shake = 0.4;
+      const adTitle = pick(LINES.adhoc.titles);
+      toast(`📩 АД-ХОК: ${adTitle} (−${Math.round(cut)} к плану)`, 4.5);
+      say('player', pick(LINES.adhoc.thoughts), 3.4);
+      addLog(`📩 Ад-хок от правления: «${adTitle}» (−${Math.round(cut)} KPI). Пришлось переделывать!`, 'bad');
+    }
+
+    // Альджазира (Начальник Маджикистана) инспектирует Быкентия
+    const aljaziraObj = coworkerById('aljazira');
+    if (aljaziraObj && !aljaziraObj.away && mode === 'playing' && !eventIs('drill') && !day.lunchAway) {
+      if (!day.aljaziraVisiting) {
+        day.aljaziraTimer -= dt;
+        if (day.aljaziraTimer <= 0) {
+          day.aljaziraVisiting = true;
+          day.aljaziraPhase = 'walk_to';
+          day.aljaziraTimer = 110 + rand() * 60;
+        }
+      } else {
+        if (day.aljaziraPhase === 'walk_to') {
+          if (!aljaziraObj.path) { aljaziraObj.x = aljaziraObj.desk.seatX; aljaziraObj.y = aljaziraObj.desk.seatY; aljaziraObj.path = findPath(aljaziraObj, { x: DESK_FRONT.x + 18, y: DESK_FRONT.y }); }
+          if (!walkPath(aljaziraObj, 44, dt)) {} else {
+            aljaziraObj.path = null;
+            day.aljaziraPhase = 'confront';
+            day.aljaziraPhaseTimer = 3.8;
+            const isDisaster = day.aljaziraForceDisaster ? true : (day.aljaziraForceCalm ? false : rand() >= 0.8);
+            day.aljaziraForceDisaster = false;
+            day.aljaziraForceCalm = false;
+            if (!isDisaster) {
+              say('aljazira', pick(LINES.aljazira.calm), 3.5, '#ff8080');
+            } else {
+              playSound('caught'); flash = 0.9; shake = 0.8;
+              say('aljazira', pick(LINES.aljazira.strike), 4.2, '#ff3030');
+              fun = 0; usefulness = 0;
+              banner = { text: 'АЛЬДЖАЗИРА: МАДЖИКИСТАН РУХНУЛ!', sub: 'Кайф сброшен до 0. План дня обнулён. Полный пересчёт!', t: 0, bad: true };
+              toast('💥 АЛЬДЖАЗИРА: ВСЁ СГОРЕЛО! КАЙФ 0 · ПЛАН 0', 4.5);
+              addLog('💥 Альджазира разнесла отдел: Маджикистан рухнул, кайф и план на нуле!', 'bad');
+              setTimeout(() => { if (mode === 'playing') say('player', 'Да е**ный в рот, Альджазира! За что?! Весь день заново?!', 3.5); }, 1400);
+            }
+          }
+        } else if (day.aljaziraPhase === 'confront') {
+          day.aljaziraPhaseTimer -= dt;
+          if (day.aljaziraPhaseTimer <= 0) {
+            day.aljaziraPhase = 'walk_back';
+          }
+        } else if (day.aljaziraPhase === 'walk_back') {
+          if (!aljaziraObj.path) aljaziraObj.path = findPath(aljaziraObj, { x: aljaziraObj.desk.seatX, y: aljaziraObj.desk.seatY });
+          if (walkPath(aljaziraObj, 44, dt)) {
+            aljaziraObj.path = null;
+            aljaziraObj.x = aljaziraObj.desk.seatX;
+            aljaziraObj.y = aljaziraObj.desk.y - 1; // обратно в кресло
+            day.aljaziraVisiting = false;
+          }
+        }
+      }
+    }
+
+    // Автосохранение каждые 15 игровых минут
+    if (Math.floor(m) % 15 === 0 && day.lastSavedMinute !== Math.floor(m)) {
+      day.lastSavedMinute = Math.floor(m);
+      saveProgress();
+    }
     // 12:55 — Быкентий зовёт всех на обед
     if (!day.lunchCalled && m >= CFG.lunchOpen - 5) {
       day.lunchCalled = true;
@@ -999,8 +1170,10 @@
     }
     if (!day.lunchOpen && m >= CFG.lunchOpen) {
       day.lunchOpen = true;
-      banner = { text: 'ОБЕД · 13:00–14:30', sub: 'Бизнес-ланч в «Мюнхене»: выход слева в коридоре, жми E у двери.', t: 0 };
-      addLog('Обед! Коллеги потянулись в «Мюнхен» за хрючевом дня.', 'info');
+      banner = day.vilka
+        ? { text: 'ОБЕД В «ВИЛКЕ» · СТЕЙКИ 🥩', sub: 'Четверг — стейк-день! Выход слева, E у двери до 14:00. Кайфа больше обычного.', t: 0 }
+        : { text: 'ОБЕД · 12:30–14:00', sub: 'Бизнес-ланч в «Мюнхене»: выход слева, E у двери. Обед длится час. Пропустишь — голодный до вечера.', t: 0 };
+      addLog(day.vilka ? 'Обед! Все рванули в «Вилку» за стейками.' : 'Обед! Коллеги потянулись в «Мюнхен» за хрючевом дня.', 'info');
       coworkers.forEach((c, i) => setTimeout(() => { if (mode === 'playing' && !eventIs('drill')) { if (!c.ghost) c.away = true; day.lunchAway = true; } }, 1200 + i * 700));
     }
     // Д.Н. тоже уходит на обед — если не занят проверкой
@@ -1009,15 +1182,15 @@
       bossGoOut(22 + rand() * 6, 'lunch');
       say('boss', pick(LINES.boss.lunchOut), 3);
     }
-    if (day.lunchAway && m >= CFG.lunchOpen + 50) {
+    if (day.lunchAway && m >= CFG.lunchOpen + 60) {
       day.lunchAway = false;
       coworkers.forEach(c => { if (!eventIs('drill')) c.away = !!c.remote; });
-      addLog('Коллеги вернулись из «Мюнхена». Кто-то жалеет о котлете.', 'info');
+      addLog(day.vilka ? 'Коллеги вернулись из «Вилки», сытые и добрые.' : 'Коллеги вернулись из «Мюнхена». Кто-то жалеет о котлете.', 'info');
     }
     if (!day.fed && !day.hungry && m >= CFG.lunchClose) {
       day.hungry = true;
       say('player', pick(LINES.lunch.hungry), 3);
-      toast('Быкентий пропустил обед: кайф копится на 20% медленнее.', 3);
+      toast('Пропустил обед: до вечера кайф −20%, Excel −15%, ходишь медленнее.', 3.4);
     }
     // Пятница: после отъезда Д.Н. коллеги иногда собираются в «Мюнхен» на пиво
     if (today().bossLeaves && day.beer === null && m >= CFG.beerAt) {
@@ -1043,6 +1216,7 @@
   }
 
   // ---------- ВЗАИМОДЕЙСТВИЯ ----------
+  const COVER = new Set(['plant_hide', 'cabinet_hide', 'printer_hide']);
   const HIDDEN = new Set(['plant_hide', 'cabinet_hide', 'printer_hide', 'toilet', 'lunch', 'evac']);
   const AWAY = new Set(['toilet', 'lunch', 'evac']); // Быкентия нет в опенспейсе — не рисуем
   const SLACK_BASE = new Set(['smoke', 'youtube', 'fridge', 'chat', 'phone', 'meme']);
@@ -1060,7 +1234,54 @@
     return best && best.p;
   }
   function currentZone() {
+    if (player.action === 'work') return WD.zones.find(z => z.id === 'desk');
+    const d = WD.playerDesk;
+    if (player.x >= d.x - 8 && player.x <= d.x + d.w + 8) {
+      if ((player.y >= WD.FLOOR_TOP && player.y <= WD.ROW1_Y + 2) ||
+          (player.y >= WD.ROW1_Y + WD.DESK_DEPTH - 2 && player.y <= WD.ROW1_Y + WD.DESK_DEPTH + 28)) {
+        return WD.zones.find(z => z.id === 'desk');
+      }
+    }
     return WD.zones.find(z => rectContains(z, player.x, player.y));
+  }
+  // «Приспичило»: 2–3 раза за смену (со среды, когда открыт биотуалет) надо дойти до синей кабинки
+  function updatePee(dt) {
+    if (!unlocked('toilet') || AWAY.has(player.action) && player.action !== 'toilet') return;
+    if (!day.peeActive) {
+      if (day.peeLeft > 0 && clockMinutes >= day.peeAt && player.action !== 'toilet' && player.action !== 'queue') {
+        day.peeActive = true; day.pee = 5; day.peeLeft--;
+        say('player', pick(LINES.pee.start), 2.8);
+        hint('pee', 'Быкентию приспичило! Дойди до синего биотуалета (юго-запад), пока шкала 🚽 не дошла до 100%.');
+      }
+      return;
+    }
+    if (player.action === 'toilet') return;
+    const before = day.pee;
+    day.pee = Math.min(100, day.pee + CFG.peeRise * dt * (player.action === 'queue' ? 0.5 : 1) * (player.coffeeBoost > 0 ? 1.3 : 1));
+    if (before < 70 && day.pee >= 70) say('player', pick(LINES.pee.urgent), 2.6);
+    if (day.pee >= 100) {
+      day.peeActive = false; day.pee = 0;
+      addFun(-CFG.peeFail); stats.peeFail = (stats.peeFail || 0) + 1;
+      flash = 0.5; shake = 0.4; playSound('caught');
+      say('player', pick(LINES.pee.fail), 3.4);
+      banner = { text: 'НЕ ДОТЕРПЕЛ', sub: `Пришлось бежать в соседний БЦ. −${CFG.peeFail} кайфа`, t: 0, bad: true };
+      addLog(`🚽 Не дотерпел до биотуалета. −${CFG.peeFail} кайфа и немного достоинства.`, 'bad');
+      schedulePee();
+    }
+  }
+  function schedulePee() {
+    const left = Math.max(1, day.peeLeft);
+    day.peeAt = clockMinutes + Math.max(40, (CFG.shiftEnd - 30 - clockMinutes) / left * (0.6 + rand() * 0.6));
+  }
+  // Идти по точкам пути (навигационный граф обходит мебель); true — дошёл
+  function walkPath(o, speed, dt) {
+    let step = speed * dt;
+    while (o.path && o.path.length && step > 0) {
+      const wp = o.path[0], d = dist(o, wp);
+      if (d <= step) { o.x = wp.x; o.y = wp.y; o.path.shift(); step -= d; }
+      else { o.x += (wp.x - o.x) / d * step; o.y += (wp.y - o.y) / d * step; o.facingX = wp.x < o.x ? -1 : 1; step = 0; }
+    }
+    return !o.path || !o.path.length;
   }
   function coworkerById(id) { return coworkers.find(c => c.id === id); }
 
@@ -1072,7 +1293,7 @@
     if (player.action === 'chat') return { prompt: 'Болтаете… (шаг — прервать)', target: `chat_${player.chatWith}` };
     if (player.action === 'queue') return { prompt: `Очередь в биотуалет: впереди ${day.queue} чел. (шаг — потерять место)`, target: 'toilet' };
     if (player.action === 'toilet') return { prompt: 'В синей кабинке. Единственное место без Д.Н.', target: 'toilet' };
-    if (player.action === 'lunch') return { prompt: 'Обед в «Мюнхене»: жуёшь хрючево дня…', target: 'exit' };
+    if (player.action === 'lunch') return { prompt: day.vilka ? 'Обед в «Вилке»: стейк, медиум, счастье…' : 'Обед в «Мюнхене»: жуёшь хрючево дня…', target: 'exit' };
     if (player.action === 'evac') return { prompt: 'Стоишь на улице с коллегами. Свежий воздух!', target: 'exit' };
     if (player.action === 'standup') return { prompt: 'Летучка: киваешь с умным видом…', target: 'standup' };
     const plant = nearestPlant();
@@ -1084,15 +1305,18 @@
     if (!z) return null;
     const prompts = {
       desk: player.action === 'work' ? 'E — встать из-за стола' : 'E — сесть за стол и открыть Excel',
-      coffee: player.coffeeBoost > 0 ? 'E — ещё эспрессо (кофеин не кончился)' : 'E — сварить эспрессо (+35% к скорости)',
+      coffee: day.coffeeJammed ? 'E — очистить кофемашину от жмыха (+3 KPI)'
+        : ((day.coffeeQueueTimer || 0) > 0 ? `Очередь у кофемашины (~${Math.ceil(day.coffeeQueueTimer)} с)`
+        : (player.coffeeBoost > 0 ? 'E — ещё эспрессо (кофеин не кончился)' : 'E — сварить эспрессо (+35% к скорости)')),
       fridge: 'E — пошарить в холодильнике (кайф, но палевно)',
-      water: 'E — налить воды из кулера',
+      water: (day.waterCups || 0) <= 0 ? `Кулер пуст — ждём доставку (~${Math.ceil(day.waterRecharge || 30)} мин.)`
+        : `E — налить воды из кулера (${day.waterCups || 4}/4)`,
       smoke: player.action === 'smoke' ? 'E — потушить сигарету' : 'E — перекур с видом на горы',
       archive: 'E / H — затаиться за шкафами',
       printer: eventIs('jam') && !officeEvent.used ? 'E — вытащить зажёванную бумагу (+9 к плану) · H — спрятаться' : 'E — распечатать мем · H — спрятаться за ксероксом',
       server: player.action === 'youtube' ? 'E — закрыть вкладку' : (eventIs('internet') ? 'Интернета нет. Только Excel, только хардкор.' : 'E — YouTube на гигабитном канале'),
       exit: exitPrompt(),
-      toilet: day.toiletCd > 0 ? `Биотуалет: пока не хочется (${Math.ceil(day.toiletCd)} с)` : 'E — встать в очередь в синюю кабинку',
+      toilet: day.peeActive ? 'E — СРОЧНО в синюю кабинку! 🚽' : day.toiletCd > 0 ? `Биотуалет: пока не хочется (${Math.ceil(day.toiletCd)} с)` : 'E — встать в очередь в синюю кабинку',
       complain: eventIs('heat') || eventIs('noise')
         ? (boss.state === 'office' ? `E — пожаловаться Д.Н. на ${eventIs('heat') ? 'жару' : 'шум'}` : 'Д.Н. нет в кабинете — жаловаться некому')
         : 'Дверь Д.Н. Стучать без повода — плохая идея.',
@@ -1112,11 +1336,14 @@
   function exitPrompt() {
     if (day.beer) return 'E — в «Мюнхен» на пятничное пиво 🍺 (закончить неделю)';
     if (eventIs('drill')) return 'E — эвакуироваться по тревоге';
-    if (clockMinutes >= CFG.lunchOpen && clockMinutes < CFG.lunchClose && !day.fed) return 'E — на обед в «Мюнхен». ЖУКИ КАЛОЕДЫ!';
+    if (clockMinutes >= CFG.lunchOpen && clockMinutes < CFG.lunchClose && !day.fed) return day.vilka ? 'E — на стейки в «Вилку» 🥩 (до 14:00)' : 'E — на обед в «Мюнхен» (до 14:00). ЖУКИ КАЛОЕДЫ!';
     if (day.fed && clockMinutes < CFG.lunchClose) return 'Уже пообедал. Хрючево переваривается.';
     return 'Выход на лестницу. Обед — 13:00–14:30, до 19:30 ни шагу.';
   }
   function startAction(action, seconds) {
+    // Бесконечно сидеть в кустах нельзя: после «хвостик торчит» укрытия недоступны на время
+    if (COVER.has(action) && day.hideCd > 0) { say('player', `Фикус ещё помнит мой хвостик… (${Math.ceil(day.hideCd)} с)`, 2); player.hideSpot = null; return; }
+    if (COVER.has(action)) player.hideT = 0;
     if (SLACK_BASE.has(action) && action !== 'phone') hint('slack', 'Это палево: если Д.Н. (или камера СБ) увидит — растёт подозрение. Следи за его конусом и радаром справа вверху.');
     if (action === 'phone') hint('phone', coarsePointer ? 'Телефон — тоже палево, но можно ходить. 📱 — убрать.' : 'Телефон — тоже палево, но можно ходить. Tab / Q — убрать.');
     player.action = action;
@@ -1149,15 +1376,20 @@
       playSound('flush');
       day.cabinDoor = 0.8;
       player.x = WD.toiletDoor.x; player.y = WD.toiletDoor.y;
-      floater(player.x, player.y - 64, 'ПОЛЕГЧАЛО', '#8fd0f0');
+      if (day.peeActive) {
+        day.peeActive = false; day.pee = 0; addFun(4); stats.peeOk = (stats.peeOk || 0) + 1; schedulePee();
+        floater(player.x, player.y - 64, 'ПОЛЕГЧАЛО! +4 КАЙФ', '#8fd0f0');
+        setTimeout(() => { if (mode === 'playing') say('player', pick(LINES.pee.relief), 2.8); }, 300);
+      } else floater(player.x, player.y - 64, 'ПОЛЕГЧАЛО', '#8fd0f0');
     }
     if (a === 'lunch' && reason === 'done') {
       day.fed = true; day.hungry = false; stats.lunch++;
-      fun += 8;
+      const lf = day.vilka ? CFG.vilkaFun : CFG.lunchFun;
+      addFun(lf);
       player.x = WD.exitDoor.x + 10; player.y = WD.exitDoor.y;
-      say('player', pick(LINES.lunch.thoughts), 3);
-      floater(player.x, player.y - 64, 'СЫТ · +8 КАЙФА', '#e8b070');
-      addLog(`Обед в «Мюнхене»: ${day.dish}. Невкусно, но сытно.`, 'good');
+      say('player', pick(day.vilka ? LINES.lunch.vilkaThoughts : LINES.lunch.thoughts), 3);
+      floater(player.x, player.y - 64, `СЫТ · +${lf} КАЙФА`, '#e8b070');
+      addLog(day.vilka ? `Обед в «Вилке»: ${day.dish}. Вот это жизнь!` : `Обед в «Мюнхене»: ${day.dish}. Невкусно, но сытно.`, 'good');
     }
     if (a === 'smoke' && reason === 'done') stats.cigarettes++;
     if (a === 'youtube' && reason === 'done') stats.videos++;
@@ -1168,6 +1400,15 @@
       addLog('Быкентий починил ксерокс. Герой отдела.', 'good');
       if (boss.seesPlayer || dist(boss, player) < 150) { say('boss', 'О! Технарь! Вот это я понимаю!', 2.8); stats.praise++; }
       else say('shurik', 'Спасибо! Он снова жуёт только иногда.', 2.6);
+    }
+    if (a === 'fix_coffee' && reason === 'done') {
+      day.coffeeJammed = false;
+      addWork(3);
+      addFun(3);
+      playSound('click');
+      toast('Вытряхнул жмых, промыл поддон! Кофемашина снова варит.', 2.8);
+      floater(player.x, player.y - 64, 'КОФЕМАШИНА ЧИСТА +3 KPI', '#57d08a');
+      addLog('Быкентий почистил кофемашину. Офис спасён.', 'good');
     }
     player.action = 'none';
     player.actionTimer = 0;
@@ -1211,7 +1452,7 @@
       return;
     }
     if (player.action === 'chat' || AWAY.has(player.action) || player.action === 'queue' || player.action === 'standup') return;
-    if (!info) { toast('Здесь пусто. Ищи подсказку внизу экрана — она появляется у активных мест.', 2.2); return; }
+    if (!info) return;
 
     if (info.plant) {
       const p = info.plant;
@@ -1226,18 +1467,37 @@
     const z = info.zone;
     switch (z.type) {
       case 'desk':
-        if (player.action === 'work') { endAction('cancel'); player.y = WD.FLOOR_TOP + 20; toast('Excel свёрнут. Риск открыт.', 1.5); return; }
+        if (player.action === 'work') {
+          endAction('cancel');
+          player.y = player.workFromFront ? (WD.ROW1_Y + WD.DESK_DEPTH + 6) : (WD.FLOOR_TOP + 20);
+          return;
+        }
+        player.workFromFront = player.y > (WD.ROW1_Y + 10);
         player.x = SEAT.x; player.y = SEAT.y;
+        day.excelWorkAcc = 0;
         startAction('work', 0);
         playSound('click');
         addLog('Быкентий открыл Excel. Пальцы стучат по формулам.', 'good');
-        toast(planDone() ? 'План уже сделан — Excel теперь просто прикрытие. Иди кайфуй!' : 'Сидишь в Excel: работа идёт к плану. На глазах у Д.Н. — вдвое быстрее!', 2.6);
         break;
       case 'coffee':
-        startAction('coffee', 2.2);
+        if (player.action === 'coffee' || player.action === 'fix_coffee') return;
+        if ((day.coffeeQueueTimer || 0) > 0) {
+          toast(pick(LINES.coffeeQueue), 2.8);
+          return;
+        }
+        if (day.coffeeJammed) {
+          startAction('fix_coffee', 2.8);
+          toast('Вытряхиваем жмых, промываем поддон (~3 с)...', 2.8);
+          return;
+        }
+        startAction('coffee', 2.8);
+        day.coffeeCups = (day.coffeeCups || 0) + 1;
+        if (day.coffeeCups >= 3 && rand() < 0.45) {
+          day.coffeeJammed = true;
+        }
         stats.coffees++;
         player.coffeeBoost = CFG.coffeeSeconds + (has('turka') ? 8 : 0);
-        fun += 5;
+        addFun(5);
         playSound('coffee');
         puff(119, WD.FLOOR_TOP - 20, 'rgba(255,255,255,0.7)', 8);
         floater(player.x, player.y - 64, '+5 КАЙФ · СКОРОСТЬ', '#e8b070');
@@ -1245,12 +1505,22 @@
         checkTodo();
         break;
       case 'water':
+        if (player.action === 'water') return;
+        if ((day.waterCups || 0) <= 0) {
+          toast(`Вода в кулере кончилась. Ждём доставку (~${Math.ceil(day.waterRecharge || 30)} мин.)`, 2.6);
+          return;
+        }
         startAction('water', 1.8);
-        if (eventIs('heat')) { fun += 6; floater(player.x, player.y - 76, 'В ЖАРУ — СПАСЕНИЕ', '#8fd0f0'); }
-        else fun += 2;
+        day.waterCups = (day.waterCups || 4) - 1;
+        const wGain = eventIs('heat') ? 6 : 2;
+        addFun(wGain);
         playSound('coffee');
         puff(218, 206, 'rgba(120,200,250,0.9)', 5, 8, -8);
-        floater(player.x, player.y - 64, '+2 КАЙФ', '#8fd0f0');
+        floater(player.x, player.y - 64, `+${wGain} КАЙФ (${day.waterCups} ост.)`, '#8fd0f0');
+        if (day.waterCups === 0) {
+          day.waterRecharge = 30;
+          addLog('Вода в кулере закончилась: бутыль пустая, кулер булькнул.', 'info');
+        }
         break;
       case 'fridge':
         startAction('fridge', 4.5);
@@ -1319,18 +1589,17 @@
           return;
         }
         if (clockMinutes >= CFG.lunchOpen && clockMinutes < CFG.lunchClose && !day.fed) {
-          day.dish = pick(LINES.lunch.dishes);
+          day.dish = pick(day.vilka ? LINES.lunch.vilka : LINES.lunch.dishes);
           startAction('lunch', CFG.lunchSeconds);
-          say('player', 'ЖУКИ КАЛОЕДЫ, я на обед!', 2.4);
-          toast(`«Мюнхен», бизнес-ланч: ${day.dish}.`, 3);
+          say('player', day.vilka ? 'Стейки в «Вилке»! ЖУКИ КАЛОЕДЫ, за мной!' : 'ЖУКИ КАЛОЕДЫ, я на обед!', 2.4);
+          toast(day.vilka ? `«Вилка»: ${day.dish}. Обед — ровно час.` : `«Мюнхен», бизнес-ланч: ${day.dish}. Обед — ровно час.`, 3);
           playSound('click');
           return;
         }
         toast(exitPrompt(), 2);
         return;
       case 'toilet': {
-        if (!unlocked('toilet')) { toast('Биотуалет «на санобработке» до среды.', 1.8); return; }
-        if (day.toiletCd > 0) { say('player', pick(LINES.toilet.busy), 2); return; }
+        if (day.toiletCd > 0 && !day.peeActive) { say('player', pick(LINES.toilet.busy), 2); return; }
         day.queue = 1 + Math.floor(rand() * 3);
         day.queueTotal = day.queue;
         day.qShift = 0; day.knock = 2 + rand() * 3;
@@ -1427,7 +1696,7 @@
     { id: 'toilet', icon: '🚽', name: 'Король биотуалета', desc: 'Дважды отстоять очередь за смену', now: () => stats.toilet >= 2 },
     { id: 'alttab', icon: '⎇', name: 'Альт-таб мастер', desc: 'Спастись альт-табом, когда подозрение выше 60%', now: () => (stats.altTabClutch || 0) >= 1 },
     { id: 'pet', icon: '⭐', name: 'Любимчик Д.Н.', desc: '5 похвал за смену', now: () => stats.praise >= 5 },
-    { id: 'kaif', icon: '🎸', name: 'Кайфожор', desc: 'Накопить 150 кайфа за смену', now: () => fun >= 150 },
+    { id: 'kaif', icon: '🎸', name: 'Кайфожор', desc: 'Заполнить шкалу кайфа до максимума (100)', now: () => fun >= 100 },
     { id: 'week', icon: '📅', name: 'Неделя пережита', desc: 'Пройти пятницу', end: r => r.win && r.dayName === 'ПЯТНИЦА' },
     { id: 'shopper', icon: '🛒', name: 'Обустроился', desc: 'Купить 4 апгрейда', now: () => Object.keys(owned).length >= 4 },
     { id: 'veteran', icon: '🔥', name: 'Ветеран', desc: 'Пережить смену на сложности «Ветеран»', end: r => r.win && diffKey === 'hard' },
@@ -1453,7 +1722,7 @@
   const achCount = () => ACHIEVEMENTS.filter(a => achieved[a.id]).length;
 
   // ---------- БОСС-КЛАВИША («АЛЬТ-ТАБ») ----------
-  // B / И: мгновенно сделать вид, что работаешь. Спасает, если Д.Н. уже что-то заподозрил.
+  // B: мгновенно сделать вид, что работаешь. Спасает, если Д.Н. уже что-то заподозрил.
   const FAKE_TEXT = {
     youtube: ['EXCEL ПОВЕРХ YOUTUBE', 'Это... обучающее видео по Excel!'],
     phone: ['ПИШЕТ В РАБОЧИЙ ЧАТ', 'Отвечаю по Маджикистану!'],
@@ -1519,6 +1788,7 @@
     const raid = rand() < 0.3;
     boss.mode = raid ? 'raid' : 'desk';
     boss.visitedSpots = 0;
+    boss.inspectAge = 0;
     if (raid) bossGoTo(pick(WD.patrolSpots), 'inspect', 'рейд по этажу');
     else bossGoTo(DESK_FRONT, 'inspect', 'твой стол');
     playSound('alarm');
@@ -1576,17 +1846,21 @@
     }
     reprimands++;
     stats.reprimands = reprimands;
+    weekReprimands++;
+    store.set('weekReprimands', weekReprimands);
     flash = 0.9; shake = 0.5;
     playSound('caught');
-    banner = { text: `ВЫГОВОР ${reprimands}/3`, sub: reason, t: 0, bad: true };
+    const dMax = diff().dayReprimandsMax || 3;
+    const wMax = diff().weekReprimandsMax || 5;
+    banner = { text: `ВЫГОВОР ${reprimands}/${dMax} (НЕДЕЛЯ: ${weekReprimands}/${wMax})`, sub: reason, t: 0, bad: true };
     // Передышка: выговоры не идут очередью
     boss.suspicion = 0;
     boss.catchCooldown = Math.max(boss.catchCooldown, CFG.reprimandGrace);
     nextBossCheck = Math.max(nextBossCheck, CFG.reprimandGrace + 6);
     if (officeEvent && officeEvent.id === 'sb') officeEvent.watch = 0;
-    addLog(`📝 ВЫГОВОР ${reprimands}/3: ${reason}`, 'bad');
-    if (reprimands === 2) hint('rep2', 'Два выговора! Третий — увольнение. Не попадайся в конус Д.Н. и будь на месте во время проверок.');
-    if (reprimands >= 3) setTimeout(() => finishGame('fired'), 900);
+    addLog(`📝 ВЫГОВОР ${reprimands}/${dMax} (за неделю: ${weekReprimands}/${wMax}): ${reason}`, 'bad');
+    if (reprimands === dMax - 1) hint('rep2', 'Остался 1 выговор до увольнения! Не попадайся в конус Д.Н. и будь на месте.');
+    if (reprimands >= dMax || weekReprimands >= wMax) setTimeout(() => finishGame('fired'), 900);
     return true;
   }
   // Проверка стола: Д.Н. не застал на месте → счётчик; на лимите — выговор
@@ -1633,7 +1907,7 @@
     if (playerIsWorking()) { passDeskInspection(); endInspection(); return; }
     // Стола пусто: Д.Н. ждёт у стола — есть шанс успеть вернуться
     boss.state = 'waitDesk';
-    boss.waitT = diff().wait + (has('cactus') ? 1.5 : 0);
+    boss.waitT = diff().wait + (has('cactus') ? 1.5 : 0) + (boss.snus > 0 ? 2 : 0);
     boss.moving = false;
     boss.facing = -Math.PI / 2;
     say('boss', pick(LINES.boss.emptyDesk), 3);
@@ -1650,6 +1924,7 @@
   }
 
   function followPath(dt, speed) {
+    if (boss.snus > 0) speed *= CFG.snusSpeed; // под снюсом Д.Н. ходит вразвалочку
     if (!boss.path.length) { boss.moving = false; return true; }
     const wp = boss.path[0];
     const d = dist(boss, wp);
@@ -1678,6 +1953,14 @@
   }
 
   function updateBoss(dt) {
+    // Снюс: раз в 1–2 минуты Д.Н. закидывается — медленнее ходит, подозрение растёт слабее, у стола ждёт дольше
+    boss.snus = Math.max(0, (boss.snus || 0) - dt);
+    boss.snusCd = (boss.snusCd === undefined ? 40 + rand() * 40 : boss.snusCd) - dt;
+    if (mode === 'playing' && boss.snusCd <= 0 && ['office', 'patrol', 'look'].includes(boss.state)) {
+      boss.snus = CFG.snusSeconds; boss.snusCd = 70 + rand() * 50;
+      if (boss.state !== 'office') { say('boss', pick(LINES.boss.snus), 3); floater(boss.x, boss.y - 60, 'ВКИНУЛСЯ СНЮСОМ · ДОБРЕЕ', '#9fe0b0'); }
+      addLog('Д.Н. закинул снюс под губу. Следующие полминуты он добрее и медленнее.', 'info');
+    }
     boss.stateTimer -= dt;
     boss.catchCooldown = Math.max(0, boss.catchCooldown - dt);
     boss.quoteTimer -= dt;
@@ -1686,7 +1969,8 @@
     if (mode === 'playing' && !['inspect', 'waitDesk', 'lecture', 'leaving', 'gone', 'goout', 'out', 'scold', 'standup'].includes(boss.state) && !eventIs('call') && !eventIs('drill')) {
       nextBossCheck -= dt;
       // Иногда проверка внезапная — без «Кхм-кхм» (зависит от сложности)
-      if (nextBossCheck < diff().warn && !boss.warned && !boss.silentCheck) {
+      if (nextBossCheck < diff().warn && !boss.warned && !boss.silentCheck && rand() < CFG.strollChance) startStroll();
+      else if (nextBossCheck < diff().warn && !boss.warned && !boss.silentCheck) {
         boss.warned = true;
         say('boss', 'Кхм-кхм...', 1.8);
         playSound('ahem');
@@ -1726,6 +2010,9 @@
         if (followPath(dt, CFG.bossSpeed)) { boss.state = 'office'; boss.stateTimer = 7 + rand() * 6; boss.x = WD.bossHome.x; boss.y = WD.bossHome.y; }
         break;
       case 'inspect':
+        // Страховка: проверка не тянется дольше 30 с (застрял в пути)
+        boss.inspectAge = (boss.inspectAge || 0) + dt;
+        if (boss.inspectAge > 30) { endInspection(); break; }
         if (boss.inspectTimer > 0) {
           boss.moving = false;
           boss.inspectTimer -= dt;
@@ -1836,6 +2123,7 @@
       if ((boss.state === 'inspect' || boss.state === 'waitDesk') && !playerIsWorking()) rate = CFG.suspicionInspect;
       else if (SLACK.has(player.action)) rate = CFG.suspicionSlack * diff().slack;
       if (rate > 0 && eventIs('noise')) rate *= 0.6; // за перфоратором шорохов не слышно
+      if (rate > 0 && boss.snus > 0) rate *= CFG.snusSuspicion; // под снюсом добрее
     }
     const before = boss.suspicion;
     boss.suspicion = clamp(boss.suspicion + rate * dt, 0, 100);
@@ -1889,6 +2177,7 @@
     if (eventIs('majik') && !officeEvent.used) { autoGoal('desk', z('desk'), { work: 6 }); return; }
     if ((eventIs('food') || eventIs('bday')) && !officeEvent.used) { autoGoal('feast', { x: 120, y: 236 }); return; }
     if (day.beer) { autoGoal('exit', z('exit')); return; }
+    if (day.peeActive && day.pee > 25) { autoGoal('toilet', z('toilet')); return; }
     if (clockMinutes >= CFG.lunchOpen && clockMinutes < CFG.lunchClose && !day.fed) { autoGoal('exit', z('exit')); return; }
     // План: отстаёшь от графика — иди работать; сделал — кайфуй
     if (!planDone() && usefulness < planTarget * dayProgress() + 12) { autoGoal('desk', z('desk'), { work: 9 + rand() * 5 }); return; }
@@ -1966,8 +2255,8 @@
     stopAutopilot();
     playSound('click');
     enterFullscreen();
+    auto.on = true; auto.goal = null; auto.path = []; // до resetGame: без утренней пробки
     resetGame();
-    auto.on = true; auto.goal = null; auto.path = [];
     toast('🍿 АВТОПИЛОТ: смотри и угорай. WASD — взять управление.', 3.2);
   }
   function stopAutopilot(msg) {
@@ -1979,6 +2268,17 @@
 
   // ---------- ИГРОК ----------
   function updatePlayer(dt) {
+    day.hideCd = Math.max(0, (day.hideCd || 0) - dt);
+    if (COVER.has(player.action)) {
+      player.hideT = (player.hideT || 0) + dt;
+      if (player.hideT > CFG.hideMax) {
+        endAction('cancel');
+        day.hideCd = CFG.hideCooldown;
+        say('player', pick(LINES.hideOut), 2.6);
+        toast(`🌿 Хвостик торчит из укрытия! Прятаться снова можно через ${CFG.hideCooldown} с`, 2.6);
+        addLog('Быкентий слишком долго сидел в укрытии — его стало видно.', 'bad');
+      }
+    }
     let dx = 0;
     let dy = 0;
     if (keys.has('arrowleft') || keys.has('a')) dx -= 1;
@@ -2006,7 +2306,7 @@
       const len = Math.hypot(dx, dy);
       dx /= len; dy /= len;
       if (Math.abs(dx) > 0.05) player.facingX = dx < 0 ? -1 : 1;
-      const hit = moveWithCollision(player, dx * player.speed * dt, dy * player.speed * dt, player.r);
+      const hit = moveWithCollision(player, dx * player.speed * (day.hungry ? 0.9 : 1) * dt, dy * player.speed * (day.hungry ? 0.9 : 1) * dt, player.r);
       if (hit && player.bumpCooldown <= 0) { playSound('bump'); player.bumpCooldown = 0.35; }
       player.walkTimer += dt * (player.coffeeBoost > 0 ? 11 : 8);
       player.moving = true;
@@ -2045,11 +2345,57 @@
       if (day.knock <= 0) { say('queue', pick(LINES.toilet.knock), 2.2, '#e8f0ff'); playSound('knock'); day.knock = 3.5 + rand() * 3; }
     }
     if (a === 'work') {
+      // Рутина в Excel выматывает и расходует кайф (если нет гитары)
+      if (fun > 0) {
+        fun = Math.max(0, fun - 0.4 * dt);
+      }
+      if (has('guitar')) addFun(0.8 * dt); // Гитара перебивает скуку: +0.4 кайфа/с чистого дохода
       const base = player.coffeeBoost > 0 ? CFG.workKpiCoffee : CFG.workKpi;
       const gear = (has('chair') ? 1.2 : 1) * (has('monitor') ? 1.15 : 1) * (eventIs('noise') && !has('headphones') ? 0.7 : 1);
-      const mult = (boss.watchingWork ? CFG.watchedKpiMultiplier : 1) * (eventIs('internet') ? 1.5 : 1) * gear * diff().work;
+      const mult = (boss.watchingWork ? CFG.watchedKpiMultiplier : 1) * (eventIs('internet') ? 1.5 : 1) * gear * diff().work * (day.peeActive && day.pee > 50 ? 0.7 : 1) * (day.hungry ? 0.85 : 1);
+      const beforeWork = usefulness;
       addWork(base * mult * dt);
-      if (has('guitar')) fun += 0.4 * dt;
+      const gained = usefulness - beforeWork;
+      day.excelWorkAcc = (day.excelWorkAcc || 0) + gained;
+
+      // Закрытие микрозадач в Excel: каждые 14 очков работы +4 кайфа
+      if (day.excelWorkAcc >= 14) {
+        day.excelWorkAcc -= 14;
+        addFun(4);
+        day.excelPoolTasks = (day.excelPoolTasks || 0) + 1;
+        const taskName = pick(LINES.excelTasks || ['Заявка закрыта']);
+        floater(player.x, player.y - 64, '✔ ЗАЯВКА ЗАКРЫТА! +4 КАЙФ', '#e0a0f0');
+        addLog(`Excel: «${taskName}». +4 кайфа.`, 'good');
+        playSound('click');
+
+        // Закрытый пул задач (каждые 3 закрытые заявки): бонус +10 кайфа!
+        if (day.excelPoolTasks >= 3) {
+          day.excelPoolTasks = 0;
+          addFun(10);
+          floater(player.x, player.y - 80, '⭐ ПУЛ ЗАЯВОК ЗАКРЫТ! +10 КАЙФ', '#ffe082');
+          banner = { text: 'ПУЛ ЗАЯВОК ЗАКРЫТ!', sub: 'Пачка кредитных заявок обработана. +10 кайфа!', t: 0 };
+          addLog('Excel: пул кредитных заявок закрыт! Отличная работа, +10 кайфа.', 'good');
+          playSound('success');
+        }
+      }
+
+      // Сверхзадача: если план выполнен и есть выговор — переработка снимает выговор!
+      // Раз в смену: ~30 с сверхурочной работы после плана снимают сегодняшний выговор
+      if (planDone() && reprimands > 0 && !day.overtimeUsed) {
+        day.overtimeWork = (day.overtimeWork || 0) + dt;
+        if (day.overtimeWork >= CFG.overtimeSeconds) {
+          day.overtimeWork = 0; day.overtimeUsed = true;
+          reprimands--;
+          if (weekReprimands > 0) { weekReprimands--; store.set('weekReprimands', weekReprimands); }
+          stats.reprimands = reprimands;
+          playSound('success');
+          say('boss', 'Быкентий закрыл сверхурочный аудит! Ладно, старый выговор аннулирую. Но не расслабляться!', 3.5);
+          floater(player.x, player.y - 70, '⭐ ВЫГОВОР АННУЛИРОВАН! (−1)', '#57d08a');
+          banner = { text: 'ВЫГОВОР СНЯТ ✓', sub: 'Д.Н. оценил сверхурочный труд и аннулировал взыскание!', t: 0 };
+          addLog('Сверхурочная работа: Д.Н. аннулировал выговор Быкентию!', 'good');
+        }
+      }
+
       stats.workedSeconds += dt;
       kpiTick -= dt;
       if (boss.watchingWork && kpiTick <= 0) { floater(player.x + (rand() - 0.5) * 20, player.y - 58, planDone() ? 'ПРИКРЫТИЕ' : `+ПЛАН ×${CFG.watchedKpiMultiplier}`, '#57d08a'); playSound('kpi'); kpiTick = 0.5; }
@@ -2072,6 +2418,7 @@
       const k = (today().funMul || 1) * (eventIs('heat') && !has('fan') ? 0.7 : 1) * (day.hungry ? 0.8 : 1);
       fun = funBefore + (fun - funBefore) * k;
     }
+    fun = Math.min(100, Math.max(0, fun));
   }
 
   // Перепалки соседей: реплика и ответ через пару секунд (по игровому времени — пауза их тоже останавливает)
@@ -2202,8 +2549,10 @@
     flash = Math.max(0, flash - dt);
 
     if (Math.floor(shiftTime * 2) !== Math.floor((shiftTime - dt) * 2)) { checkTodo(); checkAchievements(); }
+    const dMax = diff().dayReprimandsMax || 3;
+    const wMax = diff().weekReprimandsMax || 5;
     if (clockMinutes >= CFG.shiftEnd) finishGame('win');
-    else if (reprimands >= 3) finishGame('fired');
+    else if (reprimands >= dMax || weekReprimands >= wMax) finishGame('fired');
   }
 
   function gradeFor(score) {
@@ -2216,7 +2565,7 @@
 
   function goMunichBeer() {
     playSound('clink');
-    fun += 25;
+    addFun(25);
     addLog('🍺 Быкентий ушёл в «Мюнхен» на пиво. Неделя закрыта!', 'good');
     finishGame('munich');
   }
@@ -2225,18 +2574,22 @@
     if (mode !== 'playing') return;
     // Конец смены: план не сделан — это выговор (третий = увольнение)
     let planFailed = false;
+    const dMax = diff().dayReprimandsMax || 3;
+    const wMax = diff().weekReprimandsMax || 5;
     if (result === 'win' && !planDone()) {
       planFailed = true;
       reprimands++; stats.reprimands = reprimands;
-      addLog(`📝 ВЫГОВОР ${reprimands}/3: план не выполнен (${Math.floor(usefulness)}/${planTarget}).`, 'bad');
-      if (reprimands >= 3) result = 'fired';
+      weekReprimands++; store.set('weekReprimands', weekReprimands);
+      addLog(`📝 ВЫГОВОР ${reprimands}/${dMax} (нед: ${weekReprimands}/${wMax}): план не выполнен (${Math.floor(usefulness)}/${planTarget}).`, 'bad');
+      if (reprimands >= dMax || weekReprimands >= wMax) result = 'fired';
     }
+    clearSavedProgress();
     setMode('ended');
     const win = result === 'win' || result === 'munich';
     ui.endCard.classList.toggle('good', win);
     ui.endCard.classList.toggle('bad', !win);
     const done = todo.filter(t => t.done).length;
-    const score = Math.max(0, Math.round(fun + (planDone() ? 20 : 0) + done * 12 - reprimands * 15));
+    const score = Math.max(0, Math.round(Math.min(100, Math.max(0, fun)) + (planDone() ? 20 : 0) + done * 12 - reprimands * 15));
     const [grade, title] = gradeFor(score);
     ui.endTitle.textContent = win ? (planFailed ? 'ВЫЖИЛ, НО БЕЗ ПЛАНА' : 'ТЫ ВЫЖИЛ!') : 'ТЕБЯ УВОЛИЛИ!';
     if (win) {
@@ -2247,8 +2600,10 @@
           : 'План сделан, до 19:30 дожил. Огни Алматы, пробки на Аль-Фараби и пара выговоров на память.');
     } else {
       ui.endCopy.textContent = planFailed
-        ? 'Третий выговор — за невыполненный план. «Бездельники нам не нужны!» Пропуск заблокирован.'
-        : 'Три выговора. Начальник сверил записи камер и объяснительные: перекуры, ролики, пустой стул. Пропуск заблокирован.';
+        ? `Выговор за невыполненный план (${reprimands}/${dMax}, нед: ${weekReprimands}/${wMax}). «Бездельники нам не нужны!» Пропуск заблокирован.`
+        : (weekReprimands >= wMax
+          ? `Превышен недельный лимит выговоров (${weekReprimands}/${wMax})! Правление банка расторгло трудовой договор.`
+          : `Превышен дневной лимит выговоров (${reprimands}/${dMax})! Начальник сверил записи камер и объяснительные. Пропуск заблокирован.`);
     }
     const bestKey = `best.${dayIndex}`;
     const best = store.get(bestKey, 0);
@@ -2258,10 +2613,10 @@
     const earned = Math.max(1, Math.round(score / 10));
     coins += earned;
     store.set('coins', coins);
-    if (win && dayName === 'ПЯТНИЦА') store.set('weekDone', true); // после первой недели всё открыто сразу
+    if (win && dayName === 'ПЯТНИЦА') { store.set('weekDone', true); weekReprimands = 0; store.set('weekReprimands', 0); }
     if (win) { dayIndex = dayIndex < DAYS.length - 1 ? dayIndex + 1 : 0; store.set('day', dayIndex); }
     ui.grade.innerHTML = win ? `<b>${grade}</b><span>${title} · ${score} очков${record ? ' · НОВЫЙ РЕКОРД!' : ` · рекорд ${Math.max(best, score)}`}</span>` : '';
-    ui.endKicker.textContent = win ? `${dayName} ПЕРЕЖИТ · 19:30` : `${dayName} · ТРИ ВЫГОВОРА`;
+    ui.endKicker.textContent = win ? `${dayName} ПЕРЕЖИТ · 19:30` : `${dayName} · ВЫГОВОРЫ (${reprimands}/${dMax}, нед: ${weekReprimands}/${wMax})`;
     if (win && dayName === 'ПЯТНИЦА') {
       let arc = 'Маджикистан так и мигает — как всегда.';
       if (majikArc >= 2) { arc = 'Маджикистан ЗАПУСТИЛСЯ! Правление в шоке, тебе премия +10 ₭.'; coins += 10; store.set('coins', coins); }
@@ -2280,7 +2635,7 @@
     ui.endStats.innerHTML = [
       [`${Math.floor(usefulness)}/${planTarget}`, planDone() ? 'план ✓' : 'план ✗'],
       [Math.round(fun), 'кайфа'],
-      [`${reprimands}/3`, 'выговоров'],
+      [`${reprimands}/${dMax} (нед: ${weekReprimands}/${wMax})`, 'выговоров'],
       [`${done}/${todo.length}`, 'дел из списка'],
       [stats.chats, 'разговоров'],
       [stats.praise, 'похвал Д.Н.'],
@@ -2288,6 +2643,12 @@
     playSound(win ? 'success' : 'caught');
     if (auto.on) { const keep = true; clearTimeout(auto.restartTimer); auto.restartTimer = setTimeout(() => { if (keep && mode === 'ended') startAutopilot(); }, 7000); }
     addLog(win ? '19:30 — смена окончена. Свобода!' : 'Трудовой договор расторгнут.', win ? 'good' : 'bad');
+    // Недельный лимит исчерпан: переигровка дня увольняла бы сразу — неделя начинается заново
+    if (!win && weekReprimands >= wMax) {
+      weekReprimands = 0; store.set('weekReprimands', 0);
+      dayIndex = 0; store.set('day', 0);
+      addLog('Новая неделя: с понедельника с чистого листа.', 'info');
+    }
   }
 
   // ---------- РЕНДЕР ----------
@@ -2434,6 +2795,20 @@
         R(sx > 0 ? cx : cx - c, sy > 0 ? cy : cy - th, c, th, col);
         R(sx > 0 ? cx : cx - th, sy > 0 ? cy : cy - c, th, c, col);
       }
+      if (z.id === 'desk' && active && player.action !== 'work') {
+        const pulse = 0.55 + Math.sin(t * 6) * 0.35;
+        ctx.strokeStyle = `rgba(242,187,56,${pulse})`;
+        ctx.lineWidth = 1.2;
+        ctx.strokeRect(SEAT.x - 12.5, SEAT.y - 12.5, 25, 20);
+        R(SEAT.x - 12, SEAT.y - 12, 24, 19, `rgba(242,187,56,${pulse * 0.22})`);
+        if (player.y > WD.ROW1_Y) {
+          const fx = WD.playerDesk.x, fy = WD.ROW1_Y + WD.DESK_DEPTH, fw = WD.playerDesk.w, fh = 26;
+          for (const [cx, cy, sx, sy] of [[fx, fy, 1, 1], [fx + fw, fy, -1, 1], [fx, fy + fh, 1, -1], [fx + fw, fy + fh, -1, -1]]) {
+            R(sx > 0 ? cx : cx - 7, sy > 0 ? cy : cy - 1.5, 7, 1.5, `rgba(242,187,56,${a})`);
+            R(sx > 0 ? cx : cx - 1.5, sy > 0 ? cy : cy - 7, 1.5, 7, `rgba(242,187,56,${a})`);
+          }
+        }
+      }
     }
     if (eventIs('food') && !officeEvent.used) {
       const a = 0.5 + Math.sin(t * 5) * 0.3;
@@ -2569,10 +2944,15 @@
       if (Math.sin(t * 2.3 + 1) > 0.97) T('✦', c.x - 18 + Math.sin(t * 7) * 6, c.desk.y - 40, 7, '#cfe8ff', 'center', 700, FONT_SANS);
       return;
     }
-    drawStripFrame(sheet, Math.round(sheet.naturalWidth / 80), c.sprite, c.x, c.desk.y + 18 + bob, false);
+    if (c.id === 'aljazira' && day.aljaziraVisiting) {
+      drawShadow(c.x, c.y + 16, 7, 2.4);
+      bob = Math.sin(t * 9) * 1.2;
+    }
+    const cy = (c.y !== undefined && Math.abs(c.y - (c.desk.y - 1)) > 3 ? c.y : c.desk.y) + 18 + bob;
+    drawStripFrame(sheet, Math.round(sheet.naturalWidth / 80), c.sprite, c.x, cy, false);
     if (c.slack) {
-      if (c.slack === 'phone' || c.slack === 'game') R(c.x - 6, c.desk.y - 6, 12, 7, 'rgba(120,220,255,0.35)');
-      const y = c.desk.y - 44 + Math.sin(t * 3) * 1.5;
+      if (c.slack === 'phone' || c.slack === 'game') R(c.x - 6, cy - 24, 12, 7, 'rgba(120,220,255,0.35)');
+      const y = cy - 62 + Math.sin(t * 3) * 1.5;
       T(SLACK_ICONS[c.slack], c.x + 16, y, 10, '#fff', 'center', 700, FONT_SANS);
     }
   }
@@ -2693,7 +3073,7 @@
     for (const c of coworkers) items.push({ y: c.y, draw: () => drawCoworker(c) });
     if (player.action === 'queue') for (let i = 0; i < day.queue; i++) items.push({ y: WD.toiletDoor.y - 0.5, draw: () => { const p = queueSlot(i); drawStranger(p.x + day.qShift, p.y, (day.queueTotal - day.queue + i + 2) % QUEUE_LOOK.length, i); } });
     for (const wk of walkers) items.push({ y: wk.y, draw: () => drawStranger(wk.x, wk.y, wk.look, 9, Math.max(0, 1 - wk.t / 1.6), true) });
-    const pBase = player.action === 'work' ? DESK.y - 1 : (player.action === 'plant_hide' && player.hideSpot ? player.hideSpot.y - 1 : player.y);
+    const pBase = player.action === 'work' ? DESK.y - 1 : (player.action === 'plant_hide' && player.hideSpot ? player.hideSpot.y - 1 : (player.y < 168 && Math.abs(player.x - SEAT.x) < 36 ? 167 : player.y));
     items.push({ y: pBase, draw: drawPlayer });
     items.push({ y: boss.state === 'office' ? WD.bossHome.y + 15 : boss.y, draw: drawBoss });
     items.sort((a, b) => a.y - b.y);
@@ -2849,6 +3229,16 @@
         }
       });
     }
+    // Шкала «приспичило»
+    if (day.peeActive && !AWAY.has(player.action)) {
+      const head = entityHead('player');
+      const urgent = day.pee >= 70, jig = urgent ? Math.sin(performance.now() / 33) : 0;
+      around(head.x + jig, head.y - 16, k, () => {
+        R(-17, -9, 34, 12, 'rgba(10,16,20,0.92)'); R(-17, -9, 2, 12, urgent ? '#e8433e' : '#8fd0f0');
+        T(`🚽${Math.round(day.pee)}%`, 0, -3, 7, urgent ? '#ff8a7a' : '#8fd0f0', 'center', 700, FONT_SANS);
+        R(-15, 3, 30 * day.pee / 100, 1.5, urgent ? '#e8433e' : '#8fd0f0');
+      });
+    }
     // Имена коллег, когда Быкентий рядом
     for (const c of coworkers) {
       if (!c.away && Math.hypot(player.x - c.x, player.y - c.y) < 90 && !bubbles.some(b => b.owner === c.id)) {
@@ -2937,7 +3327,9 @@
 
   function bar(x, y, w, label, value, color, valueColor, shown) {
     T(label, x, y, 8.5, '#f5edd9', 'left', 700, FONT_SANS);
-    T(`${Math.round(shown === undefined ? value : shown)}${label === 'КАЙФ' ? '' : '%'}`, x + w, y, 8.5, valueColor || color, 'right', 700);
+    const isFun = label === 'КАЙФ';
+    const text = isFun && value >= 100 ? '100 MAX' : `${Math.round(shown === undefined ? value : shown)}${isFun ? '' : '%'}`;
+    T(text, x + w, y, 8.5, isFun && value >= 100 ? '#ffe082' : (valueColor || color), 'right', 700);
     R(x, y + 5, w, 8, '#0b1417');
     R(x + 1, y + 6, (w - 2) * clamp(value / 100, 0, 1), 6, color);
     R(x + 1, y + 6, (w - 2) * clamp(value / 100, 0, 1), 1.5, 'rgba(255,255,255,0.25)');
@@ -2954,16 +3346,20 @@
     T('КРЕДИТКИ', 44, 26, 7.5, '#9fc', 'left', 700, FONT_SANS);
     T('7 ЭТАЖ', 44, 36, 6.5, '#789', 'left', 700, FONT_SANS);
 
-    // Выговоры: три кружка + счётчик «не застал на месте»
+    // Выговоры: кружки по dayReprimandsMax + недельные + счётчик «не застал на месте»
+    const dMax = diff().dayReprimandsMax || 3;
+    const wMax = diff().weekReprimandsMax || 5;
     T('ВЫГОВОРЫ', 88, 14, 8.5, '#f5edd9', 'left', 700, FONT_SANS);
-    for (let i = 0; i < 3; i++) {
-      const cx = 96 + i * 17, on = i < reprimands;
-      ctx.fillStyle = on ? '#e8433e' : '#0b1417'; ctx.beginPath(); ctx.arc(cx, 27, 6, 0, TAU); ctx.fill();
+    for (let i = 0; i < dMax; i++) {
+      const cx = 96 + i * 15, on = i < reprimands;
+      ctx.fillStyle = on ? '#e8433e' : '#0b1417'; ctx.beginPath(); ctx.arc(cx, 27, 5.5, 0, TAU); ctx.fill();
       ctx.strokeStyle = on ? '#ff8a7a' : '#4a6a70'; ctx.lineWidth = 1; ctx.stroke();
-      if (on) T('!', cx, 27.3, 8, '#fff', 'center', 900);
+      if (on) T('!', cx, 27.3, 7.5, '#fff', 'center', 900);
     }
     const lim = diff().missLimit;
-    T(`👀 не застал: ${day.misses || 0}/${lim}`, 148, 27.5, 7, (day.misses || 0) >= lim - 1 ? '#ff8a7a' : '#9fb', 'left', 700, FONT_SANS);
+    const repEnd = 96 + (dMax - 1) * 15;
+    T(`нед: ${weekReprimands}/${wMax}`, repEnd + 10, 21.5, 6.5, weekReprimands >= wMax - 1 ? '#ff8a7a' : '#e0b088', 'left', 700, FONT_SANS);
+    T(`👀 не застал: ${day.misses || 0}/${lim}`, repEnd + 10, 31, 6.5, (day.misses || 0) >= lim - 1 ? '#ff8a7a' : '#9fb', 'left', 700, FONT_SANS);
     // План на день: полоска с отметкой цели
     const pw = 110, px = 222;
     T('ПЛАН', px, 14, 8.5, '#f5edd9', 'left', 700, FONT_SANS);
@@ -3039,16 +3435,19 @@
     R(0, HH - 1.5, VW, 1.5, '#d8aa40');
     const gap = 7;
     let x = 6;
+    const dMax = diff().dayReprimandsMax || 3;
+    const wMax = diff().weekReprimandsMax || 5;
     // выговоры и «не застал»
-    for (let i = 0; i < 3; i++) {
-      const cx = x + 5 + i * 13, on = i < reprimands;
-      ctx.fillStyle = on ? '#e8433e' : '#0b1417'; ctx.beginPath(); ctx.arc(cx, 10, 5, 0, TAU); ctx.fill();
+    for (let i = 0; i < dMax; i++) {
+      const cx = x + 4 + i * 11, on = i < reprimands;
+      ctx.fillStyle = on ? '#e8433e' : '#0b1417'; ctx.beginPath(); ctx.arc(cx, 8.5, 4.5, 0, TAU); ctx.fill();
       ctx.strokeStyle = on ? '#ff8a7a' : '#4a6a70'; ctx.lineWidth = 1; ctx.stroke();
-      if (on) T('!', cx, 10.4, 7.5, '#fff', 'center', 900);
+      if (on) T('!', cx, 9, 6.5, '#fff', 'center', 900);
     }
     const lim = diff().missLimit, m = day.misses || 0;
-    T(`👀 ${m}/${lim}`, x, 24.5, 7.5, m >= lim - 1 ? '#ff8a7a' : '#9fb', 'left', 700, FONT_SANS);
-    x += 42 + gap;
+    T(`нед:${weekReprimands}/${wMax}`, x, 18.5, 6.5, weekReprimands >= wMax - 1 ? '#ff8a7a' : '#e0b088', 'left', 700, FONT_SANS);
+    T(`👀${m}/${lim}`, x, 26, 6.5, m >= lim - 1 ? '#ff8a7a' : '#9fb', 'left', 700, FONT_SANS);
+    x += Math.max(38, dMax * 11 + 6) + gap;
     // план
     const pw = clamp(VW * 0.17, 66, 150);
     T('ПЛАН', x, 9, 8, '#f5edd9', 'left', 700, FONT_SANS);
@@ -3061,7 +3460,7 @@
     // кайф
     const fw = clamp(VW * 0.13, 56, 120);
     T('КАЙФ', x, 9, 8, '#f5edd9', 'left', 700, FONT_SANS);
-    T(`${Math.round(fun)}`, x + fw, 9, 8.5, '#e0a0f0', 'right', 700, FONT_SANS);
+    T(fun >= 100 ? '100 MAX' : `${Math.round(fun)}`, x + fw, 9, 8.5, fun >= 100 ? '#ffe082' : '#e0a0f0', 'right', 700, FONT_SANS);
     R(x, 16, fw, 7, '#0b1417');
     R(x + 1, 17, (fw - 2) * clamp(fun / 100, 0, 1), 5, '#c76ad8');
     x += fw + gap;
@@ -3128,6 +3527,8 @@
     const out = [];
     const doneN = todo.filter(t => t.done).length;
     out.push(['📋', planDone() ? `План ${Math.floor(usefulness)}/${planTarget} ✓ — дальше работа почти не нужна` : `План ${Math.floor(usefulness)}/${planTarget} к 19:30 (не сделаешь — выговор)`, planDone() ? '#9fe0b0' : '#f2bb38']);
+    const dMax = diff().dayReprimandsMax || 3, wMax = diff().weekReprimandsMax || 5;
+    out.push(['⚠️', `Выговоры: ${reprimands}/${dMax} за день · ${weekReprimands}/${wMax} за неделю`, (reprimands >= dMax - 1 || weekReprimands >= wMax - 1) ? '#ff9a8a' : '#f2bb38']);
     out.push(['⭐', `Очки сейчас: ${Math.max(0, Math.round(fun + (planDone() ? 20 : 0) + doneN * 12 - reprimands * 15))} (кайф + план + дела − выговоры)`, '#e0a0f0']);
     if (coverTokens) out.push(['🛡', 'Прикрытие: Аймашын отмажет от следующего выговора', '#9fe0b0']);
     if (intelTimer > 0) out.push(['📅', `Инсайд Хлада: проверка через ${Math.max(0, Math.ceil(nextBossCheck))} с`, '#f2bb38']);
@@ -3135,8 +3536,8 @@
     out.push(['🏔', `Маджикистан на этой неделе: ${majikArc > 0 ? '+' : ''}${majikArc} (цель — +2 к пятнице)`, majikArc >= 0 ? '#9fe0b0' : '#ff9a8a']);
     if (bossKeyCd > 0) out.push(['⎇', `Альт-таб (${coarsePointer ? '⎇' : 'B'}) перезарядка: ${Math.ceil(bossKeyCd)} с`, '#9ab']);
     if (phoneSafe > 0) out.push(['📱', `Приём Сиргея: ещё ${Math.ceil(phoneSafe)} с телефон не палево`, '#9fe0b0']);
-    if (day.hungry) out.push(['🍽', 'Голоден: кайф −20%. Обед был 13:00–14:30', '#ff9a8a']);
-    else if (!day.fed && clockMinutes < CFG.lunchClose) out.push(['🍽', 'Обед 13:00–14:30 в «Мюнхене» (выход слева)', '#9ab']);
+    if (day.hungry) out.push(['🍽', 'Голоден: кайф −20%, Excel −15%, шаг медленнее. Обед был 12:30–14:00', '#ff9a8a']);
+    else if (!day.fed && clockMinutes < CFG.lunchClose) out.push(['🍽', day.vilka ? 'Обед 12:30–14:00: стейки в «Вилке» 🥩 (выход слева)' : 'Обед 12:30–14:00 в «Мюнхене» (выход слева)', '#9ab']);
     const cds = coworkers.filter(c => c.cooldown > 0).map(c => `${c.name} ${Math.ceil(c.cooldown)}с`);
     if (cds.length) out.push(['⏳', `Заняты: ${cds.join(', ')}`, '#9ab']);
     if (!out.length) out.push(['💬', 'Поболтай с коллегами — у каждого свой бонус', '#9ab']);
@@ -3525,15 +3926,25 @@
 
   // Отладочный доступ для автотестов (scripts/qa.js)
   window.NP_DEBUG = {
-    get state() { return { mode, player: { ...player }, boss: { ...boss, path: boss.path.length }, reprimands, misses: day.misses, planTarget, usefulness, fun, clockMinutes, stats: { ...stats, chatted: stats.chatted.size }, todo, coverTokens, intelTimer }; },
-    teleport(x, y) { player.x = x; player.y = y; player.action = 'none'; player.actionTimer = 0; player.hideSpot = null; },
-    setBoss(x, y, state = 'look', facing) { boss.x = x; boss.y = y; boss.state = state; boss.stateTimer = 99; boss.path = []; if (facing !== undefined) { boss.facing = facing; boss.lookTimer = 0; } },
+    get state() { return { mode, player: { ...player }, boss: { ...boss, path: boss.path.length }, reprimands, weekReprimands, misses: day.misses, planTarget, usefulness, fun, clockMinutes, stats: { ...stats, chatted: stats.chatted.size }, todo, coverTokens, intelTimer, waterCups: day.waterCups, waterRecharge: day.waterRecharge, coffeeCups: day.coffeeCups, coffeeJammed: !!day.coffeeJammed, aljaziraVisiting: !!day.aljaziraVisiting, overtimeWork: day.overtimeWork || 0, excelWorkAcc: day.excelWorkAcc || 0, excelPoolTasks: day.excelPoolTasks || 0, adhocDone: !!day.adhocDone }; },
+    teleport(x, y) { player.x = x; player.y = y; player.action = 'none'; player.actionTimer = 0; player.hideSpot = null; nudge = null; },
+    setBoss(x, y, state = 'look', facing) { boss.snus = 0; boss.snusCd = 999; boss.x = x; boss.y = y; boss.state = state; boss.stateTimer = 99; boss.path = []; if (facing !== undefined) { boss.facing = facing; boss.lookTimer = 0; } },
     skip(seconds) { for (let i = 0; i < seconds * 20 && mode === 'playing'; i++) update(0.05); },
     setDay(d) { dayIndex = clampDay(d); },
     get tutorial() { return tutorial.step; },
     get day() { return dayIndex; },
-    set(v) { if ('usefulness' in v) usefulness = v.usefulness; if ('reprimands' in v) reprimands = v.reprimands; if ('misses' in v) day.misses = v.misses; if ('fun' in v) fun = v.fun; },
+    set(v) { if ('usefulness' in v) usefulness = v.usefulness; if ('reprimands' in v) reprimands = v.reprimands; if ('weekReprimands' in v) { weekReprimands = v.weekReprimands; store.set('weekReprimands', weekReprimands); } if ('misses' in v) day.misses = v.misses; if ('fun' in v) fun = Math.min(100, Math.max(0, v.fun)); if ('waterCups' in v) day.waterCups = v.waterCups; if ('waterRecharge' in v) day.waterRecharge = v.waterRecharge; if ('coffeeJammed' in v) day.coffeeJammed = !!v.coffeeJammed; if ('coffeeQueueTimer' in v && day) day.coffeeQueueTimer = v.coffeeQueueTimer; if ('overtimeWork' in v) day.overtimeWork = v.overtimeWork; if ('adhocDone' in v) day.adhocDone = !!v.adhocDone; },
     interact, quickHide, togglePhone, startInspection, blocked, findPath, nav, startEvent,
+    triggerAljazira(disaster = false) {
+      const c = coworkerById('aljazira');
+      if (!c) return false;
+      day.aljaziraVisiting = true;
+      day.aljaziraPhase = 'walk_to';
+      if (disaster) day.aljaziraForceDisaster = true;
+      else day.aljaziraForceCalm = true;
+      return true;
+    },
+    saveProgress, loadSavedProgress, clearSavedProgress,
     say(owner, text, dur = 4) { say(owner, text, dur); },
     banterNow() { banterT = 0; updateBanter(0); updateBanter(2.1); return bubbles.map(b => b.owner); },
     get zones() { return WD.zones.map(z => z.id); },
@@ -3560,11 +3971,15 @@
     get unlocked() { return Object.fromEntries(Object.keys(UNLOCK).map(k => [k, unlocked(k)])); },
     get eventQueue() { return eventQueue.slice(); },
     finish(r) { finishGame(r); },
-    clearEvents() { officeEvent = null; eventQueue = []; nextEvent = 999; nextBossCheck = 999; },
+    clearEvents() { officeEvent = null; eventQueue = []; nextEvent = 999; nextBossCheck = 999; nudge = null; if (day) { day.coffeeQueueTimer = 0; day.coffeeQueueChecked = true; day.adhocDone = true; } },
     get onboarding() { return { open: onb.open, i: onb.i }; },
     get auto() { return { on: auto.on, goal: auto.goal && auto.goal.kind }; },
     get timeScale() { return timeScale; }, setTimeScale, setDifficulty,
     get difficulty() { return diffKey; },
+    get diffConfig() { return DIFFICULTY; },
+    get aljazira() { const c = coworkerById('aljazira'); return { x: c.x, y: c.y, visiting: !!day.aljaziraVisiting, phase: day.aljaziraPhase, walking: !!day.aljaziraVisiting && day.aljaziraPhase !== 'confront' }; },
+    get pee() { return { active: day.peeActive, pee: day.pee, left: day.peeLeft, at: day.peeAt }; },
+    forcePee(v = 5) { day.peeActive = true; day.pee = v; },
     forceSlack(id, kind = 'phone') { const c = coworkerById(id); c.slack = kind; c.slackTimer = 30; c.scoldCooldown = 0; c.alert = 0; },
     forceBeer() { day.beer = null; CFG.beerChance = 1; },
   };

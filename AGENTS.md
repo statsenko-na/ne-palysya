@@ -4,6 +4,22 @@
 
 `Не пались` — локальная браузерная top-down pixel-art стелс-игра про Быкентия (айтишник-рокер без очков) в отделе рисковых кредитов алматинского БЦ «Угар». Начальник — Директор Начальникович (Д.Н., в очках, без усов). Игровой UI использует стилизованное название «Фирдом Банк» и эмблему без словесного логотипа.
 
+## Language & tokens
+
+- Reason, plan, and write subagent/workflow prompts in English (Cyrillic costs more tokens; Anthropic notes thinking works best in English). Reply to the user in Russian.
+- Project files stay Russian: docs, CHANGELOG, commit messages, UI strings, `js/lines.js`.
+- Be concise: lead with the result, no restating the request, no recap. Read only the file ranges you need.
+- Don't playtest the game yourself (autopilot, bot shifts, manual browser play) unless the user asks.
+- Prefer instructions phrased calmly and specifically; avoid ALL-CAPS emphasis.
+
+### Claude Opus 5.5 (per platform.claude.com "Prompting Claude Opus 5.5")
+
+- Thinking is always on; control its cost with effort (`/effort`, default `medium`; `low` for simple edits), not with "think carefully" prompts — don't add those.
+- Once something is answered, treat it as done; focus on the current request and revisit earlier answers only if asked or a problem shows up.
+- On multi-part tasks keep a checklist and finish all items; stop only when blocked by the user or a protected action. Put status notes alongside the next tool call.
+- Before changing code, look at the relevant files first, including ones the request doesn't name.
+- Frontend/visual work: name concrete patterns to avoid rather than "avoid generic look"; verify on the real Canvas.
+
 ## Рабочие правила
 
 - Сначала прочитай `docs/README.md`, `docs/GAMEPLAY.md` и `docs/ART_DIRECTION.md`, если задача затрагивает игру, механику или визуал.
