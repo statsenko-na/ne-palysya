@@ -19,7 +19,7 @@
 
   function loadImage(src) { const i = new Image(); i.src = src; return i; }
   const img = {
-    vik: loadImage('assets/bykentiy-walk-v3.png'),
+    vik: loadImage('assets/bykentiy-walk-v4.png'),
     boss: loadImage('assets/boss-walk-v2.png'),
     coworkers: loadImage('assets/coworkers-v3.png'),
     extras: loadImage('assets/extras-v1.png'),
@@ -1511,8 +1511,8 @@
     if (rand() < 0.5) say('boss', pick(LINES.boss.stroll), 2.4, '#e8e2d0');
     nextBossCheck = (CFG.checkInterval[0] + rand() * (CFG.checkInterval[1] - CFG.checkInterval[0])) * 0.6 * diff().check;
   }
-  function startInspection() {
-    if (rand() < CFG.strollChance && !boss.warned) { startStroll(); return; }
+  function startInspection(force = false) {
+    if (!force && rand() < CFG.strollChance && !boss.warned) { startStroll(); return; }
     boss.warned = false;
     const raid = rand() < 0.3;
     boss.mode = raid ? 'raid' : 'desk';
@@ -2562,12 +2562,12 @@
       const gl = ctx.createRadialGradient(c.x, c.desk.y - 20, 4, c.x, c.desk.y - 20, 34);
       gl.addColorStop(0, 'rgba(150,210,255,0.35)'); gl.addColorStop(1, 'rgba(150,210,255,0)');
       ctx.fillStyle = gl; ctx.fillRect(c.x - 36, c.desk.y - 56, 72, 72);
-      drawStripFrame(sheet, 4, c.sprite, c.x, c.desk.y + 18 + Math.sin(t * 0.9) * 1.5, false);
+      drawStripFrame(sheet, Math.round(sheet.naturalWidth / 80), c.sprite, c.x, c.desk.y + 18 + Math.sin(t * 0.9) * 1.5, false);
       ctx.restore();
       if (Math.sin(t * 2.3 + 1) > 0.97) T('✦', c.x - 18 + Math.sin(t * 7) * 6, c.desk.y - 40, 7, '#cfe8ff', 'center', 700, FONT_SANS);
       return;
     }
-    drawStripFrame(sheet, 4, c.sprite, c.x, c.desk.y + 18 + bob, false);
+    drawStripFrame(sheet, Math.round(sheet.naturalWidth / 80), c.sprite, c.x, c.desk.y + 18 + bob, false);
     if (c.slack) {
       if (c.slack === 'phone' || c.slack === 'game') R(c.x - 6, c.desk.y - 6, 12, 7, 'rgba(120,220,255,0.35)');
       const y = c.desk.y - 44 + Math.sin(t * 3) * 1.5;

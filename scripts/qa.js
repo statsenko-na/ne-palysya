@@ -137,7 +137,7 @@ const { loadPlaywright } = require('./pw');
   // 12. Проверка начальника доходит до стола
   await page.evaluate(() => { NP_DEBUG.teleport(728, 150); NP_DEBUG.setBoss(706, 446, 'office'); });
   await page.keyboard.press('KeyE');
-  await page.evaluate(() => { NP_DEBUG.startInspection(); });
+  await page.evaluate(() => { NP_DEBUG.startInspection(true); });
   await page.screenshot({ path: path.join(outDir, '05-alarm.png') });
   await page.evaluate(() => NP_DEBUG.skip(14));
   st = await page.evaluate(() => NP_DEBUG.state);
@@ -443,13 +443,13 @@ const { loadPlaywright } = require('./pw');
   const prog = await page.evaluate(() => {
     localStorage.setItem('nepalsya.weekDone', 'false');
     NP_DEBUG.setDay(0); NP_DEBUG.restart();
-    const mon = { u: NP_DEBUG.unlocked, q: NP_DEBUG.eventQueue.length, remote: NP_DEBUG.coworkers.filter(c => c.away).length, statists: NP_DEBUG.coworkers.filter(c => (c.id === 'asel' || c.id === 'yerzhan') && !c.away).length, todo: NP_DEBUG.state.todo.map(t => t.id) };
+    const mon = { u: NP_DEBUG.unlocked, q: NP_DEBUG.eventQueue.length, remote: NP_DEBUG.coworkers.filter(c => c.away).length, statists: NP_DEBUG.coworkers.filter(c => ['asel', 'yerzhan', 'stazy'].includes(c.id) && !c.away).length, todo: NP_DEBUG.state.todo.map(t => t.id) };
     NP_DEBUG.setDay(3); NP_DEBUG.restart();
     const thu = { u: NP_DEBUG.unlocked, q: NP_DEBUG.eventQueue.length, away: NP_DEBUG.coworkers.filter(c => c.away).length, todo: NP_DEBUG.state.todo.map(t => t.id) };
     localStorage.setItem('nepalsya.weekDone', 'true');
     return { mon, thu };
   });
-  check('понедельник: только ядро (без событий, коллег, обеда, второго ряда)', prog.mon.q === 0 && !prog.mon.u.coworkers && !prog.mon.u.lunch && prog.mon.remote === 1 && prog.mon.statists === 2 && prog.mon.todo.includes('coffee1'), JSON.stringify(prog.mon));
+  check('понедельник: только ядро (без событий, коллег, обеда, второго ряда)', prog.mon.q === 0 && !prog.mon.u.coworkers && !prog.mon.u.lunch && prog.mon.remote === 1 && prog.mon.statists === 3 && prog.mon.todo.includes('coffee1'), JSON.stringify(prog.mon));
   check('четверг: второй ряд, летучка, события открыты', prog.thu.u.row2 && prog.thu.u.standup && prog.thu.q > 3 && prog.thu.away === 0 && prog.thu.todo.includes('majik'), JSON.stringify(prog.thu));
   await page.screenshot({ path: path.join(outDir, '24-thursday-card.png') });
 
@@ -479,9 +479,9 @@ const { loadPlaywright } = require('./pw');
     NP_DEBUG.setDay(0); NP_DEBUG.restart(); NP_DEBUG.clearEvents();
     const zones = NP_DEBUG.zones;
     const talk = NP_DEBUG.banterNow();
-    return { noChat: !zones.includes('chat_asel') && !zones.includes('chat_yerzhan'), sirgeyChat: zones.includes('chat_sirgey'), banter: window.NP_LINES.banter.length, talk };
+    return { noChat: !zones.includes('chat_asel') && !zones.includes('chat_yerzhan') && !zones.includes('chat_stazy'), sirgeyChat: zones.includes('chat_sirgey'), banter: window.NP_LINES.banter.length, talk };
   });
-  check('Асель и Ержан — статисты без болтовни', stat.noChat && stat.sirgeyChat, JSON.stringify(stat));
+  check('Асель, Ержан и Штази — статисты без болтовни', stat.noChat && stat.sirgeyChat, JSON.stringify(stat));
   check('перепалка соседей: реплика и ответ', stat.banter >= 10 && stat.talk.length >= 2, JSON.stringify(stat.talk));
 
   // 17:00: подсказка про план, если отстаёшь
