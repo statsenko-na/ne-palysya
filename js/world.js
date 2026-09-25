@@ -56,6 +56,13 @@
     { id: 'gleb', name: 'Глеб', role: 'Андеррайтер', sprite: 3, perk: 'snack' },
   ];
 
+  // Второй ряд: новые соседи — ноют, проёбываются и отвлекают Д.Н. на себя.
+  const extras = [
+    { id: 'seryoga', name: 'Серёга', role: 'Вечно «на созвоне»', sprite: 2, sheet: 'extras', perk: 'callhack', deskIndex: 0 },
+    { id: 'zhanna', name: 'Жанна', role: 'Комплаенс', sprite: 0, sheet: 'extras', perk: 'gossip', deskIndex: 3 },
+    { id: 'damir', name: 'Дамир', role: 'Стажёр', sprite: 1, sheet: 'extras', perk: 'task', deskIndex: 4 },
+  ];
+
   const desks = [];
   DESK_XS.forEach((x, i) => {
     const cw = coworkers[i];
@@ -74,6 +81,8 @@
     });
   });
   coworkers.forEach((c, i) => { c.desk = desks[i]; });
+  extras.forEach(e => { e.extra = true; e.desk = desks[5 + e.deskIndex]; e.desk.owner = e.id; });
+  const people = coworkers.concat(extras);
   const playerDesk = desks[4];
 
   // Коллайдеры мебели (уровень ног).
@@ -121,7 +130,13 @@
     { id: 'printer', type: 'printer', x: 396, y: 440, w: 130, h: 32, short: 'Ксерокс' },
     { id: 'server', type: 'server', x: 800, y: 402, w: 140, h: 68, short: 'Серверная' },
   ];
-  coworkers.forEach(c => {
+  zones.push(
+    { id: 'exit', type: 'exit', x: 16, y: 284, w: 46, h: 36, short: 'Выход' },
+    { id: 'toilet', type: 'toilet', x: 106, y: 284, w: 44, h: 30, short: 'Туалет' },
+    { id: 'complain', type: 'complain', x: 598, y: 372, w: 48, h: 28, short: 'Дверь Д.Н.' },
+    { id: 'standup', type: 'standup', x: 266, y: 404, w: 84, h: 32, short: 'Доска' },
+  );
+  people.forEach(c => {
     zones.push({
       id: `chat_${c.id}`, type: 'chat', coworker: c.id,
       x: c.desk.x - 4, y: c.desk.y + DESK_DEPTH, w: DESK_W + 8, h: 30, short: c.name,
@@ -160,11 +175,14 @@
     { x: 364, y: 372, desc: 'второй ряд' },
   ];
   const bossHome = { x: 706, y: 446, desc: 'кабинет' };
+  const exitDoor = { x: 40, y: 302 };       // дверь на лестницу: обед, пиво, эвакуация
+  const toiletDoor = { x: 128, y: 290 };    // дверь WC в южной стене кухни
+  const standupSpot = { x: 362, y: 420 };   // Д.Н. у доски на летучке
 
   window.NP_WORLD = {
     W, H, HUD_H, FLOOR_TOP, FLOOR_BOTTOM, LEFT, RIGHT,
     DESK_W, DESK_DEPTH, ROW1_Y, ROW2_Y,
-    walls, furniture, colliders, desks, playerDesk, coworkers, plants, zones,
-    navNodes, patrolSpots, bossHome,
+    walls, furniture, colliders, desks, playerDesk, coworkers, extras, people, plants, zones,
+    navNodes, patrolSpots, bossHome, exitDoor, toiletDoor, standupSpot,
   };
 })();
