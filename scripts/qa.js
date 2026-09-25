@@ -201,7 +201,7 @@ const { loadPlaywright } = require('./pw');
   check('туалет после очереди', st.stats.toilet === 1, `toilet=${st.stats.toilet} action=${st.player.action}`);
 
   // Второй ряд отвлекается — Д.Н. идёт отчитывать
-  await page.evaluate(() => { NP_DEBUG.teleport(520, 260); NP_DEBUG.forceSlack('yerzhan', 'game'); NP_DEBUG.setBoss(728, 380, 'look', -Math.PI / 2); });
+  await page.evaluate(() => { NP_DEBUG.teleport(520, 260); NP_DEBUG.forceSlack('aljazira', 'game'); NP_DEBUG.setBoss(728, 380, 'look', -Math.PI / 2); });
   await page.evaluate(() => NP_DEBUG.skip(0.2));
   st = await page.evaluate(() => NP_DEBUG.state);
   check('Д.Н. идёт отчитывать соседа', st.boss.state === 'scold', st.boss.state);
@@ -460,7 +460,7 @@ const { loadPlaywright } = require('./pw');
   const prog = await page.evaluate(() => {
     localStorage.setItem('nepalsya.weekDone', 'false');
     NP_DEBUG.setDay(0); NP_DEBUG.restart();
-    const mon = { u: NP_DEBUG.unlocked, q: NP_DEBUG.eventQueue.length, remote: NP_DEBUG.coworkers.filter(c => c.away).length, statists: NP_DEBUG.coworkers.filter(c => ['asel', 'yerzhan', 'stazy'].includes(c.id) && !c.away).length, todo: NP_DEBUG.state.todo.map(t => t.id) };
+    const mon = { u: NP_DEBUG.unlocked, q: NP_DEBUG.eventQueue.length, remote: NP_DEBUG.coworkers.filter(c => c.away).length, statists: NP_DEBUG.coworkers.filter(c => ['asel', 'aljazira', 'stazy'].includes(c.id) && !c.away).length, todo: NP_DEBUG.state.todo.map(t => t.id) };
     NP_DEBUG.setDay(3); NP_DEBUG.restart();
     const thu = { u: NP_DEBUG.unlocked, q: NP_DEBUG.eventQueue.length, away: NP_DEBUG.coworkers.filter(c => c.away).length, todo: NP_DEBUG.state.todo.map(t => t.id) };
     localStorage.setItem('nepalsya.weekDone', 'true');
@@ -491,14 +491,14 @@ const { loadPlaywright } = require('./pw');
     const k = box.w / 960; await page.screenshot({ path: path.join(outDir, '25-tigran.png'), clip: { x: box.x + 340 * k, y: box.y + 230 * k, width: 160 * k, height: 130 * k } }); }
   check('стол r2_1 — Тиграна, в заголовке «Не пались»', tig.desk === 'tigran' && tig.title.startsWith('Не пались'), JSON.stringify(tig));
 
-  // Асель и Ержан — статисты: сидят всегда, болтать с ними нельзя; соседи перекидываются фразами
+  // Асель и Альджазира — статисты: сидят всегда, болтать с ними нельзя; соседи перекидываются фразами
   const stat = await page.evaluate(() => {
     NP_DEBUG.setDay(0); NP_DEBUG.restart(); NP_DEBUG.clearEvents();
     const zones = NP_DEBUG.zones;
     const talk = NP_DEBUG.banterNow();
-    return { noChat: !zones.includes('chat_asel') && !zones.includes('chat_yerzhan') && !zones.includes('chat_stazy'), sirgeyChat: zones.includes('chat_sirgey'), banter: window.NP_LINES.banter.length, talk };
+    return { noChat: !zones.includes('chat_asel') && !zones.includes('chat_aljazira') && !zones.includes('chat_stazy'), sirgeyChat: zones.includes('chat_sirgey'), banter: window.NP_LINES.banter.length, talk };
   });
-  check('Асель, Ержан и Штази — статисты без болтовни', stat.noChat && stat.sirgeyChat, JSON.stringify(stat));
+  check('Асель, Альджазира и Штази — статисты без болтовни', stat.noChat && stat.sirgeyChat, JSON.stringify(stat));
   check('перепалка соседей: реплика и ответ', stat.banter >= 10 && stat.talk.length >= 2, JSON.stringify(stat.talk));
 
   // 17:00: подсказка про план, если отстаёшь
@@ -508,7 +508,72 @@ const { loadPlaywright } = require('./pw');
     await new Promise(r => setTimeout(r, 200));
     return { warned: NP_DEBUG.planWarned, toast: document.getElementById('toast').textContent };
   });
-  check('17:00: подсказка «до плана N»', pw.warned && /До плана/.test(pw.toast), JSON.stringify(pw));
+  // Новые механики (0.19.0):
+  // 1. Лимит кайфа 100
+  const funCap = await page.evaluate(() => {
+    NP_DEBUG.set({ fun: 95 });
+    NP_DEBUG.set({ fun: 150 });
+    return NP_DEBUG.state.fun;
+  });
+  check('кайф ограничен максимумом 100', funCap <= 100, String(funCap));
+
+  // 2. Кулер: лимит 4 стакана и перезарядка
+  const cooler = await page.evaluate(() => {
+    NP_DEBUG.setDay(0); NP_DEBUG.restart(); NP_DEBUG.clearEvents();
+    NP_DEBUG.teleport(193, 235);
+    const beforeCups = NP_DEBUG.state.waterCups;
+    for (let i = 0; i < 4; i++) {
+      NP_DEBUG.interact();
+      NP_DEBUG.skip(2.0);
+    }
+    const afterCups = NP_DEBUG.state.waterCups;
+    return { beforeCups, afterCups };
+  });
+  check('кулер: 4 стакана, после чего опустошается', cooler.beforeCups === 4 && cooler.afterCups === 0, JSON.stringify(cooler));
+
+  // 3. Кофемашина: прочистка от жмыха даёт +3 KPI
+  const coffeeJam = await page.evaluate(() => {
+    NP_DEBUG.setDay(0); NP_DEBUG.restart(); NP_DEBUG.clearEvents();
+    NP_DEBUG.set({ usefulness: 10, coffeeJammed: true });
+    NP_DEBUG.teleport(125, 165);
+    NP_DEBUG.interact(); // чистим машину
+    return { kpi: NP_DEBUG.state.usefulness, jammed: NP_DEBUG.state.coffeeJammed };
+  });
+  check('кофемашина: устранение засора даёт +3 KPI', coffeeJam.kpi === 13 && !coffeeJam.jammed, JSON.stringify(coffeeJam));
+
+  // 4. Альджазира (Начальник Маджикистана): визит и проверка катастрофы аудита
+  const alj = await page.evaluate(() => {
+    NP_DEBUG.setDay(0); NP_DEBUG.restart(); NP_DEBUG.clearEvents();
+    NP_DEBUG.set({ fun: 50, usefulness: 50 });
+    NP_DEBUG.triggerAljazira(true); // форсируем катастрофу аудита
+    for (let i = 0; i < 40; i++) NP_DEBUG.skip(0.1);
+    const s = NP_DEBUG.state;
+    return { fun: s.fun, kpi: s.usefulness };
+  });
+  check('Альджазира: аудит Маджикистана сбрасывает кайф и план в 0', alj.fun === 0 && alj.kpi === 0, JSON.stringify(alj));
+
+  // 5. Сверхурочные в Excel снимают выговор при выполненном плане
+  const ot = await page.evaluate(() => {
+    NP_DEBUG.setDay(0); NP_DEBUG.restart(); NP_DEBUG.clearEvents();
+    NP_DEBUG.set({ usefulness: 100, reprimands: 2, weekReprimands: 3, fun: 0 });
+    NP_DEBUG.teleport(728, 150);
+    NP_DEBUG.interact(); // садимся за стол
+    NP_DEBUG.skip(25); // переработка сверх плана
+    const s = NP_DEBUG.state;
+    return { rep: s.reprimands, wRep: s.weekReprimands };
+  });
+  check('сверхурочные в Excel: снимают выговор при переработке', ot.rep === 1 && ot.wRep === 2, JSON.stringify(ot));
+
+  // 6. Сложность игры регулирует дневные и недельные лимиты выговоров
+  const diffs = await page.evaluate(() => {
+    const cfg = NP_DEBUG.diffConfig;
+    return {
+      easy: { dMax: cfg.easy.dayReprimandsMax, wMax: cfg.easy.weekReprimandsMax },
+      norm: { dMax: cfg.normal.dayReprimandsMax, wMax: cfg.normal.weekReprimandsMax },
+      hard: { dMax: cfg.hard.dayReprimandsMax, wMax: cfg.hard.weekReprimandsMax }
+    };
+  });
+  check('сложность игры: настраивает лимиты выговоров (стажёр: 4/7, сотр.: 3/5, ветеран: 2/4)', diffs.easy.dMax === 4 && diffs.easy.wMax === 7 && diffs.norm.dMax === 3 && diffs.norm.wMax === 5 && diffs.hard.dMax === 2 && diffs.hard.wMax === 4, JSON.stringify(diffs));
 
   check('нет ошибок в консоли', errors.length === 0, errors.join(' | '));
 

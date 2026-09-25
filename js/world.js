@@ -61,7 +61,7 @@
     { id: 'sirgey', name: 'Сиргей', role: 'Автокредиты («автошка»)', sprite: 2, sheet: 'extras', perk: 'callhack', deskIndex: 0 },
     // Статисты: сидят всегда, говорят сами, болтать с ними нельзя
     { id: 'asel', name: 'Асель', role: 'Комплаенс', sprite: 0, sheet: 'extras', perk: null, deskIndex: 3, statist: true },
-    { id: 'yerzhan', name: 'Ержан', role: 'Стажёр', sprite: 1, sheet: 'extras', perk: null, deskIndex: 4, statist: true },
+    { id: 'aljazira', name: 'Альджазира', role: 'Начальник Маджикистана', sprite: 1, sheet: 'extras', perk: null, deskIndex: 4, statist: true },
     // Казахстанский немец из ЖК «Пещера на Абая», где вечно нет света; сидит за сломанным компом
     { id: 'stazy', name: 'Штази', role: 'Отчётность (живёт в «Пещере на Абая»)', sprite: 4, sheet: 'extras', perk: null, deskIndex: 2, statist: true },
     // Дух офиса: уволился, но место за ним. Не уходит, не отвлекается, Д.Н. его не замечает.
