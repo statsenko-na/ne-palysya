@@ -60,7 +60,9 @@
     chatCooldown: 30,
     lunchOpen: 12 * 60 + 30,   // обед каждый день: выйти с 12:30 до 14:00
     lunchClose: 14 * 60,
-    lunchSeconds: 22.5,        // ровно час игрового времени (240 с на 640 минут)
+    lunchSeconds: 7.5,         // час игрового времени: на обеде часы идут втрое быстрее
+    lunchTimeMul: 3,
+    aljaziraDisasterChance: 0.35, // шанс, что сегодня Альджазира обнулит кайф и план (не чаще раза в день)
     vilkaFun: 20,              // четверг — стейки в «Вилке»: больше кайфа
     lunchFun: 8,
     toiletPerPerson: 2.2,      // очередь в туалет: секунд на человека
@@ -312,6 +314,16 @@
     for (const c of WD.colliders) if (circleHitsRect(x, y, r, c)) return true;
     return false;
   }
+  // Ближайшая свободная точка по спирали: спасает, если Быкентия поставило внутрь коллайдера
+  function unstickPlayer() {
+    for (let rad = 4; rad <= 80; rad += 4) {
+      for (let k = 0; k < 16; k++) {
+        const ang = k / 16 * Math.PI * 2, x = player.x + Math.cos(ang) * rad, y = player.y + Math.sin(ang) * rad;
+        if (!blocked(x, y, player.r)) { player.x = x; player.y = y; return true; }
+      }
+    }
+    return false;
+  }
   function moveWithCollision(e, dx, dy, r) {
     let hit = false;
     if (dx) { if (!blocked(e.x + dx, e.y, r)) e.x += dx; else hit = true; }
@@ -346,8 +358,11 @@
   }
   function findPath(from, to) {
     if (segmentClear(from, to, NAV_R - 1)) return [{ x: to.x, y: to.y }];
-    const startLinks = nav.filter(n => segmentClear(from, n, NAV_R - 1)).map(n => [n.i, dist(from, n)]);
-    const endLinks = new Map(nav.filter(n => segmentClear(n, to, NAV_R - 1)).map(n => [n.i, dist(n, to)]));
+    let startLinks = nav.filter(n => segmentClear(from, n, NAV_R - 1)).map(n => [n.i, dist(from, n)]);
+    // Узкий карман (у биотуалета, между шкафами) — пробуем тоньше, иначе «прямо в стену» и автопилот стоит
+    if (!startLinks.length) startLinks = nav.filter(n => segmentClear(from, n, 2)).map(n => [n.i, dist(from, n)]);
+    let endLinks = new Map(nav.filter(n => segmentClear(n, to, NAV_R - 1)).map(n => [n.i, dist(n, to)]));
+    if (!endLinks.size) endLinks = new Map(nav.filter(n => segmentClear(n, to, 2)).map(n => [n.i, dist(n, to)]));
     if (!startLinks.length || !endLinks.size) return [{ x: to.x, y: to.y }];
     const best = new Array(nav.length).fill(Infinity);
     const prev = new Array(nav.length).fill(-1);
@@ -672,7 +687,9 @@
       coffeeCups: 0, coffeeJammed: false, coffeeQueueTimer: 0, coffeeQueueChecked: false,
       excelWorkAcc: 0, overtimeWork: 0,
       adhocDone: false, adhocAt: 720 + Math.floor(rand() * 210),
-      aljaziraTimer: 85 + rand() * 45, aljaziraVisiting: false, aljaziraPhase: 'desk', aljaziraPhaseTimer: 0,
+      aljaziraTimer: 85 + rand() * 45, aljaziraVisiting: false,
+      // Катастрофа Маджикистана: максимум раз в день, с шансом CFG.aljaziraDisasterChance, на визите после случайного часа 11:00–18:00
+      aljaziraDisasterAt: rand() < CFG.aljaziraDisasterChance ? 11 * 60 + rand() * 7 * 60 : -1, aljaziraDisasterDone: false, aljaziraPhase: 'desk', aljaziraPhaseTimer: 0,
       lastSavedMinute: 0,
       pee: 0, peeActive: false, peeLeft: CFG.peeTimes[0] + Math.floor(rand() * (CFG.peeTimes[1] - CFG.peeTimes[0] + 1)), peeAt: 0,
     };
@@ -1132,12 +1149,13 @@
             aljaziraObj.path = null;
             day.aljaziraPhase = 'confront';
             day.aljaziraPhaseTimer = 3.8;
-            const isDisaster = day.aljaziraForceDisaster ? true : (day.aljaziraForceCalm ? false : rand() >= 0.8);
-            day.aljaziraForceDisaster = false;
-            day.aljaziraForceCalm = false;
-            if (!isDisaster) {
-              say('aljazira', pick(LINES.aljazira.calm), 3.5, '#ff8080');
-            } else {
+            // 20% — похвалит (+5 кайфа), 30% — нейтрально, 50% — наорёт (−5 кайфа)
+            const r = rand();
+            const disasterDue = !day.aljaziraDisasterDone && day.aljaziraDisasterAt >= 0 && clockMinutes >= day.aljaziraDisasterAt;
+            const mood = day.aljaziraForceMood || (disasterDue ? 'disaster' : r < 0.2 ? 'good' : r < 0.5 ? 'neutral' : 'bad');
+            day.aljaziraForceMood = null;
+            if (mood === 'disaster') {
+              day.aljaziraDisasterDone = true;
               playSound('caught'); flash = 0.9; shake = 0.8;
               say('aljazira', pick(LINES.aljazira.strike), 4.2, '#ff3030');
               fun = 0; usefulness = 0;
@@ -1145,6 +1163,16 @@
               toast('💥 АЛЬДЖАЗИРА: ВСЁ СГОРЕЛО! КАЙФ 0 · ПЛАН 0', 4.5);
               addLog('💥 Альджазира разнесла отдел: Маджикистан рухнул, кайф и план на нуле!', 'bad');
               setTimeout(() => { if (mode === 'playing') say('player', 'Да е**ный в рот, Альджазира! За что?! Весь день заново?!', 3.5); }, 1400);
+            } else if (mood === 'good') {
+              fun = Math.min(100, fun + 5);
+              say('aljazira', pick(LINES.aljazira.good), 3.5, '#9f9');
+              addLog('💚 Альджазира неожиданно похвалила: кайф +5', 'good');
+            } else if (mood === 'neutral') {
+              say('aljazira', pick(LINES.aljazira.neutral), 3.5, '#ffd080');
+            } else {
+              fun = Math.max(0, fun - 5);
+              say('aljazira', pick(LINES.aljazira.bad), 3.8, '#ff8080');
+              addLog('💢 Альджазира наорала: кайф −5', 'bad');
             }
           }
         } else if (day.aljaziraPhase === 'confront') {
@@ -2148,7 +2176,7 @@
   function autoThink() {
     const z = id => zoneCenter(id);
     if (autoDanger()) {
-      if (dist(player, SEAT) < 300 || boss.mode === 'desk') { autoGoal('desk', z('desk')); return; }
+      if (dist(player, SEAT) < 300 || boss.mode === 'desk' || day.hideCd > 0) { autoGoal('desk', z('desk')); return; } // укрытие на перезарядке — бегом за стол
       const pl = WD.plants.slice().sort((a, b) => dist(a, player) - dist(b, player))[0];
       autoGoal('hide', { x: pl.x, y: pl.y + 12 }); return;
     }
@@ -2183,7 +2211,7 @@
     const g = auto.goal;
     auto.goal = null;
     if (g.kind === 'phone') { togglePhone(); auto.phoneT = 4 + rand() * 4; return; }
-    if (g.kind === 'hide') { quickHide(); return; }
+    if (g.kind === 'hide') { quickHide(); if (!HIDDEN.has(player.action)) autoGoal('desk', zoneCenter('desk')); return; }
     if (g.kind === 'desk') auto.workT = g.work || 6;
     if (g.kind === 'desk' && player.action === 'work') return;
     interact();
@@ -2224,6 +2252,11 @@
     auto.last = { x: player.x, y: player.y };
     if (auto.stuckT > 0.8) {
       auto.stuckT = 0; auto.stuckN++;
+      if (blocked(player.x, player.y, player.r)) unstickPlayer();
+      else if (auto.stuckN >= 2) { // упёрся в угол (у биотуалета, у шкафов архива) — шаг к ближайшему узлу навигации
+        const n = WD.navNodes.filter(q => !blocked(q.x, q.y, player.r)).sort((p, q) => dist(p, player) - dist(q, player))[0];
+        if (n && dist(n, player) < 90) { player.x = n.x; player.y = n.y; }
+      }
       if (auto.stuckN > 3) { auto.goal = null; return [0, 0]; }
       auto.path = findPath(player, g.pt);
     }
@@ -2291,6 +2324,7 @@
         if (player.action === 'plant_hide' && player.hideSpot) player.y = player.hideSpot.y + 14;
         endAction('cancel');
       }
+      if (blocked(player.x, player.y, player.r)) unstickPlayer(); // вышел из укрытия/кабинки внутрь мебели — вытолкнуть
       const len = Math.hypot(dx, dy);
       dx /= len; dy /= len;
       if (Math.abs(dx) > 0.05) player.facingX = dx < 0 ? -1 : 1;
@@ -2483,7 +2517,7 @@
   }
 
   function update(dt) {
-    shiftTime += dt;
+    shiftTime += dt * (onLunch() ? CFG.lunchTimeMul : 1); // на обеде время летит
     clockMinutes = CFG.shiftStart + (shiftTime / CFG.shiftSeconds) * (CFG.shiftEnd - CFG.shiftStart);
     intelTimer = Math.max(0, intelTimer - dt);
     // 17:00: если план отстаёт — одна подсказка, сколько осталось (дедлайн предсказуемый, а не внезапный)
@@ -3939,13 +3973,12 @@
     get day() { return dayIndex; },
     set(v) { if ('usefulness' in v) usefulness = v.usefulness; if ('reprimands' in v) reprimands = v.reprimands; if ('weekReprimands' in v) { weekReprimands = v.weekReprimands; store.set('weekReprimands', weekReprimands); } if ('misses' in v) day.misses = v.misses; if ('fun' in v) fun = Math.min(100, Math.max(0, v.fun)); if ('waterCups' in v) day.waterCups = v.waterCups; if ('waterRecharge' in v) day.waterRecharge = v.waterRecharge; if ('coffeeJammed' in v) day.coffeeJammed = !!v.coffeeJammed; if ('coffeeQueueTimer' in v && day) day.coffeeQueueTimer = v.coffeeQueueTimer; if ('overtimeWork' in v) day.overtimeWork = v.overtimeWork; if ('adhocDone' in v) day.adhocDone = !!v.adhocDone; },
     interact, quickHide, togglePhone, startInspection, blocked, findPath, nav, startEvent,
-    triggerAljazira(disaster = false) {
+    triggerAljazira(mood = 'neutral') {
       const c = coworkerById('aljazira');
       if (!c) return false;
       day.aljaziraVisiting = true;
       day.aljaziraPhase = 'walk_to';
-      if (disaster) day.aljaziraForceDisaster = true;
-      else day.aljaziraForceCalm = true;
+      day.aljaziraForceMood = mood === true ? 'bad' : mood === false ? 'neutral' : mood;
       return true;
     },
     saveProgress, loadSavedProgress, clearSavedProgress,
@@ -3982,7 +4015,7 @@
     get timeScale() { return timeScale; }, setTimeScale, setDifficulty,
     get difficulty() { return diffKey; },
     get diffConfig() { return DIFFICULTY; },
-    get aljazira() { const c = coworkerById('aljazira'); return { x: c.x, y: c.y, visiting: !!day.aljaziraVisiting, phase: day.aljaziraPhase, walking: !!day.aljaziraVisiting && day.aljaziraPhase !== 'confront' }; },
+    get aljazira() { const c = coworkerById('aljazira'); return { x: c.x, y: c.y, visiting: !!day.aljaziraVisiting, phase: day.aljaziraPhase, disasterDone: !!day.aljaziraDisasterDone, walking: !!day.aljaziraVisiting && day.aljaziraPhase !== 'confront' }; },
     get pee() { return { active: day.peeActive, pee: day.pee, left: day.peeLeft, at: day.peeAt }; },
     forcePee(v = 5) { day.peeActive = true; day.pee = v; },
     forceSlack(id, kind = 'phone') { const c = coworkerById(id); c.slack = kind; c.slackTimer = 30; c.scoldCooldown = 0; c.alert = 0; },
