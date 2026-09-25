@@ -42,7 +42,9 @@
 ## Разработка
 
 - Проверка синтаксиса: `for f in game.js js/*.js; do node --check "$f"; done`
-- Автотест в headless Chromium (раскладки, стены, болтовня, проверки, события, пятница, скриншоты): `node scripts/qa.js`
+- Автотест в headless Chromium (раскладки, стены, болтовня, проверки, события, пятница, маленькие экраны): `node scripts/qa.js`
+- Скриншоты на 6 экранах (ноутбуки, Full HD, iPhone, Android, iPad): `node scripts/screens.js`
+- Работа на своём компьютере (Windows): [docs/LOCAL_SETUP.md](docs/LOCAL_SETUP.md)
 - Пересборка спрайтов из исходников: `cd scripts && python normalize_sprites.py && python make_panorama.py`
 - Персонажи v3 (Быкентий, Аймашын, второй ряд): `python3 scripts/make_characters.py`
 

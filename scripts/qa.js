@@ -4,17 +4,13 @@
 const path = require('path');
 const fs = require('fs');
 
-function loadPlaywright() {
-  const candidates = ['playwright', '/opt/node22/lib/node_modules/playwright'];
-  for (const c of candidates) { try { return require(c); } catch (_) { /* next */ } }
-  throw new Error('Playwright не найден: npm i -g playwright');
-}
+const { loadPlaywright } = require('./pw');
 
 (async () => {
   const { chromium } = loadPlaywright();
   const outDir = process.argv[2] || path.join(__dirname, '..', '.qa');
   fs.mkdirSync(outDir, { recursive: true });
-  const url = 'file://' + path.join(__dirname, '..', 'index.html');
+  const url = require('url').pathToFileURL(path.join(__dirname, '..', 'index.html')).href;
   const browser = await chromium.launch(fs.existsSync('/opt/pw-browsers/chromium') ? {} : {});
   const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
   const errors = [];
@@ -488,6 +484,15 @@ function loadPlaywright() {
   check('Асель и Ержан — статисты без болтовни', stat.noChat && stat.sirgeyChat, JSON.stringify(stat));
   check('перепалка соседей: реплика и ответ', stat.banter >= 10 && stat.talk.length >= 2, JSON.stringify(stat.talk));
 
+  // 17:00: подсказка про план, если отстаёшь
+  const pw = await page.evaluate(async () => {
+    NP_DEBUG.setDay(1); NP_DEBUG.restart(); NP_DEBUG.clearEvents();
+    NP_DEBUG.setClock(17 * 60 + 2);
+    await new Promise(r => setTimeout(r, 200));
+    return { warned: NP_DEBUG.planWarned, toast: document.getElementById('toast').textContent };
+  });
+  check('17:00: подсказка «до плана N»', pw.warned && /До плана/.test(pw.toast), JSON.stringify(pw));
+
   check('нет ошибок в консоли', errors.length === 0, errors.join(' | '));
 
   // Небольшие экраны: крупный интерфейс в Canvas, меню прокручивается, кнопка старта достижима
@@ -506,7 +511,7 @@ function loadPlaywright() {
       return { ui: NP_DEBUG.ui, overflow: getComputedStyle(ov).overflowY, btnVisible: b.top >= 0 && b.bottom <= innerHeight, canvasH: Math.round(Math.min(box.height, box.width * 9 / 16)), fs };
     });
     const minCss = 8.5 * r.ui.UI * r.ui.unitPx;
-    check(`${name}: основной текст Canvas ≥ 12 px, меню прокручивается`, minCss >= 11.9 && r.overflow === 'auto' && r.btnVisible && r.fs >= 14 && errs2.length === 0, JSON.stringify({ ...r, minCss: +minCss.toFixed(1), errs2 }));
+    check(`${name}: основной текст Canvas ≥ 12 px, меню прокручивается`, minCss >= 11.9 && r.overflow === 'auto' && r.btnVisible && r.fs >= 13 && errs2.length === 0, JSON.stringify({ ...r, minCss: +minCss.toFixed(1), errs2 }));
     await p2.screenshot({ path: path.join(outDir, `26-${mobile ? 'phone' : 'laptop'}-menu.png`) });
     await ctx2.close();
   }

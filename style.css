@@ -347,9 +347,18 @@ body.is-playing {
     background: #0b1519;
   }
   .scanlines { inset: 0; }
-  .title-card, .pause-card, .end-card { padding: 1rem 1.1rem; }
-  .title-card h1 { margin-top: .3rem; font-size: 1.5rem; text-shadow: 3px 3px 0 var(--red); }
-  .title-card p.pitch { margin: .4rem 0; }
+  /* телефон: окна компактнее — текст читаемый, но окно не на весь экран */
+  html { font-size: 15.5px; }
+  html.text-lg { font-size: 17.5px; }
+  .title-card, .pause-card, .end-card { width: min(100%, 34rem); padding: .8rem 1rem; }
+  .title-card h1 { margin-top: .2rem; font-size: 1.35rem; text-shadow: 3px 3px 0 var(--red); }
+  .title-card p.pitch { margin: .35rem 0; font-size: .875rem; line-height: 1.45; }
+  .pixel-btn { margin-top: .55rem; min-height: 40px; padding: .5rem .85rem; font-size: .8125rem; box-shadow: 3px 3px 0 var(--red); }
+  .diff-row, .audio-row, .speed-row { margin-top: .45rem; }
+  .diff-btn, .audio-btn { min-height: 34px; padding: .25rem .5rem; font-size: .75rem; }
+  .onb-card { width: min(100%, 46rem); }
+  .onb-text p, .onb-list { font-size: .875rem; }
+  .toast { max-width: 56%; padding: .35rem .7rem; font-size: .8125rem; top: 22%; }
 }
 /* Совсем низкие экраны: в меню остаётся главное, правила — в «Как играть» */
 @media (max-height: 520px) {
