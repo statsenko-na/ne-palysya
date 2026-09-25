@@ -463,3 +463,16 @@ body.is-playing {
 .ach small { color: #9fc0bb; font-size: 10px; }
 .ach.got { opacity: 1; border-color: var(--yellow); }
 @media (max-width: 720px), (max-height: 520px) { .ach-list { grid-template-columns: 1fr; } }
+
+/* Музыка и звуки */
+.audio-row { display: flex; justify-content: center; gap: 8px; margin-top: 10px; flex-wrap: wrap; }
+.audio-btn { padding: 6px 10px; border: 2px solid #416064; background: #0f2024; color: #c8d6ca; font-weight: 700; font-size: 11px; cursor: pointer; }
+.audio-btn.off { color: #ff9a8a; border-color: #7a3a3a; }
+@media (max-height: 520px) { .audio-row { margin-top: 5px; } .audio-btn { padding: 4px 7px; font-size: 9px; } }
+
+.onb-hud { flex-direction: column; align-items: stretch; padding: 10px; gap: 6px; }
+.hud-tip { padding: 6px 8px; border: 1px solid #416064; background: #0f2024; color: #d4e0d6; font-size: 11px; line-height: 1.35; }
+.hud-tip b { color: var(--yellow); }
+.hud-tip.red { border-color: #a0302a; }
+.hud-tip.red b { color: #ff8a7a; }
+@media (max-width: 720px), (max-height: 520px) { .hud-tip { font-size: 8.5px; padding: 3px 5px; } .onb-hud { gap: 3px; padding: 5px; } }

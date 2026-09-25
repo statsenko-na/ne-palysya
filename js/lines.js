@@ -342,5 +342,10 @@
     'А Викентий прокрастинирует! Меня возьмут в штат?',
   ];
   const arrfr = ['АРРФР в здании! Всем выглядеть как банк!', 'Регулятор! Прячьте мемы, открывайте отчёты!'];
-  window.NP_LINES = { boss, chat, perks, coworkerIdle, coworkerWarn, thoughts, todoPool, majik, nudge, snitch, arrfr, slack, whine, complaints, lunch, munich, toilet, bday };
+  // Служба безопасности и камеры
+  const sb = {
+    caught: ['Камера мигнула... Меня записали?', 'СБ видит всё. Даже YouTube.', 'Помаши в камеру. Нет, не надо.'],
+    boss: ['Мне звонила СБ! Викентий, что ты там делал?!', 'СБ прислала запись. Объяснительную!', 'Викентий! СБ тебя видит, а значит — и я!'],
+  };
+  window.NP_LINES = { boss, chat, perks, coworkerIdle, coworkerWarn, thoughts, todoPool, majik, sb, nudge, snitch, arrfr, slack, whine, complaints, lunch, munich, toilet, bday };
 })();

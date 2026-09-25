@@ -118,9 +118,9 @@
   const keys = new Set();
   const physicalKeyAliases = {
     KeyW: 'w', KeyA: 'a', KeyS: 's', KeyD: 'd',
-    KeyE: 'e', KeyH: 'h', KeyP: 'p', KeyQ: 'q', KeyM: 'm', KeyU: 'u', KeyI: 'i', KeyB: 'b', Digit1: '1', Digit2: '2', Digit3: '3', Numpad1: '1', Numpad2: '2', Numpad3: '3', Space: 'e', Tab: 'q',
+    KeyE: 'e', KeyH: 'h', KeyP: 'p', KeyQ: 'q', KeyM: 'm', KeyU: 'u', KeyI: 'i', KeyB: 'b', KeyN: 'n', Digit1: '1', Digit2: '2', Digit3: '3', Numpad1: '1', Numpad2: '2', Numpad3: '3', Space: 'e', Tab: 'q',
   };
-  const russianKeyAliases = { ц: 'w', ф: 'a', ы: 's', в: 'd', у: 'e', р: 'h', з: 'p', й: 'q', ь: 'm', г: 'u', ш: 'i', и: 'b' };
+  const russianKeyAliases = { ц: 'w', ф: 'a', ы: 's', в: 'd', у: 'e', р: 'h', з: 'p', й: 'q', ь: 'm', г: 'u', ш: 'i', и: 'b', т: 'n' };
   function getControlKey(event) {
     const key = (event.key || '').toLowerCase();
     return physicalKeyAliases[event.code] || russianKeyAliases[key] || key;
@@ -130,6 +130,8 @@
   // ---------- ЗВУК (Web Audio, без файлов) ----------
   let audioCtx = null;
   let muted = false;
+  let musicOn = true;
+  try { musicOn = localStorage.getItem('nepalsya.music') !== 'false'; } catch (_) { /* нет доступа */ }
   try { muted = localStorage.getItem('nepalsya.muted') === 'true'; } catch (_) { /* нет доступа */ }
   function getAudio() {
     if (!audioCtx) {
@@ -187,7 +189,7 @@
   let musicStep = 0;
   let musicTimer = 0;
   function updateMusic(dt) {
-    if (muted || mode !== 'playing' || !audioCtx) return;
+    if (muted || !musicOn || mode !== 'playing' || !audioCtx) return;
     const alarm = boss.state === 'inspect';
     musicTimer -= dt;
     if (musicTimer > 0) return;
@@ -373,6 +375,16 @@
     bubbles.push({ owner, text, t: 0, dur, color });
     if (mode === 'playing') playSound(owner === 'boss' ? 'bossBlip' : 'blip');
   }
+  // Подсказки «почему»: каждая показывается максимум дважды за всё время, чтобы не надоедать
+  let hintsSeen = store.get('hints', {}) || {};
+  const shownThisShift = new Set();
+  function hint(id, text) {
+    if (auto.on || shownThisShift.has(id) || (hintsSeen[id] || 0) >= 2) return;
+    shownThisShift.add(id);
+    hintsSeen = { ...hintsSeen, [id]: (hintsSeen[id] || 0) + 1 };
+    store.set('hints', hintsSeen);
+    toast(`💡 ${text}`, 4.2);
+  }
   function floater(x, y, text, color) { floaters.push({ x, y, text, color, t: 0 }); }
   function puff(x, y, color, n = 6, spread = 8, vy = -14) {
     for (let i = 0; i < n; i++) {
@@ -422,6 +434,16 @@
   }
 
   // Ползунок скорости времени (меню и пауза)
+  function syncAudioButtons() {
+    document.querySelectorAll('.music-toggle').forEach(b => { b.textContent = musicOn ? '🎵 Музыка: вкл (N)' : '🔇 Музыка: выкл (N)'; b.classList.toggle('off', !musicOn); });
+    document.querySelectorAll('.sound-toggle').forEach(b => { b.textContent = muted ? '🔇 Звуки: выкл (M)' : '🔊 Звуки: вкл (M)'; b.classList.toggle('off', muted); });
+  }
+  function toggleMusic() {
+    musicOn = !musicOn;
+    store.set('music', musicOn);
+    toast(musicOn ? '🎵 Музыка включена (N)' : '🔇 Музыка выключена (N). Звуки остаются.', 1.6);
+    syncAudioButtons();
+  }
   function setDifficulty(k) {
     if (!DIFFICULTY[k]) return;
     diffKey = k;
@@ -542,6 +564,7 @@
     day = { lunchCalled: false, lunchOpen: false, fed: false, hungry: false, bossLunch: false, beer: null, toiletCd: 0, queue: 0, queueTotal: 0, qShift: 0, knock: 3, cabinDoor: 0, npcInside: 0, npcTimer: 20 };
     walkers = [];
     bossKeyCd = 0; choice = null; nudge = null;
+    shownThisShift.clear();
     phoneSafe = 0;
     if (has('lava')) fun += 3;
     addLog(`${today().name}: ${today().mod}.`);
@@ -612,6 +635,7 @@
     standup: { dur: 20, title: 'ЛЕТУЧКА У ДОСКИ' },
     majik: { dur: 26, title: 'МАДЖИКИСТАН ЛЁГ' },
     arrfr: { dur: 26, title: 'ПРОВЕРКА АРРФР' },
+    sb: { dur: 24, title: 'СБ СМОТРИТ В КАМЕРЫ' },
     autoshka: { dur: 18, title: 'У СЕРЁГИ УПАЛА АВТОШКА' },
   };
   const FEAST_ZONE = { id: 'feast', type: 'feast', x: 76, y: 170, w: 90, h: 86, short: 'Угощение' };
@@ -620,6 +644,7 @@
     for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
     const ids = pool.slice(0, 5);
     ids.splice(Math.floor(rand() * 2), 0, 'food');
+    if (rand() < 0.3) ids.splice(2 + Math.floor(rand() * 3), 0, 'sb'); // редкое: служба безопасности включает камеры
     return ids;
   }
   const bossBusy = () => ['inspect', 'lecture', 'leaving', 'gone', 'goout', 'out', 'scold'].includes(boss.state);
@@ -661,6 +686,11 @@
       text = 'Д.Н. собирает всех у доски (архив, слева внизу). Встань рядом и жми E!';
       if (!bossBusy()) { bossGoTo(WD.standupSpot, 'standup', 'летучка'); boss.stateTimer = def.dur; }
       say('boss', pick(LINES.boss.standup), 3);
+    }
+    if (id === 'sb') {
+      text = 'Красные конусы камер — взгляд СБ. Не прокрастинируй в них: СБ доложит Д.Н. Работа и укрытия — безопасно.';
+      officeEvent.watch = 0; officeEvent.reports = 0;
+      say('seryoga', 'Камеры зашевелились... СБ проснулась!', 2.8, '#ffd4c8');
     }
     if (id === 'arrfr') {
       text = 'Регулятор в здании! Д.Н. нервничает: смотрит дальше и проверяет чаще.';
@@ -745,6 +775,7 @@
       }
       // Летучка: если Д.Н. был занят проверкой, он придёт к доске позже
       if (officeEvent.id === 'standup' && !bossBusy() && boss.state !== 'standup') { bossGoTo(WD.standupSpot, 'standup', 'летучка'); }
+      if (officeEvent.id === 'sb') updateCameras(dt);
       if (officeEvent.id === 'majik' && !officeEvent.used && player.action === 'work') {
         officeEvent.work += dt;
         if (officeEvent.work >= 4) {
@@ -768,6 +799,71 @@
     if (banner) { banner.t += dt; if (banner.t > 4.4) banner = null; }
   }
   const eventIs = id => officeEvent && officeEvent.id === id;
+
+  // ---------- КАМЕРЫ СБ ----------
+  // Три камеры под потолком медленно водят красным конусом. Прокрастинация в конусе копит «запись»,
+  // через 1.6 с СБ звонит Д.Н.: −8 незаметности, +40 подозрения, Д.Н. идёт к месту.
+  const CAMERAS = [
+    { x: 262, y: 134, base: 0.9, span: 0.75, range: 250 },
+    { x: 780, y: 134, base: 2.25, span: 0.75, range: 250 },
+    { x: 780, y: 470, base: -2.6, span: 0.55, range: 200 },
+  ];
+  const CAM_HALF = 0.32;
+  function cameraAngle(c) { return c.base + Math.sin(shiftTime * 0.7 + c.x) * c.span; } // игровое время: с ускорением крутятся быстрее
+  function cameraSees(c) {
+    if (HIDDEN.has(player.action)) return false;
+    const d = dist(c, player);
+    if (d > c.range) return false;
+    const a = Math.atan2(player.y - c.y, player.x - c.x);
+    return Math.abs(angleDiff(a, cameraAngle(c))) < CAM_HALF && lineOfSight(c, player);
+  }
+  function updateCameras(dt) {
+    const ev = officeEvent;
+    const seen = CAMERAS.some(cameraSees);
+    ev.seen = seen;
+    if (seen && SLACK.has(player.action)) ev.watch += dt; else ev.watch = Math.max(0, ev.watch - dt * 0.5);
+    if (ev.watch >= 1.6) {
+      ev.watch = 0; ev.reports++;
+      stats.sbReports = (stats.sbReports || 0) + 1;
+      stealth = clamp(stealth - 8, 0, 100);
+      floater(player.x, player.y - 70, 'СБ ЗАПИСАЛА! −8', '#ff6a5a');
+      playSound('alarm');
+      say('player', pick(LINES.sb.caught), 2.6);
+      addLog('🎥 СБ: «Сотрудник Викентий, 7 этаж, прокрастинирует». Доложили Д.Н.', 'bad');
+      if (boss.state !== 'gone' && boss.state !== 'out') {
+        boss.suspicion = clamp(boss.suspicion + 40, 0, 99);
+        if (!bossBusy()) bossGoTo({ x: player.x, y: player.y }, 'patrol', 'по звонку СБ');
+        setTimeout(() => { if (mode === 'playing') say('boss', pick(LINES.sb.boss), 2.8); }, 900);
+      }
+    }
+  }
+  function drawCameras() {
+    if (!eventIs('sb')) return;
+    const t = performance.now() / 1000;
+    for (const c of CAMERAS) {
+      const a = cameraAngle(c);
+      const grd = ctx.createRadialGradient(c.x, c.y, 4, c.x, c.y, c.range);
+      grd.addColorStop(0, 'rgba(255,60,50,0.42)'); grd.addColorStop(1, 'rgba(255,60,50,0.05)');
+      ctx.fillStyle = grd;
+      ctx.beginPath(); ctx.moveTo(c.x, c.y);
+      for (let i = 0; i <= 12; i++) {
+        const aa = a - CAM_HALF + (i / 12) * CAM_HALF * 2;
+        let len = c.range;
+        for (let st = 8; st < c.range; st += 8) { if (sightBlockers.some(w => rectContains(w, c.x + Math.cos(aa) * st, c.y + Math.sin(aa) * st))) { len = st; break; } }
+        ctx.lineTo(c.x + Math.cos(aa) * len, c.y + Math.sin(aa) * len);
+      }
+      ctx.closePath(); ctx.fill();
+      // корпус камеры и мигающий огонёк
+      ctx.save(); ctx.translate(c.x, c.y); ctx.rotate(a);
+      R(-3, -3, 10, 6, '#e8ecef'); R(7, -2, 2, 4, '#222'); ctx.restore();
+      R(c.x - 1.5, c.y - 6, 3, 3, Math.floor(t * 2) % 2 ? '#ff3a2a' : '#5a1010');
+    }
+    if (officeEvent.watch > 0) {
+      const k = officeEvent.watch / 1.6;
+      R(player.x - 16, player.y - 80, 32, 4, 'rgba(10,16,20,0.9)'); R(player.x - 15.5, player.y - 79.5, 31 * k, 3, '#ff4a3a');
+      T('🎥 REC', player.x, player.y - 86, 7, '#ff6a5a', 'center', 900, FONT_SANS);
+    }
+  }
 
   // ---------- ОБЕД, ТУАЛЕТ, ПЯТНИЧНОЕ ПИВО ----------
   const lunchTime = () => clockMinutes >= CFG.lunchOpen - 5 && clockMinutes < CFG.lunchOpen + 50;
@@ -976,6 +1072,8 @@
     return 'Выход на лестницу. Обед — 13:00–14:30, до 19:30 ни шагу.';
   }
   function startAction(action, seconds) {
+    if (SLACK_BASE.has(action) && action !== 'phone') hint('slack', 'Это палево: если Д.Н. (или камера СБ) увидит — растёт подозрение. Следи за его конусом и радаром справа вверху.');
+    if (action === 'phone') hint('phone', 'Телефон — тоже палево, но можно ходить. Tab / Q — убрать.');
     player.action = action;
     player.actionTimer = seconds;
     player.actionTotal = seconds;
@@ -1089,7 +1187,7 @@
         startAction('work', 0);
         playSound('click');
         addLog('Викентий открыл Excel. Пальцы стучат по формулам.', 'good');
-        toast('Сидишь в Excel. Если Д.Н. увидит — KPI полетит вверх втрое!', 2.6);
+        toast('Сидишь в Excel. Если Д.Н. увидит — KPI полетит вверх в 2.5 раза!', 2.6);
         break;
       case 'coffee':
         startAction('coffee', 2.2);
@@ -1410,7 +1508,8 @@
     say('boss', pick(LINES.boss.caught), 3);
     floater(player.x, player.y - 70, `СПАЛИЛИ! −${catchLoss}`, '#ff6a5a');
     addLog('❌ СПАЛИЛИ! Д.Н. застал Викентия без дела.', 'bad');
-    toast('ТЕБЯ СПАЛИЛИ! Незаметность падает.', 3);
+    const why = { smoke: 'курил на балконе', youtube: 'смотрел YouTube', fridge: 'шарил в холодильнике', chat: 'болтал', phone: 'сидел в телефоне', meme: 'смотрел мем Глеба' }[player.action];
+    toast(why ? `ТЕБЯ СПАЛИЛИ: Д.Н. видел, как ты ${why}! −${catchLoss} незаметности.` : `ТЕБЯ СПАЛИЛИ на проверке — ты был не в Excel! −${catchLoss} незаметности.`, 3.4);
     if (player.action !== 'none' && player.action !== 'work') endAction('cancel');
   }
 
@@ -1610,10 +1709,12 @@
     }
     const before = boss.suspicion;
     boss.suspicion = clamp(boss.suspicion + rate * dt, 0, 100);
-    if (before === 0 && boss.suspicion > 0) { playSound('suspect'); if (rand() < 0.5) say('boss', pick(LINES.boss.suspicious), 1.6); }
+    if (before === 0 && boss.suspicion > 0) {
+      hint('suspicion', '«?» над Д.Н.: он видит, что ты бездельничаешь в его конусе. Уйди из конуса, сядь в Excel, спрячься (H) или жми B — альт-таб.');
+      playSound('suspect'); if (rand() < 0.5) say('boss', pick(LINES.boss.suspicious), 1.6); }
     if (boss.suspicion >= 100 && boss.catchCooldown <= 0) caught();
 
-    // Видит, что работаешь — KPI растёт втрое, иногда хвалит
+    // Видит, что работаешь — KPI растёт в 2.5 раза, иногда хвалит
     const nearDesk = playerIsWorking() && boss.state !== 'office' && dist(boss, player) < 120 && lineOfSight(boss, player);
     if (playerIsWorking() && ((seen && dist(boss, player) < 170) || nearDesk)) {
       boss.watchingWork = true;
@@ -1893,6 +1994,9 @@
     const risky = (SLACK.has(player.action) || (boss.state === 'inspect' && !playerIsWorking() && !HIDDEN.has(player.action))) && boss.state !== 'office';
     const target = risky && d < 200 ? clamp(1 - (d - 50) / 150, 0, 1) : 0;
     danger += (target - danger) * Math.min(1, dt * 4);
+    if (danger > 0.5) hint('danger', 'Красные края и пульс: Д.Н. совсем рядом, а ты бездельничаешь. Беги в Excel или прячься!');
+    if (usefulness < 18) hint('kpiLow', 'KPI почти на нуле — при 0 уволят за неэффективность. Посиди в Excel, лучше на глазах у Д.Н.');
+    if (stealth < 30) hint('stealthLow', 'Незаметность на исходе — при 0 уволят. Меньше палева; Excel, укрытия и обед её восстанавливают.');
     if (danger > 0.15) {
       heartbeat -= dt;
       if (heartbeat <= 0) { playSound('thump'); heartbeat = 0.9 - danger * 0.5; }
@@ -2553,7 +2657,7 @@
     R(452, 6, 118, 36, '#081012'); R(453, 7, 116, 34, '#122126');
     T(timeString(clockMinutes), 511, 17, 14, '#fff');
     R(460, 27, 102, 2.5, '#0b1417'); R(460, 27, 102 * dayProgress(), 2.5, '#f2bb38');
-    T(`${today().name} · ${diff().name}${timeScale !== 1 ? ` · ×${+timeScale.toFixed(2)}` : ''}${muted ? ' · 🔇' : ''}`, 511, 35.5, 6, '#9fb', 'center', 700, FONT_SANS);
+    T(`${today().name} · ${diff().name}${timeScale !== 1 ? ` · ×${+timeScale.toFixed(2)}` : ''}${muted ? ' · 🔇' : (musicOn ? '' : ' · без музыки')}`, 511, 35.5, 6, '#9fb', 'center', 700, FONT_SANS);
 
     // Радар начальника
     const x0 = 582;
@@ -2786,6 +2890,7 @@
     drawSunbeams();
     drawZoneHints();
     drawVisionCone();
+    drawCameras();
     drawScene();
     drawParticles();
     drawLighting();
@@ -2835,7 +2940,8 @@
       return;
     }
     if (key === 'u' && (mode === 'menu' || mode === 'ended')) { openShop(); return; }
-    if (key === 'm') { muted = !muted; store.set('muted', muted); toast(muted ? 'Звук выключен (M)' : 'Звук включён (M)', 1.4); return; }
+    if (key === 'm') { muted = !muted; store.set('muted', muted); toast(muted ? 'Звук выключен (M)' : 'Звук включён (M)', 1.4); syncAudioButtons(); return; }
+    if (key === 'n') { toggleMusic(); return; }
     if (key === 'escape' && player.action === 'phone' && mode === 'playing') { togglePhone(); return; }
     if (key === 'p' || key === 'escape') { if (mode === 'playing' || mode === 'paused') pauseGame(); return; }
     if (key === 'enter') {
@@ -2965,6 +3071,9 @@
   setTimeScale(timeScale);
   document.querySelectorAll('[data-diff]').forEach(b => addTap(b, () => { playSound('click'); setDifficulty(b.dataset.diff); }));
   setDifficulty(diffKey);
+  document.querySelectorAll('.music-toggle').forEach(b => addTap(b, toggleMusic));
+  document.querySelectorAll('.sound-toggle').forEach(b => addTap(b, () => { muted = !muted; store.set('muted', muted); syncAudioButtons(); }));
+  syncAudioButtons();
 
   // Отладочный доступ для автотестов (scripts/qa.js)
   window.NP_DEBUG = {
@@ -2982,7 +3091,7 @@
     get coins() { return coins; },
     get owned() { return { ...owned }; },
     get coworkers() { return coworkers.map(c => ({ id: c.id, away: c.away, slack: c.slack, extra: !!c.extra })); },
-    setClock(mins) { shiftTime = (mins - CFG.shiftStart) / (CFG.shiftEnd - CFG.shiftStart) * CFG.shiftSeconds; clockMinutes = mins; },
+    setClock(mins) { shiftTime = (mins - CFG.shiftStart) / (CFG.shiftEnd - CFG.shiftStart) * CFG.shiftSeconds; clockMinutes = mins; if (mins < CFG.lunchOpen && day.lunchAway) { day.lunchAway = false; coworkers.forEach(c => { c.away = false; }); } },
     setCoins(v) { coins = v; store.set('coins', v); },
     buyUpgrade, openShop, closeShop, startAutopilot, stopAutopilot,
     get achievements() { return { ...achieved }; },

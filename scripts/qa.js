@@ -37,7 +37,7 @@ function loadPlaywright() {
       [{ code: 'KeyE', key: 'у' }, 'e'], [{ code: '', key: 'у' }, 'e'], [{ code: 'KeyH', key: 'р' }, 'h'],
       [{ code: '', key: 'р' }, 'h'], [{ code: 'KeyP', key: 'з' }, 'p'], [{ code: '', key: 'з' }, 'p'],
       [{ code: 'Space', key: ' ' }, 'e'], [{ code: 'KeyQ', key: 'й' }, 'q'], [{ code: '', key: 'й' }, 'q'], [{ code: 'Tab', key: 'Tab' }, 'q'], [{ code: 'KeyU', key: 'г' }, 'u'], [{ code: 'KeyI', key: 'ш' }, 'i'], [{ code: '', key: 'ш' }, 'i'],
-      [{ code: 'KeyB', key: 'и' }, 'b'], [{ code: '', key: 'и' }, 'b'], [{ code: 'KeyB', key: 'b' }, 'b'],
+      [{ code: 'KeyB', key: 'и' }, 'b'], [{ code: 'KeyN', key: 'т' }, 'n'], [{ code: '', key: 'т' }, 'n'], [{ code: '', key: 'и' }, 'b'], [{ code: 'KeyB', key: 'b' }, 'b'],
       [{ code: 'KeyM', key: 'ь' }, 'm'], [{ code: '', key: 'ь' }, 'm'], [{ code: 'KeyU', key: 'u' }, 'u'], [{ code: 'KeyI', key: 'i' }, 'i'],
       [{ code: 'Digit1', key: '1' }, '1'], [{ code: 'Digit2', key: '"' }, '2'], [{ code: 'Digit3', key: '№' }, '3'], [{ code: 'Numpad1', key: '1' }, '1'],
       [{ code: 'KeyE', key: 'e' }, 'e'], [{ code: 'KeyH', key: 'h' }, 'h'], [{ code: 'KeyQ', key: 'q' }, 'q'], [{ code: 'KeyP', key: 'p' }, 'p'], [{ code: '', key: 'г' }, 'u'], [{ code: 'ArrowUp', key: 'ArrowUp' }, 'arrowup'], [{ code: 'Enter', key: 'Enter' }, 'enter'],
@@ -55,7 +55,7 @@ function loadPlaywright() {
   onb = await page.evaluate(() => NP_DEBUG.onboarding);
   check('онбординг листается стрелками', onb.i === 2, JSON.stringify(onb));
   await page.screenshot({ path: path.join(outDir, '18-onboarding.png') });
-  for (let i = 0; i < 6; i++) await page.keyboard.press('ArrowRight');
+  for (let i = 0; i < 8; i++) await page.keyboard.press('ArrowRight');
   await page.waitForTimeout(200);
   let st = await page.evaluate(() => ({ ...NP_DEBUG.state, onbOpen: NP_DEBUG.onboarding.open }));
   check('старт по Enter после онбординга', st.mode === 'playing' && !st.onbOpen, st.mode);
@@ -318,6 +318,28 @@ function loadPlaywright() {
   check('апгрейды: кактус ускоряет незаметность, гитара даёт кайф', up.gear.st > up.base.st * 1.8 && up.gear.fun > 1.5 && up.base.fun < 0.01, JSON.stringify(up));
   check('апгрейды: турка — кофе 24 с', up.coffee === 24, String(up.coffee));
   check('апгрейды: шумодав и вентилятор снимают штрафы', up.quiet > up.noisy * 1.3 && up.fan > up.hot * 1.3, JSON.stringify(up));
+
+  // Камеры СБ: прокрастинация в конусе записывается и докладывается Д.Н.
+  const sbr = await page.evaluate(() => {
+    NP_DEBUG.setClock(11 * 60); NP_DEBUG.set({ stealth: 90, usefulness: 60 }); NP_DEBUG.clearEvents();
+    NP_DEBUG.setBoss(706, 446, 'office'); NP_DEBUG.startEvent('sb');
+    NP_DEBUG.teleport(470, 260); NP_DEBUG.togglePhone();
+    for (let i = 0; i < 60 && !NP_DEBUG.state.stats.sbReports; i++) NP_DEBUG.skip(0.25);
+    const s = NP_DEBUG.state; NP_DEBUG.togglePhone();
+    return { reports: s.stats.sbReports || 0, stealth: Math.round(s.stealth), sus: Math.round(s.boss.suspicion) };
+  });
+  check('камеры СБ докладывают о прокрастинации', sbr.reports >= 1 && sbr.stealth <= 82, JSON.stringify(sbr));
+  await page.screenshot({ path: path.join(outDir, '21-sb-cameras.png') });
+  // Музыку можно выключить отдельно от звуков (N / Т и кнопка)
+  const mus = await page.evaluate(() => {
+    const b = document.querySelector('.music-toggle');
+    const t0 = b.textContent;
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'т', code: '' }));
+    const t1 = b.textContent;
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'n', code: 'KeyN' }));
+    return { t0, t1, t2: b.textContent, stored: localStorage.getItem('nepalsya.music') };
+  });
+  check('музыка выключается и включается (N / Т)', /вкл/.test(mus.t0) && /выкл/.test(mus.t1) && /вкл \(/.test(mus.t2) && mus.stored === 'true', JSON.stringify(mus));
 
   // Автопилот: Викентий сам играет, скорость времени
   const ap = await page.evaluate(() => {
