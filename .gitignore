@@ -16,3 +16,4 @@ Thumbs.db
 Desktop.ini
 *.log
 .qa/
+.claude/settings.local.json
