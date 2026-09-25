@@ -18,7 +18,7 @@
   canvas.height = H * S;
 
   // Версия в URL сбрасывает кэш браузера, когда спрайт заменён под тем же именем файла
-  const ASSET_V = '0.19.1';
+  const ASSET_V = '0.19.2';
   function loadImage(src) { const i = new Image(); i.src = `${src}?v=${ASSET_V}`; return i; }
   const img = {
     vik: loadImage('assets/bykentiy-walk-v4.png'),
@@ -64,6 +64,10 @@
     toiletPerPerson: 2.2,      // очередь в туалет: секунд на человека
     toiletSeconds: 6,
     toiletCooldown: 45,
+    overtimeSeconds: 30,       // сверхурочные после плана: снять сегодняшний выговор (раз в смену)
+    peeTimes: [2, 3],          // сколько раз за смену Быкентию приспичит (со среды, когда открыт биотуалет)
+    peeRise: 1.8,              // рост «приспичило» в секунду (0–100): ~55 с до конфуза
+    peeFail: 15,               // −кайфа, если не дотерпел
     beerAt: 17 * 60 + 15,      // пятничное пиво после отъезда Д.Н.
     beerChance: 0.65,
     bdayFee: 10,               // сбор на ДР: минус кайф, KPI не даёт
@@ -134,66 +138,40 @@
   const today = () => DAYS[dayIndex];
   const unlocked = f => store.get('weekDone', false) || dayIndex >= (UNLOCK[f] || 0);
 
+  // Автосохранение смены: день, счётчики, флаги дня (примитивы), список дел, статистика, событие
+  const SAVE_VERSION = 2;
+  const DAY_SKIP = new Set(['queue', 'queueTotal', 'qShift', 'knock', 'cabinDoor', 'npcInside', 'npcTimer', 'aljaziraVisiting', 'aljaziraPhase', 'aljaziraPhaseTimer', 'coffeeQueueTimer', 'lastSavedMinute', 'traffic']);
   function saveProgress() {
-    if (mode !== 'playing') return;
-    const save = {
-      dayIndex, clockMinutes, usefulness, fun, reprimands, weekReprimands, planTarget,
-      coins, majikArc,
-      waterCups: day ? day.waterCups : 4,
-      waterRecharge: day ? day.waterRecharge : 0,
-      coffeeCups: day ? day.coffeeCups : 0,
-      coffeeJammed: day ? !!day.coffeeJammed : false,
-      excelWorkAcc: day ? day.excelWorkAcc : 0,
-      excelPoolTasks: day ? day.excelPoolTasks : 0,
-      overtimeWork: day ? day.overtimeWork : 0,
-      adhocDone: day ? !!day.adhocDone : false,
-      misses: day ? day.misses : 0,
-      fed: day ? !!day.fed : false,
-      hungry: day ? !!day.hungry : false,
-      todo: todo ? todo.map(t => ({ id: t.id, done: !!t.done })) : [],
-      stats: stats ? { ...stats, chatted: Array.from(stats.chatted || []) } : null,
+    if (mode !== 'playing' || auto.on) return;
+    const dayFlags = {};
+    for (const [k, v] of Object.entries(day || {})) if (!DAY_SKIP.has(k) && ['number', 'boolean', 'string'].includes(typeof v)) dayFlags[k] = v;
+    store.set('currentSave', {
+      v: SAVE_VERSION, dayIndex, diffKey, clockMinutes, usefulness, fun, reprimands, weekReprimands, planTarget, majikArc,
+      day: dayFlags,
+      todo: todo.map(t => ({ ...t })),
+      stats: { ...stats, chatted: Array.from(stats.chatted || []) },
       officeEvent: officeEvent ? { id: officeEvent.id, t: officeEvent.t, used: !!officeEvent.used } : null,
-    };
-    store.set('currentSave', save);
+    });
   }
   function loadSavedProgress() {
     const s = store.get('currentSave', null);
-    if (!s || s.dayIndex !== dayIndex) return false;
+    if (!s || s.v !== SAVE_VERSION || s.dayIndex !== dayIndex || s.diffKey !== diffKey || auto.on) return false;
     clockMinutes = s.clockMinutes;
     shiftTime = ((clockMinutes - CFG.shiftStart) / (CFG.shiftEnd - CFG.shiftStart)) * CFG.shiftSeconds;
     usefulness = s.usefulness;
     fun = Math.min(100, Math.max(0, s.fun || 0));
     reprimands = s.reprimands;
-    weekReprimands = s.weekReprimands !== undefined ? s.weekReprimands : weekReprimands;
+    weekReprimands = s.weekReprimands; store.set('weekReprimands', weekReprimands);
     planTarget = s.planTarget || planTarget;
-    if (s.coins !== undefined) coins = s.coins;
-    if (s.majikArc !== undefined) majikArc = s.majikArc;
-    if (day) {
-      if (s.waterCups !== undefined) day.waterCups = s.waterCups;
-      if (s.waterRecharge !== undefined) day.waterRecharge = s.waterRecharge;
-      if (s.coffeeCups !== undefined) day.coffeeCups = s.coffeeCups;
-      if (s.coffeeJammed !== undefined) day.coffeeJammed = s.coffeeJammed;
-      if (s.excelWorkAcc !== undefined) day.excelWorkAcc = s.excelWorkAcc;
-      if (s.excelPoolTasks !== undefined) day.excelPoolTasks = s.excelPoolTasks;
-      if (s.overtimeWork !== undefined) day.overtimeWork = s.overtimeWork;
-      if (s.adhocDone !== undefined) day.adhocDone = s.adhocDone;
-      if (s.misses !== undefined) day.misses = s.misses;
-      if (s.fed !== undefined) day.fed = s.fed;
-      if (s.hungry !== undefined) day.hungry = s.hungry;
-    }
-    if (s.todo && Array.isArray(s.todo)) {
-      s.todo.forEach(st => {
-        const item = todo.find(t => t.id === st.id);
-        if (item) item.done = st.done;
-      });
-    }
-    if (s.stats) {
-      Object.assign(stats, s.stats);
-      stats.chatted = new Set(s.stats.chatted || []);
-    }
-    if (s.officeEvent && EVENTS[s.officeEvent.id]) {
-      officeEvent = { ...EVENTS[s.officeEvent.id], id: s.officeEvent.id, t: s.officeEvent.t, used: s.officeEvent.used };
-    }
+    majikArc = s.majikArc | 0;
+    Object.assign(day, s.day || {});
+    if (Array.isArray(s.todo) && s.todo.length) todo = s.todo;
+    if (s.stats) { Object.assign(stats, s.stats); stats.chatted = new Set(s.stats.chatted || []); }
+    officeEvent = s.officeEvent && EVENTS[s.officeEvent.id] ? { ...EVENTS[s.officeEvent.id], ...s.officeEvent } : null;
+    // Прошедшее время: первая проверка и событие — не мгновенно после загрузки
+    nextBossCheck = Math.max(nextBossCheck, 20);
+    // Сохранились во время обеда — коллеги всё ещё в «Мюнхене»
+    if (day.lunchAway) coworkers.forEach(c => { if (!c.ghost) c.away = true; });
     return true;
   }
   function clearSavedProgress() {
@@ -679,7 +657,9 @@
       adhocDone: false, adhocAt: 720 + Math.floor(rand() * 210),
       aljaziraTimer: 85 + rand() * 45, aljaziraVisiting: false, aljaziraPhase: 'desk', aljaziraPhaseTimer: 0,
       lastSavedMinute: 0,
+      pee: 0, peeActive: false, peeLeft: CFG.peeTimes[0] + Math.floor(rand() * (CFG.peeTimes[1] - CFG.peeTimes[0] + 1)), peeAt: 0,
     };
+    day.peeAt = CFG.shiftStart + 50 + rand() * 90; // первый раз — между 09:40 и 11:10
     walkers = [];
     bossKeyCd = 0; choice = null; nudge = null;
     shownThisShift.clear();
@@ -703,6 +683,7 @@
     day.traffic = !loadedSave && unlocked('almaty') && !auto.on && rand() < 0.25;
     // Второй ряд до четверга на удалёнке
     coworkers.forEach(c => { c.remote = c.extra && !c.ghost && !c.statist && !unlocked('row2'); c.away = c.remote; });
+    if (loadedSave && day.lunchAway) coworkers.forEach(c => { if (!c.ghost) c.away = true; });
     // Обед открывается со среды: до этого обеденных механик нет
     if (!unlocked('lunch')) Object.assign(day, { lunchCalled: true, lunchOpen: true, bossLunch: true, fed: true });
     if (day.smog) addLog('Смог над Алматы: гор не видно, перекур без вида — кайфа меньше.', 'info');
@@ -1079,6 +1060,7 @@
       else if ((day.npcTimer -= dt) <= 0) { day.npcInside = 5 + rand() * 4; day.npcTimer = 25 + rand() * 25; day.cabinDoor = 0.5; }
     }
     phoneSafe = Math.max(0, phoneSafe - dt);
+    updatePee(dt);
     const m = clockMinutes;
 
     // Перезарядка кулера с водой (30 игровых минут)
@@ -1128,13 +1110,9 @@
         }
       } else {
         if (day.aljaziraPhase === 'walk_to') {
-          const target = { x: SEAT.x + 22, y: SEAT.y + 4 };
-          const distTo = dist(aljaziraObj, target);
-          if (distTo > 8) {
-            const angle = Math.atan2(target.y - aljaziraObj.y, target.x - aljaziraObj.x);
-            aljaziraObj.x += Math.cos(angle) * 38 * dt;
-            aljaziraObj.y += Math.sin(angle) * 38 * dt;
-          } else {
+          if (!aljaziraObj.path) { aljaziraObj.x = aljaziraObj.desk.seatX; aljaziraObj.y = aljaziraObj.desk.seatY; aljaziraObj.path = findPath(aljaziraObj, { x: DESK_FRONT.x + 18, y: DESK_FRONT.y }); }
+          if (!walkPath(aljaziraObj, 44, dt)) {} else {
+            aljaziraObj.path = null;
             day.aljaziraPhase = 'confront';
             day.aljaziraPhaseTimer = 3.8;
             const isDisaster = day.aljaziraForceDisaster ? true : (day.aljaziraForceCalm ? false : rand() >= 0.8);
@@ -1158,15 +1136,11 @@
             day.aljaziraPhase = 'walk_back';
           }
         } else if (day.aljaziraPhase === 'walk_back') {
-          const target = { x: aljaziraObj.desk.seatX, y: aljaziraObj.desk.seatY };
-          const distTo = dist(aljaziraObj, target);
-          if (distTo > 6) {
-            const angle = Math.atan2(target.y - aljaziraObj.y, target.x - aljaziraObj.x);
-            aljaziraObj.x += Math.cos(angle) * 38 * dt;
-            aljaziraObj.y += Math.sin(angle) * 38 * dt;
-          } else {
+          if (!aljaziraObj.path) aljaziraObj.path = findPath(aljaziraObj, { x: aljaziraObj.desk.seatX, y: aljaziraObj.desk.seatY });
+          if (walkPath(aljaziraObj, 44, dt)) {
+            aljaziraObj.path = null;
             aljaziraObj.x = aljaziraObj.desk.seatX;
-            aljaziraObj.y = aljaziraObj.desk.seatY;
+            aljaziraObj.y = aljaziraObj.desk.y - 1; // обратно в кресло
             day.aljaziraVisiting = false;
           }
         }
@@ -1258,6 +1232,45 @@
     }
     return WD.zones.find(z => rectContains(z, player.x, player.y));
   }
+  // «Приспичило»: 2–3 раза за смену (со среды, когда открыт биотуалет) надо дойти до синей кабинки
+  function updatePee(dt) {
+    if (!unlocked('toilet') || AWAY.has(player.action) && player.action !== 'toilet') return;
+    if (!day.peeActive) {
+      if (day.peeLeft > 0 && clockMinutes >= day.peeAt && player.action !== 'toilet' && player.action !== 'queue') {
+        day.peeActive = true; day.pee = 5; day.peeLeft--;
+        say('player', pick(LINES.pee.start), 2.8);
+        hint('pee', 'Быкентию приспичило! Дойди до синего биотуалета (юго-запад), пока шкала 🚽 не дошла до 100%.');
+      }
+      return;
+    }
+    if (player.action === 'toilet') return;
+    const before = day.pee;
+    day.pee = Math.min(100, day.pee + CFG.peeRise * dt * (player.action === 'queue' ? 0.5 : 1) * (player.coffeeBoost > 0 ? 1.3 : 1));
+    if (before < 70 && day.pee >= 70) say('player', pick(LINES.pee.urgent), 2.6);
+    if (day.pee >= 100) {
+      day.peeActive = false; day.pee = 0;
+      addFun(-CFG.peeFail); stats.peeFail = (stats.peeFail || 0) + 1;
+      flash = 0.5; shake = 0.4; playSound('caught');
+      say('player', pick(LINES.pee.fail), 3.4);
+      banner = { text: 'НЕ ДОТЕРПЕЛ', sub: `Пришлось бежать в соседний БЦ. −${CFG.peeFail} кайфа`, t: 0, bad: true };
+      addLog(`🚽 Не дотерпел до биотуалета. −${CFG.peeFail} кайфа и немного достоинства.`, 'bad');
+      schedulePee();
+    }
+  }
+  function schedulePee() {
+    const left = Math.max(1, day.peeLeft);
+    day.peeAt = clockMinutes + Math.max(40, (CFG.shiftEnd - 30 - clockMinutes) / left * (0.6 + rand() * 0.6));
+  }
+  // Идти по точкам пути (навигационный граф обходит мебель); true — дошёл
+  function walkPath(o, speed, dt) {
+    let step = speed * dt;
+    while (o.path && o.path.length && step > 0) {
+      const wp = o.path[0], d = dist(o, wp);
+      if (d <= step) { o.x = wp.x; o.y = wp.y; o.path.shift(); step -= d; }
+      else { o.x += (wp.x - o.x) / d * step; o.y += (wp.y - o.y) / d * step; o.facingX = wp.x < o.x ? -1 : 1; step = 0; }
+    }
+    return !o.path || !o.path.length;
+  }
   function coworkerById(id) { return coworkers.find(c => c.id === id); }
 
   function getActionInfo() {
@@ -1291,7 +1304,7 @@
       printer: eventIs('jam') && !officeEvent.used ? 'E — вытащить зажёванную бумагу (+9 к плану) · H — спрятаться' : 'E — распечатать мем · H — спрятаться за ксероксом',
       server: player.action === 'youtube' ? 'E — закрыть вкладку' : (eventIs('internet') ? 'Интернета нет. Только Excel, только хардкор.' : 'E — YouTube на гигабитном канале'),
       exit: exitPrompt(),
-      toilet: day.toiletCd > 0 ? `Биотуалет: пока не хочется (${Math.ceil(day.toiletCd)} с)` : 'E — встать в очередь в синюю кабинку',
+      toilet: day.peeActive ? 'E — СРОЧНО в синюю кабинку! 🚽' : day.toiletCd > 0 ? `Биотуалет: пока не хочется (${Math.ceil(day.toiletCd)} с)` : 'E — встать в очередь в синюю кабинку',
       complain: eventIs('heat') || eventIs('noise')
         ? (boss.state === 'office' ? `E — пожаловаться Д.Н. на ${eventIs('heat') ? 'жару' : 'шум'}` : 'Д.Н. нет в кабинете — жаловаться некому')
         : 'Дверь Д.Н. Стучать без повода — плохая идея.',
@@ -1348,7 +1361,11 @@
       playSound('flush');
       day.cabinDoor = 0.8;
       player.x = WD.toiletDoor.x; player.y = WD.toiletDoor.y;
-      floater(player.x, player.y - 64, 'ПОЛЕГЧАЛО', '#8fd0f0');
+      if (day.peeActive) {
+        day.peeActive = false; day.pee = 0; addFun(4); stats.peeOk = (stats.peeOk || 0) + 1; schedulePee();
+        floater(player.x, player.y - 64, 'ПОЛЕГЧАЛО! +4 КАЙФ', '#8fd0f0');
+        setTimeout(() => { if (mode === 'playing') say('player', pick(LINES.pee.relief), 2.8); }, 300);
+      } else floater(player.x, player.y - 64, 'ПОЛЕГЧАЛО', '#8fd0f0');
     }
     if (a === 'lunch' && reason === 'done') {
       day.fed = true; day.hungry = false; stats.lunch++;
@@ -1567,7 +1584,7 @@
         return;
       case 'toilet': {
         if (!unlocked('toilet')) { toast('Биотуалет «на санобработке» до среды.', 1.8); return; }
-        if (day.toiletCd > 0) { say('player', pick(LINES.toilet.busy), 2); return; }
+        if (day.toiletCd > 0 && !day.peeActive) { say('player', pick(LINES.toilet.busy), 2); return; }
         day.queue = 1 + Math.floor(rand() * 3);
         day.queueTotal = day.queue;
         day.qShift = 0; day.knock = 2 + rand() * 3;
@@ -2135,6 +2152,7 @@
     if (eventIs('majik') && !officeEvent.used) { autoGoal('desk', z('desk'), { work: 6 }); return; }
     if ((eventIs('food') || eventIs('bday')) && !officeEvent.used) { autoGoal('feast', { x: 120, y: 236 }); return; }
     if (day.beer) { autoGoal('exit', z('exit')); return; }
+    if (day.peeActive && day.pee > 25) { autoGoal('toilet', z('toilet')); return; }
     if (clockMinutes >= CFG.lunchOpen && clockMinutes < CFG.lunchClose && !day.fed) { autoGoal('exit', z('exit')); return; }
     // План: отстаёшь от графика — иди работать; сделал — кайфуй
     if (!planDone() && usefulness < planTarget * dayProgress() + 12) { autoGoal('desk', z('desk'), { work: 9 + rand() * 5 }); return; }
@@ -2298,7 +2316,7 @@
       if (has('guitar')) addFun(0.8 * dt); // Гитара перебивает скуку: +0.4 кайфа/с чистого дохода
       const base = player.coffeeBoost > 0 ? CFG.workKpiCoffee : CFG.workKpi;
       const gear = (has('chair') ? 1.2 : 1) * (has('monitor') ? 1.15 : 1) * (eventIs('noise') && !has('headphones') ? 0.7 : 1);
-      const mult = (boss.watchingWork ? CFG.watchedKpiMultiplier : 1) * (eventIs('internet') ? 1.5 : 1) * gear * diff().work;
+      const mult = (boss.watchingWork ? CFG.watchedKpiMultiplier : 1) * (eventIs('internet') ? 1.5 : 1) * gear * diff().work * (day.peeActive && day.pee > 50 ? 0.7 : 1);
       const beforeWork = usefulness;
       addWork(base * mult * dt);
       const gained = usefulness - beforeWork;
@@ -2326,11 +2344,12 @@
       }
 
       // Сверхзадача: если план выполнен и есть выговор — переработка снимает выговор!
-      if (planDone() && (reprimands > 0 || weekReprimands > 0)) {
-        day.overtimeWork = (day.overtimeWork || 0) + (base * mult * dt);
-        if (day.overtimeWork >= 20) {
-          day.overtimeWork = 0;
-          if (reprimands > 0) reprimands--;
+      // Раз в смену: ~30 с сверхурочной работы после плана снимают сегодняшний выговор
+      if (planDone() && reprimands > 0 && !day.overtimeUsed) {
+        day.overtimeWork = (day.overtimeWork || 0) + dt;
+        if (day.overtimeWork >= CFG.overtimeSeconds) {
+          day.overtimeWork = 0; day.overtimeUsed = true;
+          reprimands--;
           if (weekReprimands > 0) { weekReprimands--; store.set('weekReprimands', weekReprimands); }
           stats.reprimands = reprimands;
           playSound('success');
@@ -3174,6 +3193,16 @@
         }
       });
     }
+    // Шкала «приспичило»
+    if (day.peeActive && !AWAY.has(player.action)) {
+      const head = entityHead('player');
+      const urgent = day.pee >= 70, jig = urgent ? Math.sin(performance.now() / 33) : 0;
+      around(head.x + jig, head.y - 16, k, () => {
+        R(-17, -9, 34, 12, 'rgba(10,16,20,0.92)'); R(-17, -9, 2, 12, urgent ? '#e8433e' : '#8fd0f0');
+        T(`🚽${Math.round(day.pee)}%`, 0, -3, 7, urgent ? '#ff8a7a' : '#8fd0f0', 'center', 700, FONT_SANS);
+        R(-15, 3, 30 * day.pee / 100, 1.5, urgent ? '#e8433e' : '#8fd0f0');
+      });
+    }
     // Имена коллег, когда Быкентий рядом
     for (const c of coworkers) {
       if (!c.away && Math.hypot(player.x - c.x, player.y - c.y) < 90 && !bubbles.some(b => b.owner === c.id)) {
@@ -3912,6 +3941,9 @@
     get timeScale() { return timeScale; }, setTimeScale, setDifficulty,
     get difficulty() { return diffKey; },
     get diffConfig() { return DIFFICULTY; },
+    get aljazira() { const c = coworkerById('aljazira'); return { x: c.x, y: c.y, visiting: !!day.aljaziraVisiting, phase: day.aljaziraPhase, walking: !!day.aljaziraVisiting && day.aljaziraPhase !== 'confront' }; },
+    get pee() { return { active: day.peeActive, pee: day.pee, left: day.peeLeft, at: day.peeAt }; },
+    forcePee(v = 5) { day.peeActive = true; day.pee = v; },
     forceSlack(id, kind = 'phone') { const c = coworkerById(id); c.slack = kind; c.slackTimer = 30; c.scoldCooldown = 0; c.alert = 0; },
     forceBeer() { day.beer = null; CFG.beerChance = 1; },
   };

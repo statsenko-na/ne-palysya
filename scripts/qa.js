@@ -579,25 +579,60 @@ const { loadPlaywright } = require('./pw');
   });
   check('Альджазира: аудит Маджикистана сбрасывает кайф и план в 0', alj.fun === 0 && alj.kpi === 0, JSON.stringify(alj));
 
-  // 5. Сверхурочные в Excel: требуют 20 очков работы (не 5) для снятия выговора
+  // 5. Сверхурочные: ~30 с Excel после плана снимают сегодняшний выговор, раз в смену
   const otThreshold = await page.evaluate(() => {
-    NP_DEBUG.setDay(0); NP_DEBUG.restart(); NP_DEBUG.clearEvents(); NP_DEBUG.setUpgrades({});
+    NP_DEBUG.setDay(0); NP_DEBUG.clearSavedProgress(); NP_DEBUG.restart(); NP_DEBUG.clearEvents(); NP_DEBUG.setUpgrades({});
     NP_DEBUG.setBoss(706, 446, 'office');
     NP_DEBUG.set({ usefulness: 60, reprimands: 1, weekReprimands: 1, fun: 50, overtimeWork: 0 });
-    NP_DEBUG.teleport(728, 150);
-    NP_DEBUG.interact(); // садимся за стол в Excel
-    // Работаем ~10 секунд (~6 очков работы): выговор НЕ должен сняться при 5 очках
+    NP_DEBUG.teleport(728, 150); NP_DEBUG.interact();
     NP_DEBUG.skip(10);
-    const midRep = NP_DEBUG.state.reprimands;
-    const midWork = NP_DEBUG.state.overtimeWork;
-    // Устанавливаем 19 очков накопленной работы и дорабатываем ещё 2 с (> 20 очков суммарно)
-    NP_DEBUG.set({ overtimeWork: 19 });
-    NP_DEBUG.skip(2);
-    const endRep = NP_DEBUG.state.reprimands;
-    const endWRep = NP_DEBUG.state.weekReprimands;
-    return { midRep, midWork, endRep, endWRep };
+    const midRep = NP_DEBUG.state.reprimands, midWork = NP_DEBUG.state.overtimeWork;
+    NP_DEBUG.set({ overtimeWork: 29 }); NP_DEBUG.skip(2);
+    const endRep = NP_DEBUG.state.reprimands, endWRep = NP_DEBUG.state.weekReprimands;
+    NP_DEBUG.set({ reprimands: 1, overtimeWork: 29 }); NP_DEBUG.skip(2);
+    const secondRep = NP_DEBUG.state.reprimands;
+    NP_DEBUG.set({ reprimands: 0, weekReprimands: 0 });
+    return { midRep, midWork, endRep, endWRep, secondRep };
   });
-  check('сверхурочные в Excel: требуют 20 очков работы для снятия выговора (не 5)', otThreshold.midRep === 1 && otThreshold.midWork > 5 && otThreshold.midWork < 20 && otThreshold.endRep === 0 && otThreshold.endWRep === 0, JSON.stringify(otThreshold));
+  check('сверхурочные: 30 с после плана снимают выговор, раз в смену', otThreshold.midRep === 1 && otThreshold.midWork > 5 && otThreshold.endRep === 0 && otThreshold.endWRep === 0 && otThreshold.secondRep === 1, JSON.stringify(otThreshold));
+
+  // Приспичило: шкала растёт, туалет снимает, не дотерпел — минус кайф
+  const pee = await page.evaluate(() => {
+    NP_DEBUG.setDay(2); NP_DEBUG.clearSavedProgress(); NP_DEBUG.restart(); NP_DEBUG.clearEvents(); NP_DEBUG.hideBanner();
+    NP_DEBUG.setBoss(706, 446, 'office');
+    const plan = NP_DEBUG.pee.left;
+    NP_DEBUG.forcePee(10); NP_DEBUG.teleport(470, 260); NP_DEBUG.skip(5);
+    const rose = NP_DEBUG.pee.pee;
+    NP_DEBUG.set({ fun: 50 }); NP_DEBUG.forcePee(99); NP_DEBUG.skip(1);
+    const failFun = NP_DEBUG.state.fun, afterFail = NP_DEBUG.pee.active;
+    NP_DEBUG.forcePee(40); NP_DEBUG.teleport(267, 518); NP_DEBUG.interact(); NP_DEBUG.skip(20);
+    return { plan, rose, failFun, afterFail, relieved: !NP_DEBUG.pee.active };
+  });
+  check('приспичило: 2–3 раза, шкала растёт, туалет снимает, конфуз −15 кайфа', pee.plan >= 2 && pee.plan <= 3 && pee.rose > 15 && pee.failFun === 35 && !pee.afterFail && pee.relieved, JSON.stringify(pee));
+
+  // Сохранение: флаги дня, список дел и счётчики восстанавливаются
+  const sv = await page.evaluate(() => {
+    NP_DEBUG.setDay(2); NP_DEBUG.clearSavedProgress(); NP_DEBUG.restart(); NP_DEBUG.clearEvents();
+    NP_DEBUG.setClock(14 * 60 + 10); NP_DEBUG.skip(0.1); NP_DEBUG.set({ usefulness: 33, fun: 44, reprimands: 1, weekReprimands: 2, waterCups: 1 });
+    const todoIds = NP_DEBUG.state.todo.map(t => t.id).join();
+    NP_DEBUG.saveProgress(); NP_DEBUG.restart();
+    const s = NP_DEBUG.state;
+    const r = { clock: s.clockMinutes, u: s.usefulness, f: s.fun, rep: s.reprimands, w: s.weekReprimands, water: s.waterCups, sameTodo: s.todo.map(t => t.id).join() === todoIds, lunchCalled: NP_DEBUG.flags.lunchCalled };
+    NP_DEBUG.clearSavedProgress(); NP_DEBUG.set({ reprimands: 0, weekReprimands: 0 });
+    return r;
+  });
+  check('сохранение восстанавливает время, счётчики, флаги дня и список дел', Math.abs(sv.clock - 850.27) < 0.1 && sv.u === 33 && sv.f === 44 && sv.rep === 1 && sv.w === 2 && sv.water === 1 && sv.sameTodo && sv.lunchCalled, JSON.stringify(sv));
+
+  // Альджазира ходит по навигационному графу, не сквозь столы
+  const aw = await page.evaluate(() => {
+    NP_DEBUG.setDay(3); NP_DEBUG.clearSavedProgress(); NP_DEBUG.restart(); NP_DEBUG.clearEvents();
+    NP_DEBUG.setBoss(706, 446, 'office'); NP_DEBUG.teleport(470, 260);
+    NP_DEBUG.triggerAljazira(false);
+    let inWall = 0, arrived = false;
+    for (let i = 0; i < 400; i++) { NP_DEBUG.skip(0.05); const a = NP_DEBUG.aljazira; if (a.walking && NP_DEBUG.blocked(a.x, a.y, 3)) inWall++; if (a.phase === 'confront') arrived = true; if (!a.visiting && arrived) break; }
+    return { inWall, arrived, back: !NP_DEBUG.aljazira.visiting };
+  });
+  check('Альджазира ходит в обход мебели и возвращается', aw.inWall === 0 && aw.arrived && aw.back, JSON.stringify(aw));
 
   // 6. Сложность игры: конфигурация и фактическая проверка лимита выговоров
   const diffs = await page.evaluate(async () => {
