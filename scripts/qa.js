@@ -89,6 +89,7 @@ const { loadPlaywright } = require('./pw');
 
   // 6b. Стол доступен и спереди из прохода; пустое E не перекрывает экран тостом
   const deskFront = await page.evaluate(() => {
+    NP_DEBUG.clearEvents();
     NP_DEBUG.teleport(500, 250);
     NP_DEBUG.interact();
     const emptyToast = document.getElementById('toast').classList.contains('show');
@@ -404,7 +405,7 @@ const { loadPlaywright } = require('./pw');
 
   // Маджикистан: посидеть в Excel — +KPI
   const mj = await page.evaluate(() => {
-    NP_DEBUG.setBoss(706, 446, 'office'); NP_DEBUG.set({ usefulness: 40 }); NP_DEBUG.startEvent('majik');
+    NP_DEBUG.setBoss(706, 446, 'office'); NP_DEBUG.set({ usefulness: 40, adhocDone: true }); NP_DEBUG.startEvent('majik');
     NP_DEBUG.teleport(728, 150); NP_DEBUG.interact(); NP_DEBUG.skip(5);
     return { used: NP_DEBUG.event && NP_DEBUG.event.used, k: NP_DEBUG.state.usefulness };
   });
@@ -508,38 +509,75 @@ const { loadPlaywright } = require('./pw');
     await new Promise(r => setTimeout(r, 200));
     return { warned: NP_DEBUG.planWarned, toast: document.getElementById('toast').textContent };
   });
-  // Новые механики (0.19.0):
-  // 1. Лимит кайфа 100
+  // Проверки по замечаниям код-ревью (P1/P2):
+  // 1. Лимит кайфа 100 (включая пятничное пиво)
   const funCap = await page.evaluate(() => {
     NP_DEBUG.set({ fun: 95 });
     NP_DEBUG.set({ fun: 150 });
-    return NP_DEBUG.state.fun;
+    const directCap = NP_DEBUG.state.fun;
+    // Пятничное пиво при 90 кайфа должно дать максимум 100, а не 115
+    NP_DEBUG.setDay(4); NP_DEBUG.restart(); NP_DEBUG.clearEvents();
+    NP_DEBUG.set({ fun: 90 });
+    NP_DEBUG.forceBeer(); NP_DEBUG.setClock(17 * 60 + 20); NP_DEBUG.skip(0.2);
+    NP_DEBUG.teleport(40, 302); NP_DEBUG.interact();
+    const beerFun = NP_DEBUG.state.fun;
+    return { directCap, beerFun, mode: NP_DEBUG.state.mode };
   });
-  check('кайф ограничен максимумом 100', funCap <= 100, String(funCap));
+  check('кайф ограничен максимумом 100 (включая пятничное пиво)', funCap.directCap <= 100 && funCap.beerFun <= 100 && funCap.mode === 'ended', JSON.stringify(funCap));
 
-  // 2. Кулер: лимит 4 стакана и перезарядка
-  const cooler = await page.evaluate(() => {
+  // 2. Кулер: лимит 4 стакана, +6 кайфа в жару, перезарядка синхронна игровым часам (30 минут)
+  const waterTests = await page.evaluate(() => {
     NP_DEBUG.setDay(0); NP_DEBUG.restart(); NP_DEBUG.clearEvents();
+    // 2a. В жару вода даёт +6 кайфа
+    NP_DEBUG.startEvent('heat');
+    NP_DEBUG.set({ fun: 50, waterCups: 4 });
     NP_DEBUG.teleport(193, 235);
-    const beforeCups = NP_DEBUG.state.waterCups;
-    for (let i = 0; i < 4; i++) {
-      NP_DEBUG.interact();
-      NP_DEBUG.skip(2.0);
-    }
-    const afterCups = NP_DEBUG.state.waterCups;
-    return { beforeCups, afterCups };
+    NP_DEBUG.interact();
+    NP_DEBUG.skip(2.0); // завершить питьё (1.8 с)
+    const heatGain = NP_DEBUG.state.fun - 50;
+    // 2b. Опустошение кулера (4 стакана) и перезарядка
+    NP_DEBUG.clearEvents();
+    NP_DEBUG.set({ waterCups: 1, waterRecharge: 0 });
+    NP_DEBUG.teleport(193, 235);
+    NP_DEBUG.interact(); // пьём последний 4-й стакан
+    NP_DEBUG.skip(2.0);
+    const emptyCups = NP_DEBUG.state.waterCups;
+    const startRecharge = NP_DEBUG.state.waterRecharge; // 30 игровых минут
+    // 6 секунд игры = 16 игровых минут
+    NP_DEBUG.skip(6.0);
+    const midRecharge = NP_DEBUG.state.waterRecharge;
+    // Ещё 6 секунд (> 11.25 с реального времени = 30 игровых минут)
+    NP_DEBUG.skip(6.0);
+    const endCups = NP_DEBUG.state.waterCups;
+    const endRecharge = NP_DEBUG.state.waterRecharge;
+    return { heatGain, emptyCups, startRecharge, midRecharge, endCups, endRecharge };
   });
-  check('кулер: 4 стакана, после чего опустошается', cooler.beforeCups === 4 && cooler.afterCups === 0, JSON.stringify(cooler));
+  check('кулер: в жару +6 кайфа, опустошение на 4 стаканах и перезарядка 30 игровых минут', waterTests.heatGain === 6 && waterTests.emptyCups === 0 && Math.abs(waterTests.startRecharge - 30) < 6 && waterTests.midRecharge > 5 && waterTests.midRecharge < 20 && waterTests.endCups === 4 && waterTests.endRecharge <= 0, JSON.stringify(waterTests));
 
-  // 3. Кофемашина: прочистка от жмыха даёт +3 KPI
-  const coffeeJam = await page.evaluate(() => {
+  // 3. Кофемашина: ремонт требует 2.8 с, не даёт награды преждевременно, отмена не даёт KPI
+  const coffeeTiming = await page.evaluate(() => {
     NP_DEBUG.setDay(0); NP_DEBUG.restart(); NP_DEBUG.clearEvents();
-    NP_DEBUG.set({ usefulness: 10, coffeeJammed: true });
+    NP_DEBUG.set({ usefulness: 10, fun: 50, coffeeJammed: true, coffeeQueueTimer: 0 });
     NP_DEBUG.teleport(125, 165);
-    NP_DEBUG.interact(); // чистим машину
-    return { kpi: NP_DEBUG.state.usefulness, jammed: NP_DEBUG.state.coffeeJammed };
+    NP_DEBUG.interact(); // старт fix_coffee (2.8 с)
+    const startAction = NP_DEBUG.state.player.action;
+    const startJammed = NP_DEBUG.state.coffeeJammed;
+    const startKpi = NP_DEBUG.state.usefulness;
+    // Отмена через 1 секунду (отойти от зоны кофемашины)
+    NP_DEBUG.skip(1.0);
+    NP_DEBUG.teleport(200, 200);
+    const cancelJammed = NP_DEBUG.state.coffeeJammed;
+    const cancelKpi = NP_DEBUG.state.usefulness;
+    // Полный ремонт
+    NP_DEBUG.teleport(125, 165);
+    NP_DEBUG.interact();
+    NP_DEBUG.skip(3.0);
+    const doneJammed = NP_DEBUG.state.coffeeJammed;
+    const doneKpi = NP_DEBUG.state.usefulness;
+    const doneFun = NP_DEBUG.state.fun;
+    return { startAction, startJammed, startKpi, cancelJammed, cancelKpi, doneJammed, doneKpi, doneFun };
   });
-  check('кофемашина: устранение засора даёт +3 KPI', coffeeJam.kpi === 13 && !coffeeJam.jammed, JSON.stringify(coffeeJam));
+  check('кофемашина: ремонт длится 2.8 с, преждевременно не начисляет KPI, завершается корректно', coffeeTiming.startAction === 'fix_coffee' && coffeeTiming.startJammed && coffeeTiming.startKpi === 10 && coffeeTiming.cancelJammed && coffeeTiming.cancelKpi === 10 && !coffeeTiming.doneJammed && coffeeTiming.doneKpi === 13 && coffeeTiming.doneFun === 53, JSON.stringify(coffeeTiming));
 
   // 4. Альджазира (Начальник Маджикистана): визит и проверка катастрофы аудита
   const alj = await page.evaluate(() => {
@@ -552,28 +590,85 @@ const { loadPlaywright } = require('./pw');
   });
   check('Альджазира: аудит Маджикистана сбрасывает кайф и план в 0', alj.fun === 0 && alj.kpi === 0, JSON.stringify(alj));
 
-  // 5. Сверхурочные в Excel снимают выговор при выполненном плане
-  const ot = await page.evaluate(() => {
+  // 5. Сверхурочные в Excel: требуют 20 очков работы (не 5) для снятия выговора
+  const otThreshold = await page.evaluate(() => {
     NP_DEBUG.setDay(0); NP_DEBUG.restart(); NP_DEBUG.clearEvents();
-    NP_DEBUG.set({ usefulness: 100, reprimands: 2, weekReprimands: 3, fun: 0 });
+    NP_DEBUG.set({ usefulness: 60, reprimands: 1, weekReprimands: 2, fun: 50, overtimeWork: 0 });
     NP_DEBUG.teleport(728, 150);
-    NP_DEBUG.interact(); // садимся за стол
-    NP_DEBUG.skip(25); // переработка сверх плана
-    const s = NP_DEBUG.state;
-    return { rep: s.reprimands, wRep: s.weekReprimands };
+    NP_DEBUG.interact(); // садимся за стол в Excel
+    // Работаем ~10 секунд (~6 очков работы): выговор НЕ должен сняться при 5 очках
+    NP_DEBUG.skip(10);
+    const midRep = NP_DEBUG.state.reprimands;
+    const midWork = NP_DEBUG.state.overtimeWork;
+    // Дорабатываем до 20 очков (ещё ~25 с)
+    NP_DEBUG.skip(25);
+    const endRep = NP_DEBUG.state.reprimands;
+    const endWRep = NP_DEBUG.state.weekReprimands;
+    return { midRep, midWork, endRep, endWRep };
   });
-  check('сверхурочные в Excel: снимают выговор при переработке', ot.rep === 1 && ot.wRep === 2, JSON.stringify(ot));
+  check('сверхурочные в Excel: требуют 20 очков работы для снятия выговора (не 5)', otThreshold.midRep === 1 && otThreshold.midWork > 5 && otThreshold.midWork < 20 && otThreshold.endRep === 0 && otThreshold.endWRep === 1, JSON.stringify(otThreshold));
 
-  // 6. Сложность игры регулирует дневные и недельные лимиты выговоров
-  const diffs = await page.evaluate(() => {
+  // 6. Сложность игры: конфигурация и фактическая проверка лимита выговоров
+  const diffs = await page.evaluate(async () => {
     const cfg = NP_DEBUG.diffConfig;
+    // Фактическая проверка лёгкой сложности: 3 выговора не увольняют, 4-й увольняет
+    NP_DEBUG.setDay(0); NP_DEBUG.restart(); NP_DEBUG.clearEvents();
+    NP_DEBUG.setDifficulty('easy');
+    NP_DEBUG.reprimand('тест1', 'тест1');
+    NP_DEBUG.reprimand('тест2', 'тест2');
+    NP_DEBUG.reprimand('тест3', 'тест3');
+    await new Promise(r => setTimeout(r, 1100));
+    const after3Mode = NP_DEBUG.state.mode;
+    const after3Rep = NP_DEBUG.state.reprimands;
+    NP_DEBUG.reprimand('тест4', 'тест4');
+    await new Promise(r => setTimeout(r, 1100));
+    const after4Mode = NP_DEBUG.state.mode;
+    const after4Rep = NP_DEBUG.state.reprimands;
+    NP_DEBUG.setDifficulty('normal'); // вернуть normal
+
     return {
       easy: { dMax: cfg.easy.dayReprimandsMax, wMax: cfg.easy.weekReprimandsMax },
       norm: { dMax: cfg.normal.dayReprimandsMax, wMax: cfg.normal.weekReprimandsMax },
-      hard: { dMax: cfg.hard.dayReprimandsMax, wMax: cfg.hard.weekReprimandsMax }
+      hard: { dMax: cfg.hard.dayReprimandsMax, wMax: cfg.hard.weekReprimandsMax },
+      after3Mode, after3Rep, after4Mode, after4Rep
     };
   });
-  check('сложность игры: настраивает лимиты выговоров (стажёр: 4/7, сотр.: 3/5, ветеран: 2/4)', diffs.easy.dMax === 4 && diffs.easy.wMax === 7 && diffs.norm.dMax === 3 && diffs.norm.wMax === 5 && diffs.hard.dMax === 2 && diffs.hard.wMax === 4, JSON.stringify(diffs));
+  check('сложность игры: настраивает лимиты выговоров и на лёгкой 3 выговора не увольняют, а 4-й увольняет', diffs.easy.dMax === 4 && diffs.easy.wMax === 7 && diffs.norm.dMax === 3 && diffs.norm.wMax === 5 && diffs.hard.dMax === 2 && diffs.hard.wMax === 4 && diffs.after3Mode === 'playing' && diffs.after3Rep === 3 && diffs.after4Mode === 'ended' && diffs.after4Rep === 4, JSON.stringify(diffs));
+
+  // 7. Автосохранение: время shiftTime и состояние полностью восстанавливаются без сброса на 08:50
+  const autosaveSync = await page.evaluate(() => {
+    NP_DEBUG.setDay(1); NP_DEBUG.restart(); NP_DEBUG.clearEvents();
+    NP_DEBUG.setClock(14 * 60 + 30); // 14:30
+    NP_DEBUG.set({ usefulness: 45, fun: 70, reprimands: 1, weekReprimands: 2, waterCups: 2, waterRecharge: 15, coffeeCups: 1, coffeeJammed: true, adhocDone: true, misses: 2, overtimeWork: 8, excelWorkAcc: 6, excelPoolTasks: 1 });
+    NP_DEBUG.saveProgress();
+    // Перезапуск восстанавливает сохранённый прогресс
+    NP_DEBUG.restart();
+    const afterLoadClock = NP_DEBUG.state.clockMinutes;
+    // Тик игры: проверяем, что shiftTime не сброшен на 08:50
+    NP_DEBUG.skip(0.2);
+    const afterTickClock = NP_DEBUG.state.clockMinutes;
+    const s = NP_DEBUG.state;
+    NP_DEBUG.clearSavedProgress();
+    return {
+      afterLoadClock,
+      afterTickClock,
+      clockPreserved: Math.abs(afterTickClock - 870) < 5,
+      usefulness: s.usefulness,
+      fun: s.fun,
+      reprimands: s.reprimands,
+      weekReprimands: s.weekReprimands,
+      waterCups: s.waterCups,
+      waterRecharge: s.waterRecharge,
+      coffeeCups: s.coffeeCups,
+      coffeeJammed: s.coffeeJammed,
+      adhocDone: s.adhocDone,
+      misses: s.misses,
+      overtimeWork: s.overtimeWork,
+      excelWorkAcc: s.excelWorkAcc,
+      excelPoolTasks: s.excelPoolTasks,
+    };
+  });
+  check('автосохранение: время shiftTime и состояние полностью восстанавливаются', autosaveSync.clockPreserved && autosaveSync.usefulness === 45 && autosaveSync.fun === 70 && autosaveSync.reprimands === 1 && autosaveSync.weekReprimands === 2 && autosaveSync.waterCups === 2 && Math.abs(autosaveSync.waterRecharge - 15) < 1 && autosaveSync.coffeeJammed && autosaveSync.adhocDone && autosaveSync.overtimeWork === 8, JSON.stringify(autosaveSync));
 
   check('нет ошибок в консоли', errors.length === 0, errors.join(' | '));
 
