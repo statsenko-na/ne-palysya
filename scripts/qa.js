@@ -87,6 +87,23 @@ const { loadPlaywright } = require('./pw');
   check('Excel за столом', st.player.action === 'work');
   await page.screenshot({ path: path.join(outDir, '01-work.png') });
 
+  // 6b. Стол доступен и спереди из прохода; пустое E не перекрывает экран тостом
+  const deskFront = await page.evaluate(() => {
+    NP_DEBUG.teleport(500, 250);
+    NP_DEBUG.interact();
+    const emptyToast = document.getElementById('toast').classList.contains('show');
+    NP_DEBUG.teleport(728, 215);
+    NP_DEBUG.interact();
+    const sitAction = NP_DEBUG.state.player.action;
+    NP_DEBUG.interact();
+    const standY = NP_DEBUG.state.player.y;
+    const toastTop = parseInt(getComputedStyle(document.getElementById('toast')).top);
+    NP_DEBUG.teleport(728, 150);
+    NP_DEBUG.interact();
+    return { emptyToast, sitAction, standY, toastTop };
+  });
+  check('стол доступен из прохода и пустое E не спамит тостом', !deskFront.emptyToast && deskFront.sitAction === 'work' && deskFront.standY > 200 && deskFront.toastTop <= 60, JSON.stringify(deskFront));
+
   // 7. Начальник смотрит, как работаешь — KPI растёт быстрее
   const watched = await page.evaluate(() => {
     const before = NP_DEBUG.state.usefulness;

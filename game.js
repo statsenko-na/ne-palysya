@@ -1060,6 +1060,14 @@
     return best && best.p;
   }
   function currentZone() {
+    if (player.action === 'work') return WD.zones.find(z => z.id === 'desk');
+    const d = WD.playerDesk;
+    if (player.x >= d.x - 8 && player.x <= d.x + d.w + 8) {
+      if ((player.y >= WD.FLOOR_TOP && player.y <= WD.ROW1_Y + 2) ||
+          (player.y >= WD.ROW1_Y + WD.DESK_DEPTH - 2 && player.y <= WD.ROW1_Y + WD.DESK_DEPTH + 28)) {
+        return WD.zones.find(z => z.id === 'desk');
+      }
+    }
     return WD.zones.find(z => rectContains(z, player.x, player.y));
   }
   function coworkerById(id) { return coworkers.find(c => c.id === id); }
@@ -1211,7 +1219,7 @@
       return;
     }
     if (player.action === 'chat' || AWAY.has(player.action) || player.action === 'queue' || player.action === 'standup') return;
-    if (!info) { toast('Здесь пусто. Ищи подсказку внизу экрана — она появляется у активных мест.', 2.2); return; }
+    if (!info) return;
 
     if (info.plant) {
       const p = info.plant;
@@ -1226,12 +1234,16 @@
     const z = info.zone;
     switch (z.type) {
       case 'desk':
-        if (player.action === 'work') { endAction('cancel'); player.y = WD.FLOOR_TOP + 20; toast('Excel свёрнут. Риск открыт.', 1.5); return; }
+        if (player.action === 'work') {
+          endAction('cancel');
+          player.y = player.workFromFront ? (WD.ROW1_Y + WD.DESK_DEPTH + 6) : (WD.FLOOR_TOP + 20);
+          return;
+        }
+        player.workFromFront = player.y > (WD.ROW1_Y + 10);
         player.x = SEAT.x; player.y = SEAT.y;
         startAction('work', 0);
         playSound('click');
         addLog('Быкентий открыл Excel. Пальцы стучат по формулам.', 'good');
-        toast(planDone() ? 'План уже сделан — Excel теперь просто прикрытие. Иди кайфуй!' : 'Сидишь в Excel: работа идёт к плану. На глазах у Д.Н. — вдвое быстрее!', 2.6);
         break;
       case 'coffee':
         startAction('coffee', 2.2);
@@ -2434,6 +2446,20 @@
         R(sx > 0 ? cx : cx - c, sy > 0 ? cy : cy - th, c, th, col);
         R(sx > 0 ? cx : cx - th, sy > 0 ? cy : cy - c, th, c, col);
       }
+      if (z.id === 'desk' && active && player.action !== 'work') {
+        const pulse = 0.55 + Math.sin(t * 6) * 0.35;
+        ctx.strokeStyle = `rgba(242,187,56,${pulse})`;
+        ctx.lineWidth = 1.2;
+        ctx.strokeRect(SEAT.x - 12.5, SEAT.y - 12.5, 25, 20);
+        R(SEAT.x - 12, SEAT.y - 12, 24, 19, `rgba(242,187,56,${pulse * 0.22})`);
+        if (player.y > WD.ROW1_Y) {
+          const fx = WD.playerDesk.x, fy = WD.ROW1_Y + WD.DESK_DEPTH, fw = WD.playerDesk.w, fh = 26;
+          for (const [cx, cy, sx, sy] of [[fx, fy, 1, 1], [fx + fw, fy, -1, 1], [fx, fy + fh, 1, -1], [fx + fw, fy + fh, -1, -1]]) {
+            R(sx > 0 ? cx : cx - 7, sy > 0 ? cy : cy - 1.5, 7, 1.5, `rgba(242,187,56,${a})`);
+            R(sx > 0 ? cx : cx - 1.5, sy > 0 ? cy : cy - 7, 1.5, 7, `rgba(242,187,56,${a})`);
+          }
+        }
+      }
     }
     if (eventIs('food') && !officeEvent.used) {
       const a = 0.5 + Math.sin(t * 5) * 0.3;
@@ -2693,7 +2719,7 @@
     for (const c of coworkers) items.push({ y: c.y, draw: () => drawCoworker(c) });
     if (player.action === 'queue') for (let i = 0; i < day.queue; i++) items.push({ y: WD.toiletDoor.y - 0.5, draw: () => { const p = queueSlot(i); drawStranger(p.x + day.qShift, p.y, (day.queueTotal - day.queue + i + 2) % QUEUE_LOOK.length, i); } });
     for (const wk of walkers) items.push({ y: wk.y, draw: () => drawStranger(wk.x, wk.y, wk.look, 9, Math.max(0, 1 - wk.t / 1.6), true) });
-    const pBase = player.action === 'work' ? DESK.y - 1 : (player.action === 'plant_hide' && player.hideSpot ? player.hideSpot.y - 1 : player.y);
+    const pBase = player.action === 'work' ? DESK.y - 1 : (player.action === 'plant_hide' && player.hideSpot ? player.hideSpot.y - 1 : (player.y < 168 && Math.abs(player.x - SEAT.x) < 36 ? 167 : player.y));
     items.push({ y: pBase, draw: drawPlayer });
     items.push({ y: boss.state === 'office' ? WD.bossHome.y + 15 : boss.y, draw: drawBoss });
     items.sort((a, b) => a.y - b.y);
