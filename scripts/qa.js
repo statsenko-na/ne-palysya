@@ -36,7 +36,11 @@ function loadPlaywright() {
       [{ code: 'KeyA', key: 'ф' }, 'a'], [{ code: 'KeyS', key: 'ы' }, 's'], [{ code: 'KeyD', key: 'в' }, 'd'],
       [{ code: 'KeyE', key: 'у' }, 'e'], [{ code: '', key: 'у' }, 'e'], [{ code: 'KeyH', key: 'р' }, 'h'],
       [{ code: '', key: 'р' }, 'h'], [{ code: 'KeyP', key: 'з' }, 'p'], [{ code: '', key: 'з' }, 'p'],
-      [{ code: 'Space', key: ' ' }, 'e'], [{ code: 'KeyQ', key: 'й' }, 'q'], [{ code: '', key: 'й' }, 'q'], [{ code: 'Tab', key: 'Tab' }, 'q'], [{ code: 'KeyU', key: 'г' }, 'u'], [{ code: 'KeyI', key: 'ш' }, 'i'], [{ code: '', key: 'ш' }, 'i'], [{ code: '', key: 'г' }, 'u'], [{ code: 'ArrowUp', key: 'ArrowUp' }, 'arrowup'], [{ code: 'Enter', key: 'Enter' }, 'enter'],
+      [{ code: 'Space', key: ' ' }, 'e'], [{ code: 'KeyQ', key: 'й' }, 'q'], [{ code: '', key: 'й' }, 'q'], [{ code: 'Tab', key: 'Tab' }, 'q'], [{ code: 'KeyU', key: 'г' }, 'u'], [{ code: 'KeyI', key: 'ш' }, 'i'], [{ code: '', key: 'ш' }, 'i'],
+      [{ code: 'KeyB', key: 'и' }, 'b'], [{ code: '', key: 'и' }, 'b'], [{ code: 'KeyB', key: 'b' }, 'b'],
+      [{ code: 'KeyM', key: 'ь' }, 'm'], [{ code: '', key: 'ь' }, 'm'], [{ code: 'KeyU', key: 'u' }, 'u'], [{ code: 'KeyI', key: 'i' }, 'i'],
+      [{ code: 'Digit1', key: '1' }, '1'], [{ code: 'Digit2', key: '"' }, '2'], [{ code: 'Digit3', key: '№' }, '3'], [{ code: 'Numpad1', key: '1' }, '1'],
+      [{ code: 'KeyE', key: 'e' }, 'e'], [{ code: 'KeyH', key: 'h' }, 'h'], [{ code: 'KeyQ', key: 'q' }, 'q'], [{ code: 'KeyP', key: 'p' }, 'p'], [{ code: '', key: 'г' }, 'u'], [{ code: 'ArrowUp', key: 'ArrowUp' }, 'arrowup'], [{ code: 'Enter', key: 'Enter' }, 'enter'],
     ];
     return cases.map(([ev, want]) => ({ ev, want, got: f(ev) })).filter(c => c.got !== c.want);
   });
@@ -231,6 +235,89 @@ function loadPlaywright() {
   await page.evaluate(() => { NP_DEBUG.buyUpgrade('monitor'); NP_DEBUG.buyUpgrade('lava'); NP_DEBUG.teleport(728, 200); });
   await page.waitForTimeout(200);
   await page.screenshot({ path: path.join(outDir, '15-desk-upgrades.png') });
+
+  // Реальные нажатия: русская раскладка через keyboard.down с кодом клавиши (E/У, H/Р, B/И)
+  const rus = await page.evaluate(() => {
+    NP_DEBUG.setClock(11 * 60); NP_DEBUG.set({ stealth: 90, usefulness: 60 }); NP_DEBUG.clearEvents();
+    NP_DEBUG.setBoss(706, 446, 'office'); NP_DEBUG.teleport(728, 150);
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'у', code: '' }));
+    const a1 = NP_DEBUG.state.player.action;
+    window.dispatchEvent(new KeyboardEvent('keyup', { key: 'у', code: '' }));
+    NP_DEBUG.teleport(870, 436);
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'у', code: 'KeyE' }));
+    const a2 = NP_DEBUG.state.player.action;
+    window.dispatchEvent(new KeyboardEvent('keydown', { key: 'и', code: '' }));
+    const a3 = NP_DEBUG.state.player.action;
+    return { a1, a2, a3 };
+  });
+  check('русская раскладка: У — Excel, У — YouTube, И — альт-таб', rus.a1 === 'work' && rus.a2 === 'youtube' && rus.a3 === 'fake', JSON.stringify(rus));
+
+  // Альт-таб спасает, когда Д.Н. уже подозревает
+  const at = await page.evaluate(() => {
+    NP_DEBUG.setClock(11 * 60); NP_DEBUG.set({ stealth: 90, usefulness: 60 }); NP_DEBUG.clearEvents();
+    NP_DEBUG.skip(11); NP_DEBUG.teleport(870, 436); NP_DEBUG.interact();
+    NP_DEBUG.setBoss(830, 436, 'look', 0); NP_DEBUG.skip(0.9);
+    const before = NP_DEBUG.state.boss.suspicion;
+    const ok = NP_DEBUG.bossKey();
+    const s = NP_DEBUG.state;
+    return { before, ok, after: s.boss.suspicion, action: s.player.action };
+  });
+  check('альт-таб сбрасывает подозрение', at.ok && at.before > 0 && at.after === 0 && at.action === 'fake', JSON.stringify(at));
+
+  // Летучка: выбор ответа клавишей 2
+  const su = await page.evaluate(() => {
+    NP_DEBUG.setClock(11 * 60); NP_DEBUG.set({ stealth: 90, usefulness: 60 }); NP_DEBUG.clearEvents();
+    NP_DEBUG.setBoss(706, 446, 'office'); NP_DEBUG.skip(5); NP_DEBUG.startEvent('standup'); NP_DEBUG.teleport(306, 420); NP_DEBUG.interact();
+    for (let i = 0; i < 30 && !(NP_DEBUG.choice && NP_DEBUG.choice.asked); i++) NP_DEBUG.skip(0.5);
+    return { ...NP_DEBUG.choice, mode: NP_DEBUG.state.mode, clock: NP_DEBUG.state.clockMinutes, st: NP_DEBUG.state.stealth, k: NP_DEBUG.state.usefulness, boss: NP_DEBUG.state.boss.state };
+  });
+  await page.screenshot({ path: path.join(outDir, '20-standup-choice.png') });
+  await page.keyboard.press('Digit2');
+  const su2 = await page.evaluate(() => NP_DEBUG.choice);
+  check('летучка: вопрос и ответ клавишей 2', su && su.asked && su2 && su2.done, JSON.stringify([su, su2]));
+  await page.evaluate(() => NP_DEBUG.skip(20));
+
+  // Стукач Ержан: видит, как ты сидишь в телефоне рядом, и сдаёт
+  const sn = await page.evaluate(() => {
+    NP_DEBUG.setClock(11 * 60); NP_DEBUG.set({ stealth: 90, usefulness: 60 }); NP_DEBUG.clearEvents();
+    NP_DEBUG.setBoss(706, 446, 'office'); NP_DEBUG.teleport(728, 380); NP_DEBUG.togglePhone();
+    for (let i = 0; i < 40 && !NP_DEBUG.state.stats.snitched; i++) NP_DEBUG.skip(0.5);
+    const s = NP_DEBUG.state; NP_DEBUG.togglePhone();
+    return { snitched: s.stats.snitched || 0, boss: s.boss.state };
+  });
+  check('стукач Ержан сдаёт Д.Н.', sn.snitched >= 1, JSON.stringify(sn));
+
+  // Апгрейды реально работают: KPI в Excel с креслом и монитором, турка, лава, кактус, гитара
+  const up = await page.evaluate(() => {
+    NP_DEBUG.setClock(11 * 60); NP_DEBUG.set({ stealth: 90, usefulness: 60 }); NP_DEBUG.clearEvents();
+    NP_DEBUG.clearEvents();
+    const kpiRate = () => { NP_DEBUG.clearEvents(); NP_DEBUG.setBoss(706, 446, 'office'); NP_DEBUG.set({ usefulness: 20, stealth: 50, fun: 0 }); NP_DEBUG.teleport(728, 150); NP_DEBUG.interact(); NP_DEBUG.skip(5); const s = NP_DEBUG.state; return { k: s.usefulness - 20, st: s.stealth - 50, fun: s.fun }; };
+    NP_DEBUG.setUpgrades({});
+    const base = kpiRate();
+    NP_DEBUG.setUpgrades({ chair: true, monitor: true, cactus: true, guitar: true });
+    const gear = kpiRate();
+    NP_DEBUG.setUpgrades({ turka: true });
+    NP_DEBUG.teleport(125, 165); NP_DEBUG.interact();
+    const coffee = NP_DEBUG.state.player.coffeeBoost;
+    NP_DEBUG.skip(3);
+    // шумодав: перфоратор не режет Excel; вентилятор: жара не режет кайф
+    NP_DEBUG.setUpgrades({});
+    const noiseRate = () => { NP_DEBUG.clearEvents(); NP_DEBUG.startEvent('noise'); NP_DEBUG.setBoss(706, 446, 'office'); NP_DEBUG.set({ usefulness: 20 }); NP_DEBUG.teleport(728, 150); NP_DEBUG.interact(); NP_DEBUG.skip(5); return { k: NP_DEBUG.state.usefulness - 20 }; };
+    const noisy = noiseRate();
+    NP_DEBUG.setUpgrades({ headphones: true });
+    const quiet = noiseRate();
+    const funRate = () => { NP_DEBUG.clearEvents(); NP_DEBUG.startEvent('heat'); NP_DEBUG.setBoss(706, 446, 'office'); NP_DEBUG.set({ fun: 0 }); NP_DEBUG.teleport(870, 436); NP_DEBUG.interact(); NP_DEBUG.skip(3); return NP_DEBUG.state.fun; };
+    NP_DEBUG.startEvent('heat'); NP_DEBUG.setUpgrades({});
+    const hot = funRate();
+    NP_DEBUG.skip(6); NP_DEBUG.setUpgrades({ fan: true });
+    const fan = funRate();
+    NP_DEBUG.skip(6); NP_DEBUG.setUpgrades({});
+    return { base, gear, coffee, noisy: noisy.k, quiet: quiet.k, hot, fan };
+  });
+  check('апгрейды: кресло+монитор ускоряют KPI (×1.38)', Math.abs(up.gear.k / up.base.k - 1.38) < 0.05, JSON.stringify(up));
+  check('апгрейды: кактус ускоряет незаметность, гитара даёт кайф', up.gear.st > up.base.st * 1.8 && up.gear.fun > 1.5 && up.base.fun < 0.01, JSON.stringify(up));
+  check('апгрейды: турка — кофе 24 с', up.coffee === 24, String(up.coffee));
+  check('апгрейды: шумодав и вентилятор снимают штрафы', up.quiet > up.noisy * 1.3 && up.fan > up.hot * 1.3, JSON.stringify(up));
 
   // Автопилот: Викентий сам играет, скорость времени
   const ap = await page.evaluate(() => {

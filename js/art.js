@@ -361,11 +361,12 @@
         for (let i = 0; i < w.w / 14; i++) R(g, w.x + rr(0, w.w - 6), w.y + rr(10, w.h - 3), rr(3, 8), 1, 'rgba(70,55,35,0.25)'); // потёртости
         R(g, w.x, w.y + w.h - 2, w.w, 2, '#6d624c'); // плинтус
         if (w.label) {
-          const tw = Math.min(w.w - 8, w.label.length * 5 + 14);
-          R(g, w.x + w.w / 2 - tw / 2, w.y + 9.5, tw, 9, '#1f2e33');
-          R(g, w.x + w.w / 2 - tw / 2 + 1, w.y + 10.5, tw - 2, 7, '#e9e1c8');
+          const tw = Math.min(w.labelW || w.w - 8, w.label.length * 5 + 14);
+          const lx = w.labelX || w.x + w.w / 2;
+          R(g, lx - tw / 2, w.y + 9.5, tw, 9, '#1f2e33');
+          R(g, lx - tw / 2 + 1, w.y + 10.5, tw - 2, 7, '#e9e1c8');
           const s = fitText(g, w.label, tw - 6, 6.2, 700, FONT_SANS);
-          T(g, w.label, w.x + w.w / 2, w.y + 14.2, s, '#1f2e33', 'center', 700, FONT_SANS);
+          T(g, w.label, lx, w.y + 14.2, s, '#1f2e33', 'center', 700, FONT_SANS);
         }
       } else if (w.kind === 'v') {
         R(g, w.x, w.y, w.w, w.h, '#39342c');
@@ -499,7 +500,13 @@
       if (st === 'tidy') { R(g, x + 6, y + 12, 6, 8, '#3a6e4a'); E(g, x + 9, y + 11, 4, 3, '#58a060'); papers(g, x + 64, y + 14, 2); mug(g, x + 58, y + 16, '#2aa0a8'); }
       if (st === 'hoodie') { R(g, x + 6, y + 12, 8, 10, '#f2efe6'); R(g, x + 7, y + 14, 6, 3, '#8a4a2a'); R(g, x + 64, y + 4, 14, 16, '#c43a3a'); T(g, 'Red', x + 71, y + 12, 3.6, '#fff'); R(g, x + 62, y + 20, 18, 3, '#9a2a2a'); }
       if (st === 'papers') { papers(g, x + 4, y + 12, 6); papers(g, x + 64, y + 12, 5); R(g, x + 76, y + 2, 6, 10, '#2a5aa0'); }
-      if (st === 'calc') { R(g, x + 6, y + 10, 12, 14, '#2b2f33'); for (let r = 0; r < 3; r++) for (let c2 = 0; c2 < 3; c2++) R(g, x + 7.5 + c2 * 3.5, y + 14 + r * 3, 2.5, 2, '#bbb'); mug(g, x + 60, y + 16); }
+      if (st === 'calc') { // Глеб — дата-сайентист: ноутбук с графиком обучения и стикер «ROC 0.51»
+        R(g, x + 4, y + 8, 20, 13, '#2b2f33'); R(g, x + 5, y + 9, 18, 10, '#10202a');
+        g.strokeStyle = '#58e08a'; g.lineWidth = 0.7; g.beginPath(); g.moveTo(x + 6, y + 17); g.lineTo(x + 10, y + 14); g.lineTo(x + 14, y + 15); g.lineTo(x + 18, y + 11); g.lineTo(x + 22, y + 12); g.stroke();
+        R(g, x + 3, y + 21, 22, 2, '#4a5054');
+        note(g, x + 62, y + 4, 18, 9, ['ROC', '0.51'], { noTape: true, size: 3.8, bg: '#9be08a' });
+        mug(g, x + 58, y + 16);
+      }
       if (st === 'dev') {
         R(g, x + 4, y + 10, 10, 12, '#e8c23a'); R(g, x + 5, y + 11, 8, 10, '#f3d65a'); // жёлтые стикеры
         note(g, x + 60, y + 10, 18, 10, ['GIT', 'PUSH'], { noTape: true, size: 4.6, bg: '#9be08a' });

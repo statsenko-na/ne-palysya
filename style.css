@@ -447,3 +447,19 @@ body.is-playing {
   .title-card .btn-row .pixel-btn { padding: 8px 12px; font-size: 10px; margin-top: 6px; }
   .speed-row { margin-top: 6px; font-size: 10px; }
 }
+
+/* Выбор сложности */
+.diff-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: 6px; margin-top: 12px; color: #c8d6ca; font-size: 12px; font-weight: 700; }
+.diff-btn { padding: 6px 10px; border: 2px solid #416064; background: #0f2024; color: #c8d6ca; font-weight: 700; font-size: 11px; cursor: pointer; }
+.diff-btn.on { border-color: var(--yellow); background: var(--yellow); color: var(--ink); }
+@media (max-height: 520px) { .diff-row { margin-top: 6px; font-size: 10px; } .diff-btn { padding: 4px 7px; font-size: 9px; } }
+
+/* Достижения */
+.ach-title { margin: 14px 0 6px; color: var(--yellow); font-size: 13px; }
+.ach-list { display: grid; grid-template-columns: repeat(2, 1fr); gap: 6px; text-align: left; }
+.ach { display: grid; grid-template-columns: 26px 1fr; column-gap: 6px; padding: 6px 8px; border: 1px solid #2f4c52; opacity: .55; }
+.ach span { grid-row: span 2; font-size: 18px; }
+.ach b { color: #fff5d0; font-size: 12px; }
+.ach small { color: #9fc0bb; font-size: 10px; }
+.ach.got { opacity: 1; border-color: var(--yellow); }
+@media (max-width: 720px), (max-height: 520px) { .ach-list { grid-template-columns: 1fr; } }
