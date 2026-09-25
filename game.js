@@ -3895,7 +3895,7 @@
     get unlocked() { return Object.fromEntries(Object.keys(UNLOCK).map(k => [k, unlocked(k)])); },
     get eventQueue() { return eventQueue.slice(); },
     finish(r) { finishGame(r); },
-    clearEvents() { officeEvent = null; eventQueue = []; nextEvent = 999; nextBossCheck = 999; nudge = null; if (day) { day.coffeeQueueTimer = 0; day.coffeeQueueChecked = true; } },
+    clearEvents() { officeEvent = null; eventQueue = []; nextEvent = 999; nextBossCheck = 999; nudge = null; if (day) { day.coffeeQueueTimer = 0; day.coffeeQueueChecked = true; day.adhocDone = true; } },
     get onboarding() { return { open: onb.open, i: onb.i }; },
     get auto() { return { on: auto.on, goal: auto.goal && auto.goal.kind }; },
     get timeScale() { return timeScale; }, setTimeScale, setDifficulty,

@@ -7,6 +7,9 @@ function loadPlaywright() {
   if (process.env.PLAYWRIGHT_PATH) candidates.push(process.env.PLAYWRIGHT_PATH);
   candidates.push('playwright');
   candidates.push(path.join(process.cwd(), 'node_modules', 'playwright'));
+  // Codex runtime bundles Node.js packages next to the active node executable.
+  // Keep this relative to process.execPath so the helper works across machines.
+  candidates.push(path.resolve(path.dirname(process.execPath), '..', 'node_modules', 'playwright'));
 
   try {
     const root = execSync('npm root -g', { stdio: ['ignore', 'pipe', 'ignore'], timeout: 3000 }).toString().trim();

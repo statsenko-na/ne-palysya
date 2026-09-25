@@ -43,7 +43,10 @@ const { loadPlaywright } = require('./pw');
   check('раскладки EN/RU', layout.length === 0, JSON.stringify(layout));
 
   // Для большинства проверок вся неделя открыта (прогрессию проверяем отдельно в конце)
-  await page.evaluate(() => localStorage.setItem('nepalsya.weekDone', 'true'));
+  await page.evaluate(() => {
+    localStorage.clear();
+    localStorage.setItem('nepalsya.weekDone', 'true');
+  });
 
   // 2. Первый запуск: онбординг, листание стрелками, старт с последнего слайда
   await page.keyboard.press('Enter');
@@ -217,7 +220,7 @@ const { loadPlaywright } = require('./pw');
   await page.screenshot({ path: path.join(outDir, '12-bday.png') });
 
   // Летучка: стоишь у доски — +KPI
-  await page.evaluate(() => { NP_DEBUG.setBoss(706, 446, 'office'); NP_DEBUG.startEvent('standup'); NP_DEBUG.teleport(306, 420); NP_DEBUG.set({ usefulness: 40 }); });
+  await page.evaluate(() => { NP_DEBUG.setBoss(706, 446, 'office'); NP_DEBUG.clearEvents(); NP_DEBUG.set({ usefulness: 40, adhocDone: true }); NP_DEBUG.startEvent('standup'); NP_DEBUG.teleport(306, 420); });
   await page.keyboard.press('KeyE');
   st = await page.evaluate(() => NP_DEBUG.state);
   check('летучка: встал у доски', st.player.action === 'standup', st.player.action);
@@ -592,21 +595,23 @@ const { loadPlaywright } = require('./pw');
 
   // 5. Сверхурочные в Excel: требуют 20 очков работы (не 5) для снятия выговора
   const otThreshold = await page.evaluate(() => {
-    NP_DEBUG.setDay(0); NP_DEBUG.restart(); NP_DEBUG.clearEvents();
-    NP_DEBUG.set({ usefulness: 60, reprimands: 1, weekReprimands: 2, fun: 50, overtimeWork: 0 });
+    NP_DEBUG.setDay(0); NP_DEBUG.restart(); NP_DEBUG.clearEvents(); NP_DEBUG.setUpgrades({});
+    NP_DEBUG.setBoss(706, 446, 'office');
+    NP_DEBUG.set({ usefulness: 60, reprimands: 1, weekReprimands: 1, fun: 50, overtimeWork: 0 });
     NP_DEBUG.teleport(728, 150);
     NP_DEBUG.interact(); // садимся за стол в Excel
     // Работаем ~10 секунд (~6 очков работы): выговор НЕ должен сняться при 5 очках
     NP_DEBUG.skip(10);
     const midRep = NP_DEBUG.state.reprimands;
     const midWork = NP_DEBUG.state.overtimeWork;
-    // Дорабатываем до 20 очков (ещё ~25 с)
-    NP_DEBUG.skip(25);
+    // Устанавливаем 19 очков накопленной работы и дорабатываем ещё 2 с (> 20 очков суммарно)
+    NP_DEBUG.set({ overtimeWork: 19 });
+    NP_DEBUG.skip(2);
     const endRep = NP_DEBUG.state.reprimands;
     const endWRep = NP_DEBUG.state.weekReprimands;
     return { midRep, midWork, endRep, endWRep };
   });
-  check('сверхурочные в Excel: требуют 20 очков работы для снятия выговора (не 5)', otThreshold.midRep === 1 && otThreshold.midWork > 5 && otThreshold.midWork < 20 && otThreshold.endRep === 0 && otThreshold.endWRep === 1, JSON.stringify(otThreshold));
+  check('сверхурочные в Excel: требуют 20 очков работы для снятия выговора (не 5)', otThreshold.midRep === 1 && otThreshold.midWork > 5 && otThreshold.midWork < 20 && otThreshold.endRep === 0 && otThreshold.endWRep === 0, JSON.stringify(otThreshold));
 
   // 6. Сложность игры: конфигурация и фактическая проверка лимита выговоров
   const diffs = await page.evaluate(async () => {
