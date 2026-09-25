@@ -45,7 +45,7 @@ py scripts\make_characters.py        # Быкентий v3, Аймашын, вт
 cd scripts; py normalize_sprites.py; py make_panorama.py; cd ..
 ```
 
-Новые картинки через подписки (Antigravity / Codex) — скилл `game-image-gen`: результат клади в `assets/` и записывай источник в `docs/ART_DIRECTION.md`.
+Новые картинки через подписки (Antigravity / Codex) — проектный скилл [`.claude/skills/game-image-gen`](../.claude/skills/game-image-gen/SKILL.md) (`agy` из пустой папки, быстрая модель, затем `scripts/replace_sprite.py`): результат клади в `assets/` и записывай источник в `docs/ART_DIRECTION.md`.
 
 ## Облако или локально
 
