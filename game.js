@@ -18,7 +18,7 @@
   canvas.height = H * S;
 
   // Версия в URL сбрасывает кэш браузера, когда спрайт заменён под тем же именем файла
-  const ASSET_V = '0.19.2';
+  const ASSET_V = '0.19.3';
   function loadImage(src) { const i = new Image(); i.src = `${src}?v=${ASSET_V}`; return i; }
   const img = {
     vik: loadImage('assets/bykentiy-walk-v4.png'),
@@ -117,7 +117,7 @@
       tasks: ['cleanFriday', 'planEarly'] },
   ];
   // С какого дня (индекс) открывается механика
-  const UNLOCK = { coworkers: 1, events1: 1, lunch: 2, toilet: 2, bosskey: 2, events2: 2, almaty: 2, row2: 3, standup: 3, events3: 3 };
+  const UNLOCK = { coworkers: 1, events1: 1, lunch: 2, toilet: 0, bosskey: 2, events2: 2, almaty: 2, row2: 3, standup: 3, events3: 3 };
   const EVENT_TIER = { food: 'events1', call: 'events1', internet: 'events1', jam: 'events1', bday: 'events2', heat: 'events2', noise: 'events2', drill: 'events2', standup: 'events3', majik: 'events3', autoshka: 'events3', arrfr: 'events3', sb: 'events3' };
 
   const store = {
@@ -1583,7 +1583,6 @@
         toast(exitPrompt(), 2);
         return;
       case 'toilet': {
-        if (!unlocked('toilet')) { toast('Биотуалет «на санобработке» до среды.', 1.8); return; }
         if (day.toiletCd > 0 && !day.peeActive) { say('player', pick(LINES.toilet.busy), 2); return; }
         day.queue = 1 + Math.floor(rand() * 3);
         day.queueTotal = day.queue;
