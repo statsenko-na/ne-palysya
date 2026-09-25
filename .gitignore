@@ -18,3 +18,6 @@ Desktop.ini
 .qa/
 .claude/settings.local.json
 sqlite_mcp_server.db
+
+# Личные фото коллег для генерации спрайтов
+photo/

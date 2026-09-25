@@ -51,8 +51,10 @@
     workKpiCoffee: 1.3,
     watchedKpiMultiplier: 2,   // Д.Н. видит, как ты работаешь — работа идёт вдвое быстрее
     overPlan: 0.25,            // работа сверх плана идёт с такой отдачей — выгоднее кайфовать
-    firstCheck: [14, 20],
-    checkInterval: [17, 27],
+    firstCheck: [26, 32],      // первая проверка не раньше, чем новичок дочитает баннер и дойдёт до стола
+    checkInterval: [22, 32],
+    strollChance: 0.35,        // часть «проверок» — просто прогулка по офису без тревоги
+    reprimandGrace: 20,        // после выговора Д.Н. выдыхает: столько секунд без подозрения и проверок
     chatCooldown: 30,
     lunchOpen: 13 * 60,        // обед в «Мюнхене» 13:00–14:30
     lunchClose: 14 * 60 + 30,
@@ -579,7 +581,7 @@
     planTarget = Math.round((today().plan || 70) * diff().plan);
     fun = 0;
     resetStats();
-    nextBossCheck = (CFG.firstCheck[0] + rand() * (CFG.firstCheck[1] - CFG.firstCheck[0])) * (today().checkMul || 1) * diff().check;
+    nextBossCheck = (CFG.firstCheck[0] + rand() * (CFG.firstCheck[1] - CFG.firstCheck[0])) * Math.max(1, diff().check);
     intelTimer = 0;
     coverTokens = 0;
     particles = []; floaters = []; bubbles = []; logEntries = [];
@@ -835,12 +837,11 @@
   const eventIs = id => officeEvent && officeEvent.id === id;
 
   // ---------- КАМЕРЫ СБ ----------
-  // Три камеры под потолком медленно водят красным конусом. Прокрастинация в конусе копит «запись»,
+  // Две купольные камеры под потолком медленно водят красным конусом. Прокрастинация в конусе копит «запись»,
   // через 1.6 с СБ звонит Д.Н.: выговор, +40 подозрения, Д.Н. идёт к месту.
   const CAMERAS = [
     { x: 262, y: 134, base: 0.9, span: 0.75, range: 250 },
     { x: 780, y: 134, base: 2.25, span: 0.75, range: 250 },
-    { x: 780, y: 470, base: -2.6, span: 0.55, range: 200 },
   ];
   const CAM_HALF = 0.32;
   function cameraAngle(c) { return c.base + Math.sin(shiftTime * 0.7 + c.x) * c.span; } // игровое время: с ускорением крутятся быстрее
@@ -877,7 +878,7 @@
     for (const c of CAMERAS) {
       const a = cameraAngle(c);
       const grd = ctx.createRadialGradient(c.x, c.y, 4, c.x, c.y, c.range);
-      grd.addColorStop(0, 'rgba(255,60,50,0.42)'); grd.addColorStop(1, 'rgba(255,60,50,0.05)');
+      grd.addColorStop(0, 'rgba(255,60,50,0.55)'); grd.addColorStop(1, 'rgba(255,60,50,0.12)');
       ctx.fillStyle = grd;
       ctx.beginPath(); ctx.moveTo(c.x, c.y);
       for (let i = 0; i <= 12; i++) {
@@ -887,15 +888,37 @@
         ctx.lineTo(c.x + Math.cos(aa) * len, c.y + Math.sin(aa) * len);
       }
       ctx.closePath(); ctx.fill();
-      // корпус камеры и мигающий огонёк
-      ctx.save(); ctx.translate(c.x, c.y); ctx.rotate(a);
-      R(-3, -3, 10, 6, '#e8ecef'); R(7, -2, 2, 4, '#222'); ctx.restore();
-      R(c.x - 1.5, c.y - 6, 3, 3, Math.floor(t * 2) % 2 ? '#ff3a2a' : '#5a1010');
+      // яркие края конуса — границу видно даже на пёстром полу
+      ctx.strokeStyle = `rgba(255,70,55,${0.55 + Math.sin(t * 4) * 0.2})`;
+      ctx.lineWidth = 1.2;
+      for (const e of [-1, 1]) {
+        const aa = a + e * CAM_HALF;
+        ctx.beginPath(); ctx.moveTo(c.x, c.y); ctx.lineTo(c.x + Math.cos(aa) * c.range * 0.85, c.y + Math.sin(aa) * c.range * 0.85); ctx.stroke();
+      }
     }
     if (officeEvent.watch > 0) {
       const k = officeEvent.watch / 1.6;
       R(player.x - 16, player.y - 80, 32, 4, 'rgba(10,16,20,0.9)'); R(player.x - 15.5, player.y - 79.5, 31 * k, 3, '#ff4a3a');
       T('🎥 REC', player.x, player.y - 86, 7, '#ff6a5a', 'center', 900, FONT_SANS);
+    }
+  }
+
+  // Купольные камеры на потолке (вид сверху — круг): белое кольцо, тёмный дымчатый купол, блик.
+  // Видны всегда; во время СБ внутри купола красный огонёк смотрит туда же, куда конус
+  function drawCameraBodies() {
+    const t = performance.now() / 1000;
+    const on = eventIs('sb');
+    for (const c of CAMERAS) {
+      const a = on ? cameraAngle(c) : c.base;
+      ctx.fillStyle = 'rgba(0,0,0,0.22)'; ctx.beginPath(); ctx.arc(c.x + 1, c.y + 1.5, 6.5, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#e9ecec'; ctx.beginPath(); ctx.arc(c.x, c.y, 6.5, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#aab2b4'; ctx.beginPath(); ctx.arc(c.x, c.y, 5.2, 0, TAU); ctx.fill();
+      ctx.fillStyle = '#2a3136'; ctx.beginPath(); ctx.arc(c.x, c.y, 4.4, 0, TAU); ctx.fill();
+      const blink = on ? Math.floor(t * 3) % 2 : Math.floor(t * 0.7) % 3 === 0;
+      ctx.fillStyle = on ? (blink ? '#ff4030' : '#a01a12') : '#5e7884';
+      ctx.beginPath(); ctx.arc(c.x + Math.cos(a) * 2, c.y + Math.sin(a) * 2, on ? 1.6 : 1.2, 0, TAU); ctx.fill();
+      ctx.fillStyle = 'rgba(255,255,255,0.55)'; ctx.fillRect(Math.round(c.x - 3), Math.round(c.y - 3), 2, 1);
+      if (!on && blink) { ctx.fillStyle = '#6fd08a'; ctx.fillRect(Math.round(c.x + 4), Math.round(c.y - 5), 1.5, 1.5); }
     }
   }
 
@@ -1471,7 +1494,25 @@
     boss.path = findPath(boss, target);
     boss.spotDesc = desc || boss.spotDesc;
   }
+  // Куда Д.Н. идёт гулять: общие точки или к столу случайного коллеги
+  function strollSpot() {
+    const people = coworkers.filter(c => !c.away && !c.ghost);
+    if (people.length && rand() < 0.45) {
+      const c = pick(people);
+      return { x: c.desk.seatX, y: c.desk.y + WD.DESK_DEPTH + 16, desc: `к ${nameCase(c.name, 1)}` };
+    }
+    return pick(WD.patrolSpots);
+  }
+  function startStroll() {
+    boss.warned = false;
+    boss.silentCheck = false;
+    const s = strollSpot();
+    bossGoTo(s, 'patrol', s.desc);
+    if (rand() < 0.5) say('boss', pick(LINES.boss.stroll), 2.4, '#e8e2d0');
+    nextBossCheck = (CFG.checkInterval[0] + rand() * (CFG.checkInterval[1] - CFG.checkInterval[0])) * 0.6 * diff().check;
+  }
   function startInspection() {
+    if (rand() < CFG.strollChance && !boss.warned) { startStroll(); return; }
     boss.warned = false;
     const raid = rand() < 0.3;
     boss.mode = raid ? 'raid' : 'desk';
@@ -1536,6 +1577,11 @@
     flash = 0.9; shake = 0.5;
     playSound('caught');
     banner = { text: `ВЫГОВОР ${reprimands}/3`, sub: reason, t: 0, bad: true };
+    // Передышка: выговоры не идут очередью
+    boss.suspicion = 0;
+    boss.catchCooldown = Math.max(boss.catchCooldown, CFG.reprimandGrace);
+    nextBossCheck = Math.max(nextBossCheck, CFG.reprimandGrace + 6);
+    if (officeEvent && officeEvent.id === 'sb') officeEvent.watch = 0;
     addLog(`📝 ВЫГОВОР ${reprimands}/3: ${reason}`, 'bad');
     if (reprimands === 2) hint('rep2', 'Два выговора! Третий — увольнение. Не попадайся в конус Д.Н. и будь на месте во время проверок.');
     if (reprimands >= 3) setTimeout(() => finishGame('fired'), 900);
@@ -1558,7 +1604,6 @@
     const why = { smoke: 'курил на балконе', youtube: 'смотрел YouTube', fridge: 'шарил в холодильнике', chat: 'болтал', phone: 'сидел в телефоне', meme: 'смотрел мем Блеба', toilet: 'сидел в биотуалете' }[player.action];
     reprimand(why ? `Д.Н. видел, как ты ${why}` : 'на проверке ты был не в Excel', 'залёт');
     boss.suspicion = 0;
-    boss.catchCooldown = 5;
     boss.state = 'lecture';
     boss.stateTimer = 2.6;
     boss.path = [];
@@ -1662,7 +1707,7 @@
         boss.moving = false;
         boss.facing = Math.PI / 2;
         if (boss.quoteTimer <= 0) { say('boss', pick(LINES.boss.office), 2.6, '#e8e2d0'); boss.quoteTimer = 10 + rand() * 6; }
-        if (boss.stateTimer <= 0) bossGoTo(pick(WD.patrolSpots), 'patrol');
+        if (boss.stateTimer <= 0) { const s = strollSpot(); bossGoTo(s, 'patrol', s.desc); }
         break;
       case 'patrol':
         if (followPath(dt, CFG.bossSpeed)) { boss.state = 'look'; boss.stateTimer = 2 + rand() * 2; boss.lookTimer = 0; }
@@ -1672,7 +1717,7 @@
         lookAround(dt);
         if (boss.stateTimer <= 0) {
           if (rand() < 0.22) bossGoTo(WD.bossHome, 'return', 'кабинет');
-          else bossGoTo(pick(WD.patrolSpots), 'patrol');
+          else { const s = strollSpot(); bossGoTo(s, 'patrol', s.desc); }
         }
         break;
       case 'return':
@@ -1784,7 +1829,8 @@
     const seen = mode === 'playing' && playerVisibleToBoss();
     boss.seesPlayer = seen;
     let rate = -CFG.suspicionDecay;
-    if (seen && boss.state !== 'lecture' && boss.state !== 'office') {
+    const grace = boss.catchCooldown > 0 || (banner && banner.dur && shiftTime < banner.dur); // после выговора и пока читаешь баннер дня
+    if (seen && !grace && boss.state !== 'lecture' && boss.state !== 'office') {
       if ((boss.state === 'inspect' || boss.state === 'waitDesk') && !playerIsWorking()) rate = CFG.suspicionInspect;
       else if (SLACK.has(player.action)) rate = CFG.suspicionSlack * diff().slack;
       if (rate > 0 && eventIs('noise')) rate *= 0.6; // за перфоратором шорохов не слышно
@@ -2805,7 +2851,7 @@
     for (const c of coworkers) {
       if (!c.away && Math.hypot(player.x - c.x, player.y - c.y) < 90 && !bubbles.some(b => b.owner === c.id)) {
         const tx = `${c.name} · ${c.role.replace(/ \(.*\)$/, '')}`;
-        around(c.x, c.desk.y - 62, k, () => {
+        around(c.x, c.desk.y - 40, k, () => {
           ctx.font = `700 7.5px ${FONT_SANS}`;
           const w = ctx.measureText(tx).width + 10;
           R(-w / 2, -11, w, 11, 'rgba(10,16,20,0.82)');
@@ -3288,6 +3334,7 @@
     drawScene();
     drawParticles();
     drawLighting();
+    drawCameraBodies();
     drawDanger();
     drawOverheads();
     drawBubbles();
