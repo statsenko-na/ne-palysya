@@ -6,7 +6,7 @@ vikentiy-walk-v3.png — Викентий по референсу: зализа�
                        с хвостиком, высокий лоб, лёгкая щетина, голубые глаза.
 coworkers-v3.png     — Айаршын теперь казах в белой футболке: андеркат-фейд,
                        пучок с косичками сверху, щетина-эспаньолка, серьга.
-extras-v1.png        — второй ряд: Жанна (бывший спрайт Айаршын), стажёр Дамир,
+extras-v1.png        — второй ряд: Асель (бывший спрайт Айаршын), стажёр Ержан,
                        Серёга «на созвоне».
 Исходники v2 не меняются.
 """
@@ -108,6 +108,66 @@ def recolor(fr, mask, target, keep_shade=True):
 
 
 # ---------------- ВИКЕНТИЙ ----------------
+def blend(fr, x, y, col, k):
+    if 0 <= y < fr.shape[0] and 0 <= x < fr.shape[1] and fr[y, x, 3] > 200:
+        fr[y, x, :3] = (fr[y, x, :3] * (1 - k) + np.array(col) * k).astype(int)
+
+
+def paint_face(fr, cx, cy):
+    skin = skin_mask(fr)
+    ok = lambda x, y: 0 <= y < fr.shape[0] and 0 <= x < fr.shape[1] and fr[y, x, 3] > 200
+    # лоб и щёки — ровный тон с лёгкой тенью под скулами
+    for y in range(cy - 4, cy + 12):
+        for x in range(cx - 4, cx + 12):
+            if ok(x, y) and skin[y, x]:
+                blend(fr, x, y, (236, 176, 130), 0.35)
+    for y in range(cy + 9, cy + 13):
+        for x in (cx - 3, cx - 2, cx + 9, cx + 10):
+            blend(fr, x, y, (196, 132, 94), 0.45)
+    # убрать тёмные точки-артефакты на лбу
+    for y in range(cy - 4, cy + 4):
+        for x in range(cx - 2, cx + 10):
+            if ok(x, y) and lum(fr[y:y + 1, x:x + 1])[0, 0] < 90 and ok(x - 1, y) and ok(x + 1, y) \
+                    and skin_mask(fr[y:y + 1, x - 1:x])[0, 0] and skin_mask(fr[y:y + 1, x + 1:x + 2])[0, 0]:
+                fr[y, x, :3] = (236, 176, 130)
+    # брови — прямые, тёмно-русые
+    for x in range(cx - 3, cx + 1):
+        blend(fr, x, cy + 5, (84, 62, 46), 0.9)
+    for x in range(cx + 6, cx + 10):
+        blend(fr, x, cy + 5, (84, 62, 46), 0.9)
+    # веки и глаза (голубо-серые, чуть глубоко посаженные)
+    for x in range(cx - 3, cx + 1):
+        blend(fr, x, cy + 6, (180, 116, 84), 0.6)
+    for x in range(cx + 6, cx + 10):
+        blend(fr, x, cy + 6, (180, 116, 84), 0.6)
+    for x, col in ((cx - 3, (226, 214, 204)), (cx - 2, (92, 130, 170)), (cx - 1, (36, 44, 56)), (cx, (214, 196, 186)),
+                   (cx + 6, (214, 196, 186)), (cx + 7, (92, 130, 170)), (cx + 8, (36, 44, 56)), (cx + 9, (226, 214, 204))):
+        blend(fr, x, cy + 7, col, 1)
+    for x in (cx - 2, cx + 7):
+        blend(fr, x, cy + 8, (200, 140, 104), 0.5)  # мешки под глазами — айтишник же
+    # нос — длинный прямой: тень по боку и кончик
+    for y in range(cy + 7, cy + 12):
+        blend(fr, cx + 2, y, (200, 136, 98), 0.55)
+    blend(fr, cx + 3, cy + 7, (250, 200, 160), 0.5)
+    for x in (cx + 2, cx + 4):
+        blend(fr, x, cy + 12, (170, 104, 76), 0.7)
+    blend(fr, cx + 3, cy + 12, (214, 150, 110), 0.5)
+    # усы, губы, эспаньолка
+    for x in range(cx, cx + 7):
+        blend(fr, x, cy + 13, (118, 88, 66), 0.55)
+    for x in range(cx + 1, cx + 6):
+        blend(fr, x, cy + 14, (160, 84, 70), 0.75)
+    blend(fr, cx + 3, cy + 15, (200, 130, 100), 0.4)
+    for y in range(cy + 16, cy + 19):
+        for x in range(cx + 1, cx + 6):
+            blend(fr, x, y, (110, 82, 62), 0.55 if (x + y) % 2 == 0 else 0.35)
+    for y in range(cy + 13, cy + 18):
+        for x in (cx - 2, cx - 1, cx + 8, cx + 9):
+            if (x + y) % 2 == 0:
+                blend(fr, x, y, (120, 92, 70), 0.3)
+
+
+
 def vikentiy():
     src = load('vikentiy-walk-v2.png')
     out = src.copy()
@@ -149,14 +209,9 @@ def vikentiy():
                     put(fr, x, y, (128, 104, 80))
         # 4) резинка хвоста
         put(fr, cx - 8, cy - 7, (20, 20, 24)); put(fr, cx - 9, cy - 7, (20, 20, 24))
-        # 5) лёгкая щетина по челюсти и подбородку
-        skin = skin_mask(fr)
-        stub = skin & (yy >= cy + 12) & (yy <= cy + 19) & (xx >= cx - 1) & (xx <= cx + 11) & ((xx + yy) % 2 == 0)
-        fr[stub, :3] = (fr[stub, :3] * 0.8 + np.array([96, 74, 58]) * 0.2).astype(int)
-        # 6) глаза голубо-серые
-        r, g, b, al = ch(fr)
-        eye = (b > r) & (al > 200) & (yy > cy) & (yy < cy + 10)
-        fr[eye, :3] = (96, 132, 168)
+        # 5) лицо по фото: прямые брови, голубо-серые глаза с веком, длинный нос,
+        #    скулы, усы и эспаньолка-щетина, тонкие губы
+        paint_face(fr, cx, cy)
         grow = cut.copy()
         for dy2, dx2 in ((1, 0), (-1, 0), (0, 1), (0, -1)):
             grow |= shift(cut, dy2, dx2)
@@ -242,8 +297,8 @@ def hue_swap(fr, mask, target):
     recolor(fr, mask, target)
 
 
-def zhanna(cw):
-    """Жанна из комплаенса: бывший спрайт Айаршын, блузка горчичная."""
+def asel(cw):
+    """Асель из комплаенса: бывший спрайт Айаршын, блузка горчичная."""
     fr = cw[:, 0:80].copy()
     r, g, b, al = ch(fr)
     teal = (al > 150) & (g > r + 20) & (b > r + 10)
@@ -251,8 +306,8 @@ def zhanna(cw):
     return fr
 
 
-def damir(cw):
-    """Стажёр Дамир: из Влада — без наушников, чёрные волосы, зелёное худи."""
+def yerzhan(cw):
+    """Стажёр Ержан: из Влада — без наушников, чёрные волосы, зелёное худи."""
     fr = cw[:, 80:160].copy()
     H, W = fr.shape[:2]
     yy, xx = np.mgrid[0:H, 0:W]
@@ -291,7 +346,7 @@ if __name__ == '__main__':
     out[:, 0:80] = ayarshyn(cw)
     save(out, 'coworkers-v3.png')
     ex = np.zeros((cw.shape[0], 240, 4), int)
-    ex[:, 0:80] = zhanna(cw)
-    ex[:, 80:160] = damir(cw)
+    ex[:, 0:80] = asel(cw)
+    ex[:, 80:160] = yerzhan(cw)
     ex[:, 160:240] = seryoga(cw)
     save(ex, 'extras-v1.png')

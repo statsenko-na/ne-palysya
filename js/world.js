@@ -37,7 +37,7 @@
     { x: 786, y: 458, w: 8, h: FLOOR_BOTTOM - 458, kind: 'v' },
     // Кабинет начальника: северная стена с дверью x 600..644, западная сплошная
     { x: 572, y: 400, w: 28, h: 20, kind: 'h' },
-    { x: 644, y: 400, w: 142, h: 20, kind: 'h', label: 'НАЧАЛЬНИК ОТДЕЛА' },
+    { x: 644, y: 400, w: 142, h: 20, kind: 'h', label: 'КАБИНЕТ Д.Н.', labelX: 758, labelW: 52 }, // табличка правее — Д.Н. в кресле её не закрывает
     { x: 572, y: 420, w: 8, h: FLOOR_BOTTOM - 420, kind: 'v' },
   ];
 
@@ -50,17 +50,17 @@
   const DESK_DEPTH = 42; // столешница 26 + фасад 16
 
   const coworkers = [
-    { id: 'ayarshyn', name: 'Айаршын', role: 'Риск-аналитик', sprite: 0, perk: 'cover' },
+    { id: 'ayarshyn', name: 'Айаршын', role: 'Тимлид разработки', sprite: 0, perk: 'cover' },
     { id: 'vlad', name: 'Влад', role: 'Скор-модели', sprite: 1, perk: 'intel' },
     { id: 'alexandr', name: 'Александр', role: 'Верификатор', sprite: 2, perk: 'report' },
-    { id: 'gleb', name: 'Глеб', role: 'Андеррайтер', sprite: 3, perk: 'snack' },
+    { id: 'gleb', name: 'Глеб', role: 'Дата-сайентист', sprite: 3, perk: 'snack' },
   ];
 
   // Второй ряд: новые соседи — ноют, проёбываются и отвлекают Д.Н. на себя.
   const extras = [
-    { id: 'seryoga', name: 'Серёга', role: 'Вечно «на созвоне»', sprite: 2, sheet: 'extras', perk: 'callhack', deskIndex: 0 },
-    { id: 'zhanna', name: 'Жанна', role: 'Комплаенс', sprite: 0, sheet: 'extras', perk: 'gossip', deskIndex: 3 },
-    { id: 'damir', name: 'Дамир', role: 'Стажёр', sprite: 1, sheet: 'extras', perk: 'task', deskIndex: 4 },
+    { id: 'seryoga', name: 'Серёга', role: 'Автокредиты («автошка»)', sprite: 2, sheet: 'extras', perk: 'callhack', deskIndex: 0 },
+    { id: 'asel', name: 'Асель', role: 'Комплаенс', sprite: 0, sheet: 'extras', perk: 'gossip', deskIndex: 3 },
+    { id: 'yerzhan', name: 'Ержан', role: 'Стажёр', sprite: 1, sheet: 'extras', perk: 'task', deskIndex: 4 },
   ];
 
   const desks = [];
@@ -105,6 +105,7 @@
     { id: 'bucket', x: 314, y: 440, w: 34, h: 12 },
     { id: 'whiteboard', x: 272, y: 394, w: 72, h: 8 },
     { id: 'no_smoke_sign', x: 842, y: 168, w: 16, h: 8 },
+    { id: 'wc_cabin', x: 250, y: 490, w: 34, h: 18 }, // синий биотуалет в углу опенспейса
   ];
   desks.forEach(d => furniture.push({ id: d.id, x: d.x, y: d.y + 2, w: d.w, h: d.h - 2 }));
 
@@ -132,7 +133,7 @@
   ];
   zones.push(
     { id: 'exit', type: 'exit', x: 16, y: 284, w: 46, h: 36, short: 'Выход' },
-    { id: 'toilet', type: 'toilet', x: 106, y: 284, w: 44, h: 30, short: 'Туалет' },
+    { id: 'toilet', type: 'toilet', x: 246, y: 508, w: 50, h: 18, short: 'Биотуалет' },
     { id: 'complain', type: 'complain', x: 598, y: 372, w: 48, h: 28, short: 'Дверь Д.Н.' },
     { id: 'standup', type: 'standup', x: 266, y: 404, w: 84, h: 32, short: 'Доска' },
   );
@@ -176,7 +177,7 @@
   ];
   const bossHome = { x: 706, y: 446, desc: 'кабинет' };
   const exitDoor = { x: 40, y: 302 };       // дверь на лестницу: обед, пиво, эвакуация
-  const toiletDoor = { x: 128, y: 290 };    // дверь WC в южной стене кухни
+  const toiletDoor = { x: 267, y: 518 };    // перед дверью биотуалета (кабинка x 248–286, y 446–508)
   const standupSpot = { x: 362, y: 420 };   // Д.Н. у доски на летучке
 
   window.NP_WORLD = {
