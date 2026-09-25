@@ -18,7 +18,7 @@
   canvas.height = H * S;
 
   // Версия в URL сбрасывает кэш браузера, когда спрайт заменён под тем же именем файла
-  const ASSET_V = '0.18.1';
+  const ASSET_V = '0.19.1';
   function loadImage(src) { const i = new Image(); i.src = `${src}?v=${ASSET_V}`; return i; }
   const img = {
     vik: loadImage('assets/bykentiy-walk-v4.png'),
@@ -1756,6 +1756,7 @@
     const raid = rand() < 0.3;
     boss.mode = raid ? 'raid' : 'desk';
     boss.visitedSpots = 0;
+    boss.inspectAge = 0;
     if (raid) bossGoTo(pick(WD.patrolSpots), 'inspect', 'рейд по этажу');
     else bossGoTo(DESK_FRONT, 'inspect', 'твой стол');
     playSound('alarm');
@@ -1927,7 +1928,8 @@
     if (mode === 'playing' && !['inspect', 'waitDesk', 'lecture', 'leaving', 'gone', 'goout', 'out', 'scold', 'standup'].includes(boss.state) && !eventIs('call') && !eventIs('drill')) {
       nextBossCheck -= dt;
       // Иногда проверка внезапная — без «Кхм-кхм» (зависит от сложности)
-      if (nextBossCheck < diff().warn && !boss.warned && !boss.silentCheck) {
+      if (nextBossCheck < diff().warn && !boss.warned && !boss.silentCheck && rand() < CFG.strollChance) startStroll();
+      else if (nextBossCheck < diff().warn && !boss.warned && !boss.silentCheck) {
         boss.warned = true;
         say('boss', 'Кхм-кхм...', 1.8);
         playSound('ahem');
@@ -1967,6 +1969,9 @@
         if (followPath(dt, CFG.bossSpeed)) { boss.state = 'office'; boss.stateTimer = 7 + rand() * 6; boss.x = WD.bossHome.x; boss.y = WD.bossHome.y; }
         break;
       case 'inspect':
+        // Страховка: проверка не тянется дольше 30 с (застрял в пути)
+        boss.inspectAge = (boss.inspectAge || 0) + dt;
+        if (boss.inspectAge > 30) { endInspection(); break; }
         if (boss.inspectTimer > 0) {
           boss.moving = false;
           boss.inspectTimer -= dt;
@@ -2207,8 +2212,8 @@
     stopAutopilot();
     playSound('click');
     enterFullscreen();
+    auto.on = true; auto.goal = null; auto.path = []; // до resetGame: без утренней пробки
     resetGame();
-    auto.on = true; auto.goal = null; auto.path = [];
     toast('🍿 АВТОПИЛОТ: смотри и угорай. WASD — взять управление.', 3.2);
   }
   function stopAutopilot(msg) {
@@ -2583,6 +2588,12 @@
     playSound(win ? 'success' : 'caught');
     if (auto.on) { const keep = true; clearTimeout(auto.restartTimer); auto.restartTimer = setTimeout(() => { if (keep && mode === 'ended') startAutopilot(); }, 7000); }
     addLog(win ? '19:30 — смена окончена. Свобода!' : 'Трудовой договор расторгнут.', win ? 'good' : 'bad');
+    // Недельный лимит исчерпан: переигровка дня увольняла бы сразу — неделя начинается заново
+    if (!win && weekReprimands >= wMax) {
+      weekReprimands = 0; store.set('weekReprimands', 0);
+      dayIndex = 0; store.set('day', 0);
+      addLog('Новая неделя: с понедельника с чистого листа.', 'info');
+    }
   }
 
   // ---------- РЕНДЕР ----------

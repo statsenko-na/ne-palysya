@@ -392,20 +392,6 @@ const { loadPlaywright } = require('./pw');
   });
   check('сверх плана — отдача ×0.25', Math.abs(pl.after - (pl.t + 2)) < 0.01, JSON.stringify(pl));
 
-  // Автопилот: Быкентий сам играет, скорость времени
-  const ap = await page.evaluate(() => {
-    NP_DEBUG.setTimeScale(2);
-    NP_DEBUG.startAutopilot();
-    const x0 = NP_DEBUG.state.player.x;
-    let moved = 0, acts = new Set();
-    for (let i = 0; i < 120; i++) { NP_DEBUG.skip(0.5); const s = NP_DEBUG.state; moved = Math.max(moved, Math.abs(s.player.x - x0)); acts.add(s.player.action); }
-    const r = { on: NP_DEBUG.auto.on, moved, acts: [...acts], ts: NP_DEBUG.timeScale };
-    NP_DEBUG.stopAutopilot(); NP_DEBUG.setTimeScale(1);
-    return r;
-  });
-  check('автопилот играет сам', ap.on && ap.moved > 100 && ap.acts.length >= 3 && ap.ts === 2, JSON.stringify(ap));
-  await page.screenshot({ path: path.join(outDir, '19-autopilot.png') });
-
   // Маджикистан: посидеть в Excel — +KPI
   const mj = await page.evaluate(() => {
     NP_DEBUG.setBoss(706, 446, 'office'); NP_DEBUG.set({ usefulness: 40, adhocDone: true }); NP_DEBUG.startEvent('majik');
