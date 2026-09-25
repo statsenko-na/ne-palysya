@@ -56,12 +56,13 @@
     { id: 'bleb', name: 'Блеб', role: 'Дата-сайентист', sprite: 3, perk: 'snack' },
   ];
 
-  // Второй ряд: новые соседи — ноют, проёбываются и отвлекают Д.Н. на себя.
+  // Второй ряд: соседи то работают, то отвлекаются и переключают внимание Д.Н. на себя.
   const extras = [
     { id: 'sirgey', name: 'Сиргей', role: 'Автокредиты («автошка»)', sprite: 2, sheet: 'extras', perk: 'callhack', deskIndex: 0 },
-    { id: 'asel', name: 'Асель', role: 'Комплаенс', sprite: 0, sheet: 'extras', perk: 'gossip', deskIndex: 3 },
-    { id: 'yerzhan', name: 'Ержан', role: 'Стажёр', sprite: 1, sheet: 'extras', perk: 'task', deskIndex: 4 },
-    // Дух офиса: уволился, но место за ним. Не уходит, не проёбывается, Д.Н. его не замечает.
+    // Статисты: сидят всегда, говорят сами, болтать с ними нельзя
+    { id: 'asel', name: 'Асель', role: 'Комплаенс', sprite: 0, sheet: 'extras', perk: null, deskIndex: 3, statist: true },
+    { id: 'yerzhan', name: 'Ержан', role: 'Стажёр', sprite: 1, sheet: 'extras', perk: null, deskIndex: 4, statist: true },
+    // Дух офиса: уволился, но место за ним. Не уходит, не отвлекается, Д.Н. его не замечает.
     { id: 'tigran', name: 'Тигран', role: 'Дух офиса (уволился, место занято)', sprite: 3, sheet: 'extras', perk: 'rocket', deskIndex: 1, ghost: true },
   ];
 
@@ -139,7 +140,7 @@
     { id: 'complain', type: 'complain', x: 598, y: 372, w: 48, h: 28, short: 'Дверь Д.Н.' },
     { id: 'standup', type: 'standup', x: 266, y: 404, w: 84, h: 32, short: 'Доска' },
   );
-  people.forEach(c => {
+  people.filter(c => !c.statist).forEach(c => {
     zones.push({
       id: `chat_${c.id}`, type: 'chat', coworker: c.id,
       x: c.desk.x - 4, y: c.desk.y + DESK_DEPTH, w: DESK_W + 8, h: 30, short: c.name,
