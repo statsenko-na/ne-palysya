@@ -15,7 +15,7 @@ description: Генерация спрайтов и картинок для «Н
 ```powershell
 $env:Path = [Environment]::GetEnvironmentVariable("Path","Machine") + ";" + [Environment]::GetEnvironmentVariable("Path","User")
 $d = "C:\Users\Nikolai S\Documents\ClaudeGames\gen"; New-Item -ItemType Directory -Force $d | Out-Null; Set-Location $d
-agy -p "<промпт>. Only generate one image and save it as <name>.png in the current folder. Do not read, create or modify any other files." --model gemini-3.5-flash-medium --effort low --print-timeout 4m --dangerously-skip-permissions --output-format json *> "$d\log.txt"
+agy -p "<промпт>. Only generate one image and save it as <name>.png in the current folder. Do not read, create or modify any other files." --model "Gemini 3.8 Flash (Low)" --print-timeout 4m --dangerously-skip-permissions --output-format json *> "$d\log.txt"
 ```
 Запускай в фоне (`run_in_background`), жди уведомления, не опрашивай.
 
