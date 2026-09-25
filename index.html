@@ -43,9 +43,14 @@
                 <li><b>Конус обзора</b> — жёлтая зона перед начальником. Прокрастинируешь в ней — растёт подозрение.</li>
                 <li><b>Excel на виду</b> — если начальник видит, что ты работаешь, KPI растёт втрое, а он хвалит.</li>
                 <li><b>Коллеги</b> — у каждого свой бонус: прикрыть, слить календарь, поправить отчёт, угостить.</li>
+                <li><b>Второй ряд</b> — соседи ноют и проёбываются. Д.Н. отвлекается на них — это твоё окно.</li>
+                <li><b>Обед 13:00</b> в «Мюнхене», очередь в туалет, жара, перфоратор, сборы на ДР, летучки и пятничное пиво.</li>
               </ul>
-              <button id="start-btn" class="pixel-btn">ВЫЙТИ НА СМЕНУ <span>↵</span></button>
-              <div class="controls-mini">WASD / ЦФЫВ / стрелки — ходить · E / У / Пробел — действие · H / Р — спрятаться · Tab / Q / Й — телефон · P / З / Esc — пауза</div>
+              <div class="btn-row">
+                <button id="start-btn" class="pixel-btn">ВЫЙТИ НА СМЕНУ <span>↵</span></button>
+                <button class="pixel-btn pixel-btn-alt shop-open">🛒 АПГРЕЙДЫ <span>U</span></button>
+              </div>
+              <div class="controls-mini">WASD / ЦФЫВ / стрелки — ходить · E / У / Пробел — действие · H / Р — спрятаться · Tab / Q / Й — телефон · P / З / Esc — пауза · U / Г — апгрейды</div>
             </div>
           </div>
           <div id="pause-overlay" class="screen-overlay hidden">
@@ -63,7 +68,21 @@
               <div id="end-grade" class="end-grade hidden"></div>
               <p id="end-copy"></p>
               <div id="end-stats" class="end-stats"></div>
-              <button id="restart-btn" class="pixel-btn">ЕЩЁ ОДИН ДЕНЬ <span>↵</span></button>
+              <div id="end-coins" class="end-coins"></div>
+              <div class="btn-row">
+                <button id="restart-btn" class="pixel-btn">ЕЩЁ ОДИН ДЕНЬ <span>↵</span></button>
+                <button class="pixel-btn pixel-btn-alt shop-open">🛒 АПГРЕЙДЫ <span>U</span></button>
+              </div>
+            </div>
+          </div>
+          <div id="shop-overlay" class="screen-overlay hidden">
+            <div class="shop-card">
+              <div class="eyebrow">КАСТОМИЗАЦИЯ РАБОЧЕГО МЕСТА</div>
+              <h2>АПГРЕЙДЫ</h2>
+              <p class="shop-note">KPI-коины (₭) начисляются в конце каждой смены: за KPI и сделанные дела. Купленное остаётся навсегда и видно на столе Викентия.</p>
+              <div id="shop-coins" class="shop-coins"></div>
+              <div id="shop-list" class="shop-list"></div>
+              <button id="shop-close" class="pixel-btn">НАЗАД <span>Esc</span></button>
             </div>
           </div>
         </div>
@@ -71,7 +90,7 @@
       </section>
 
       <footer class="footerbar">
-        <div><span class="keycap">WASD</span> движение <span class="keycap">E</span> действие <span class="keycap">H</span> укрытие <span class="keycap">Tab</span> телефон <span class="keycap">P</span> пауза</div>
+        <div><span class="keycap">WASD</span> движение <span class="keycap">E</span> действие <span class="keycap">H</span> укрытие <span class="keycap">Tab</span> телефон <span class="keycap">P</span> пауза <span class="keycap">U</span> апгрейды</div>
         <div class="footer-tip">Стены и мебель непроходимы. Растения, архив и ксерокс — укрытия. «?» над Д.Н. — он что-то заподозрил.</div>
       </footer>
     </main>
