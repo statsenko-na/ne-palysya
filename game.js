@@ -18,7 +18,7 @@
   canvas.height = H * S;
 
   // Версия в URL сбрасывает кэш браузера, когда спрайт заменён под тем же именем файла
-  const ASSET_V = '0.19.3';
+  const ASSET_V = '0.20.0';
   function loadImage(src) { const i = new Image(); i.src = `${src}?v=${ASSET_V}`; return i; }
   const img = {
     vik: loadImage('assets/bykentiy-walk-v4.png'),
@@ -101,20 +101,20 @@
   // plan — цель работы на день; tasks — задачи дня (попадают в список дел первыми).
   const DAYS = [
     { name: 'ПОНЕДЕЛЬНИК', short: 'ПН', plan: 60, mod: 'Тяжёлый понедельник: проверки чаще', checkMul: 0.85,
-      news: 'Ядро: Д.Н. и его конус, твой стол и Excel, кофе, балкон, YouTube, укрытия. Цель — план и кайф без 3 выговоров.',
-      tasks: ['coffee1', 'smoke1', 'inspect1'] },
+      news: 'Ядро: Д.Н. и его конус, твой стол и Excel, кофе, балкон, YouTube, укрытия, синий биотуалет. Цель — план и кайф без 3 выговоров.',
+      tasks: ['coffee1', 'smoke1', 'toilet', 'inspect1', 'reportMon'] },
     { name: 'ВТОРНИК', short: 'ВТ', plan: 70, mod: 'Обычный вторник. Подозрительно обычный.',
       news: 'Новое: коллеги первого ряда (E перед их столом) — у каждого бонус. Офисные события: угощение, созвон, ксерокс.',
-      tasks: ['chatAimashyn', 'chatHlad'] },
+      tasks: ['coffee1', 'smoke2', 'toilet', 'chatAimashyn', 'chatHlad', 'printReport'] },
     { name: 'СРЕДА', short: 'СР', plan: 70, mod: 'Среда — маленькая пятница: кайф ×1.25', funMul: 1.25,
-      news: 'Новое: обед 13:00 в «Мюнхене», синий биотуалет, альт-таб (B / ⎇). События: ДР, жара, перфоратор, учения.',
-      tasks: ['lunch', 'toilet'] },
+      news: 'Новое: обед 13:00 в «Мюнхене», альт-таб (B / ⎇). События: ДР, жара, перфоратор, учения.',
+      tasks: ['coffee2', 'smoke3', 'toilet2', 'lunch', 'reportTurlo'] },
     { name: 'ЧЕТВЕРГ', short: 'ЧТ', plan: 80, mod: 'Аудит из головного офиса: Д.Н. видит дальше', visionMul: 1.15,
       news: 'Новое: второй ряд (Д.Н. отвлекается на бездельников), летучка с выбором, Маджикистан, камеры СБ.',
-      tasks: ['majik', 'scold'] },
+      tasks: ['coffee1', 'smoke1a', 'toilet', 'majik', 'scold', 'hideAudit'] },
     { name: 'ПЯТНИЦА', short: 'ПТ', plan: 60, mod: 'Пятница! Д.Н. уедет «на встречу» в 17:00', funMul: 1.2, bossLeaves: 17 * 60,
       news: 'Пятница: в 17:00 Д.Н. уезжает, иногда коллеги зовут в «Мюнхен» на пиво. Итог недели по Маджикистану.',
-      tasks: ['cleanFriday', 'planEarly'] },
+      tasks: ['coffee3', 'smoke4', 'toilet', 'cleanFriday', 'planEarly', 'yogurt', 'praise2'] },
   ];
   // С какого дня (индекс) открывается механика
   const UNLOCK = { coworkers: 1, events1: 1, lunch: 2, toilet: 0, bosskey: 2, events2: 2, almaty: 2, row2: 3, standup: 3, events3: 3 };
@@ -579,13 +579,14 @@
   // Список дел: сначала задачи дня (обучают новому), потом случайные из открытых механик
   const TODO_NEEDS = { chatAll: 'coworkers', chatAimashyn: 'coworkers', chatHlad: 'coworkers', lunch: 'lunch', toilet: 'toilet', scold: 'row2', majik: 'events3' };
   function pickTodo() {
-    const all = LINES.todoPool.concat(LINES.dayTasks);
+    const all = LINES.dayTasks.concat(LINES.todoPool); // задачи дня важнее одноимённых из пула
     const out = (today().tasks || []).map(id => all.find(t => t.id === id)).filter(Boolean).map(t => ({ ...t, done: false, day: true }));
     const pool = LINES.todoPool.filter(t => !out.some(o => o.id === t.id) && (!TODO_NEEDS[t.id] || unlocked(TODO_NEEDS[t.id])));
     while (out.length < 5 && pool.length) out.push({ ...pool.splice(Math.floor(rand() * pool.length), 1)[0], done: false });
     return out;
   }
   function todoProgress(t) {
+    if (t.stat) return Math.floor(stats[t.stat] || 0);
     switch (t.id) {
       case 'coffee3': return stats.coffees;
       case 'chatAll': return [...stats.chatted].filter(id => MAIN_IDS.has(id)).length;

@@ -82,7 +82,7 @@
     desks.push({
       id: `r2_${i}`, row: 2, x, y: ROW2_Y, w: DESK_W, h: DESK_DEPTH,
       seatX: x + DESK_W / 2, seatY: ROW2_Y - 4, owner: null,
-      style: ['crt', 'tigran', 'broken', 'empty', 'intern'][i],
+      style: ['crt', 'tigran', 'broken', 'empty', 'majikboss'][i],
     });
   });
   coworkers.forEach((c, i) => { c.desk = desks[i]; });
