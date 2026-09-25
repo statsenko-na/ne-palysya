@@ -7,7 +7,7 @@ bykentiy-walk-v3.png — Быкентий по референсу: зализа�
 coworkers-v3.png     — Аймашын теперь казах в белой футболке: андеркат-фейд,
                        пучок с косичками сверху, щетина-эспаньолка, серьга.
 extras-v1.png        — второй ряд: Асель (бывший спрайт Аймашын), стажёр Ержан,
-                       Сиргей «на созвоне», Тигран в аквагриме тигра.
+                       Сиргей «на созвоне», Тигран в гриме тигра.
 Исходники v2 не меняются.
 """
 from pathlib import Path
@@ -340,35 +340,67 @@ def sirgey(cw):
 
 
 def tigran(cw):
-    """Тигран — дух офиса: человек в аквагриме тигра, чёрные волосы, тёмная футболка с ракетой."""
+    """Тигран — дух офиса: без одежды, весь в гриме тигра (рыжий, чёрные полосы, белые грудь и морда, ушки)."""
+    from scipy import ndimage
     fr = cw[:, 240:320].copy()
     H, W = fr.shape[:2]
     yy, xx = np.mgrid[0:H, 0:W]
     r, g, b, al = ch(fr)
     L = lum(fr)
-    shirt = (al > 150) & (yy > 40) & (yy < 80) & (b >= r - 6) & (L > 110)
-    recolor(fr, shirt, (44, 54, 92))
-    for x, y, c in ((47, 56, (230, 230, 230)), (47, 57, (230, 230, 230)), (46, 58, (230, 230, 230)), (47, 58, (230, 230, 230)),
-                    (48, 58, (230, 230, 230)), (47, 55, (220, 60, 50)), (46, 59, (250, 170, 40)), (48, 59, (250, 170, 40))):
-        put(fr, x, y, c)
     hair = hair_mask(fr) & (yy < 24) & ~skin_mask(fr)
-    recolor(fr, hair, (30, 26, 28))
-    face = skin_mask(fr) & (yy < 44)
-    recolor(fr, face, (238, 128, 36))
-    face = face | ((al > 200) & (yy < 44) & ell(40, 28, 12, 15, (H, W)) & ~hair)
-    muzzle = face & (ell(40, 37, 6, 4, (H, W)) | ell(34, 23, 3, 1.5, (H, W)) | ell(46, 22, 3, 1.5, (H, W)))
-    fr[muzzle & (lum(fr) > 70), :3] = (246, 240, 228)
-    black = (20, 16, 14)
-    for x, y0, n in ((36, 12, 4), (40, 11, 5), (44, 12, 4)):
+    face = (al > 200) & ell(40, 28, 12, 14, (H, W)) & ~hair
+    calc = (yy > 58) & (xx > 30) & (xx < 58) & (L < 85)
+    torso = (al > 150) & (yy > 30) & (yy < 80) & ~calc & ~face & (b >= r - 8) & (L > 70)
+    torso |= skin_mask(fr) & (yy > 38) & ~face
+    torso = ndimage.binary_closing(torso, iterations=2) & (al > 150) & ~calc & ~hair
+    near = ndimage.binary_dilation(torso, iterations=3)
+    torso |= near & (al > 150) & (L > 140) & (yy > 30) & (yy < 80) & ~face & ~calc
+    srcL = L.copy()
+    body = torso | face
+    # тело: ровная заливка, светлее к середине (без складок рубашки)
+    d = ndimage.distance_transform_edt(torso)
+    fold = (srcL / max(np.median(srcL[torso]), 1)).clip(0.55, 1.15)
+    sh = (0.72 + 0.34 * np.clip(d / 6, 0, 1)) * 0.55 + fold * 0.45
+    orange = np.array([232, 124, 30])
+    for c in range(3):
+        fr[..., c] = np.where(torso, orange[c] * sh, fr[..., c])
+    # лицо: грим с сохранением светотени
+    kf = (0.6 + 0.4 * L / max(np.median(L[face]), 1)).clip(0.6, 1.1)
+    fskin = (face | (ell(40, 40, 8, 5, (H, W)) & (al > 200) & ~hair)) & (L > 55) & (r > g + 8)
+    for c in range(3):
+        fr[..., c] = np.where(fskin, orange[c] * kf, fr[..., c])
+    cream = np.array([250, 240, 222])
+    white = (torso & ell(40, 60, 7, 13, (H, W))) | (face & (ell(40, 37, 6, 4, (H, W)) | ell(34, 23, 3, 1.6, (H, W)) | ell(46, 22, 3, 1.6, (H, W))))
+    wk = np.where(torso, 0.85 + 0.15 * np.clip(d / 5, 0, 1), 1.0)
+    for c in range(3):
+        fr[..., c] = np.where(white, cream[c] * wk, fr[..., c])
+    # полосы: клинья от контура к центру, сужаются внутрь
+    black = np.array([20, 14, 12])
+    t = (yy * 1.0 + np.where(xx < 40, xx, 80 - xx) * 0.45) % 7
+    wedge = (t < 2.2 - d * 0.35) & (d < 6)
+    stripes = torso & ~white & wedge & (yy > 34)
+    fr[stripes, :3] = black
+    for x, y0, n in ((35, 12, 4), (40, 10, 6), (45, 12, 4)):  # лоб
         for y in range(y0, y0 + n):
             if face[y, x]: put(fr, x, y, black)
-    for y in (29, 32):
-        for x in range(27, 32):
-            if face[y, x + (y == 32)]: put(fr, x + (y == 32), y, black)
-        for x in range(49, 54):
-            if face[y, x - (y == 32)]: put(fr, x - (y == 32), y, black)
-    for x in range(39, 42):
-        put(fr, x, 33, (40, 26, 24))
+    for y, xs in ((28, range(27, 32)), (31, range(28, 32)), (28, range(49, 54)), (31, range(49, 53))):  # щёки
+        for x in xs:
+            if face[y, x]: put(fr, x, y, black)
+    for x in range(38, 43):
+        put(fr, x, 33, (48, 26, 26))
+    put(fr, 39, 34, (48, 26, 26)); put(fr, 41, 34, (48, 26, 26)); put(fr, 40, 35, (48, 26, 26))
+    for x in (38, 39, 41, 42):
+        put(fr, x, 37 + (x in (38, 42)), (110, 56, 46))
+    recolor(fr, hair, (26, 20, 20))
+    # ушки: округлые, рыжие с чёрной каймой и розовым внутри
+    for cx, cy in ((28, 7), (52, 7)):
+        ear = ell(cx, cy, 4.5, 4.5, (H, W)) & (yy <= cy + 1)
+        rim = ell(cx, cy, 5.5, 5.5, (H, W)) & ~ear & (yy <= cy + 1)
+        fr[rim, :3] = black; fr[rim, 3] = 255
+        fr[ear, :3] = orange; fr[ear, 3] = 255
+        inner = ell(cx, cy + 0.5, 2, 2.5, (H, W)) & (yy <= cy + 1)
+        fr[inner, :3] = (242, 160, 160)
+    outline(fr, np.ones_like(body), (26, 16, 10))
     return fr
 
 
