@@ -245,7 +245,7 @@ const { loadPlaywright } = require('./pw');
   st = await page.evaluate(() => NP_DEBUG.state);
   check('обед: ушёл в «Мюнхен»', st.player.action === 'lunch', st.player.action);
   await page.screenshot({ path: path.join(outDir, '14-lunch.png') });
-  await page.evaluate(() => NP_DEBUG.skip(10));
+  await page.evaluate(() => NP_DEBUG.skip(24));
   st = await page.evaluate(() => ({ ...NP_DEBUG.state, flags: NP_DEBUG.flags }));
   check('обед засчитан', st.stats.lunch === 1 && st.flags.fed, JSON.stringify(st.flags));
 
@@ -456,7 +456,7 @@ const { loadPlaywright } = require('./pw');
     localStorage.setItem('nepalsya.weekDone', 'true');
     return { mon, thu };
   });
-  check('понедельник: только ядро (без событий, коллег, обеда, второго ряда)', prog.mon.q === 0 && !prog.mon.u.coworkers && !prog.mon.u.lunch && prog.mon.remote === 1 && prog.mon.statists === 3 && prog.mon.todo.includes('coffee1'), JSON.stringify(prog.mon));
+  check('понедельник: ядро + обед (без событий, коллег, второго ряда)', prog.mon.q === 0 && !prog.mon.u.coworkers && prog.mon.u.lunch && prog.mon.todo.includes('lunch') && prog.mon.remote === 1 && prog.mon.statists === 3 && prog.mon.todo.includes('coffee1'), JSON.stringify(prog.mon));
   check('четверг: второй ряд, летучка, события открыты', prog.thu.u.row2 && prog.thu.u.standup && prog.thu.q > 3 && prog.thu.away === 0 && prog.thu.todo.includes('majik'), JSON.stringify(prog.thu));
   await page.screenshot({ path: path.join(outDir, '24-thursday-card.png') });
 
@@ -632,6 +632,16 @@ const { loadPlaywright } = require('./pw');
     return { hid, out, again: NP_DEBUG.state.player.action };
   });
   check('укрытие: через 25 с выгоняет, повторно сразу нельзя', hd.hid === 'plant_hide' && hd.out === 'none' && hd.again === 'none', JSON.stringify(hd));
+
+  // Четверг: обед в «Вилке» даёт больше кайфа; обед длится час; Д.Н. под снюсом медленнее
+  const vk = await page.evaluate(() => {
+    NP_DEBUG.setDay(3); NP_DEBUG.clearSavedProgress(); NP_DEBUG.restart(); NP_DEBUG.clearEvents(); NP_DEBUG.setBoss(706, 446, 'office');
+    NP_DEBUG.setClock(12 * 60 + 40); NP_DEBUG.set({ fun: 10 }); NP_DEBUG.teleport(40, 302); NP_DEBUG.interact();
+    const t0 = NP_DEBUG.state.clockMinutes; let t1 = t0;
+    for (let i = 0; i < 400 && NP_DEBUG.state.player.action === 'lunch'; i++) { NP_DEBUG.skip(0.1); t1 = NP_DEBUG.state.clockMinutes; }
+    return { vilka: NP_DEBUG.flags.vilka, fun: NP_DEBUG.state.fun, mins: Math.round(t1 - t0) };
+  });
+  check('четверг: «Вилка» +20 кайфа, обед ровно час', vk.vilka && vk.fun >= 30 && Math.abs(vk.mins - 60) <= 2, JSON.stringify(vk));
 
   // Альджазира ходит по навигационному графу, не сквозь столы
   const aw = await page.evaluate(() => {
