@@ -99,7 +99,7 @@
       news: 'Новое: коллеги первого ряда (E перед их столом) — у каждого бонус. Офисные события: угощение, созвон, ксерокс.',
       tasks: ['chatAimashyn', 'chatHlad'] },
     { name: 'СРЕДА', short: 'СР', plan: 70, mod: 'Среда — маленькая пятница: кайф ×1.25', funMul: 1.25,
-      news: 'Новое: обед 13:00 в «Мюнхене», синий биотуалет, альт-таб (B). События: ДР, жара, перфоратор, учения.',
+      news: 'Новое: обед 13:00 в «Мюнхене», синий биотуалет, альт-таб (B / ⎇). События: ДР, жара, перфоратор, учения.',
       tasks: ['lunch', 'toilet'] },
     { name: 'ЧЕТВЕРГ', short: 'ЧТ', plan: 80, mod: 'Аудит из головного офиса: Д.Н. видит дальше', visionMul: 1.15,
       news: 'Новое: второй ряд (Д.Н. отвлекается на бездельников), летучка с выбором, Маджикистан, камеры СБ.',
@@ -453,6 +453,8 @@
   function syncAudioButtons() {
     document.querySelectorAll('.music-toggle').forEach(b => { b.textContent = musicOn ? '🎵 Музыка: вкл (N)' : '🔇 Музыка: выкл (N)'; b.classList.toggle('off', !musicOn); });
     document.querySelectorAll('.sound-toggle').forEach(b => { b.textContent = muted ? '🔇 Звуки: выкл (M)' : '🔊 Звуки: вкл (M)'; b.classList.toggle('off', muted); });
+    if (coarsePointer) document.querySelectorAll('.music-toggle, .sound-toggle').forEach(b => { b.textContent = b.textContent.replace(/ \([NM]\)$/, ''); });
+    document.querySelectorAll('.text-toggle').forEach(b => { b.textContent = bigText ? '🔠 Текст: крупный' : '🔠 Текст: обычный'; b.classList.toggle('on', bigText); });
   }
   function toggleMusic() {
     musicOn = !musicOn;
@@ -589,7 +591,8 @@
     eventQueue = shuffleEvents();
     Object.assign(player, { x: SEAT.x, y: WD.ROW1_Y + 62, action: 'none', actionTimer: 0, coffeeBoost: 0, speed: CFG.playerSpeed, chatWith: null, hideSpot: null, facingX: -1 });
     Object.assign(boss, { x: WD.bossHome.x, y: WD.bossHome.y, state: 'office', stateTimer: 5, path: [], target: null, suspicion: 0, catchCooldown: 0, quoteTimer: 4, praiseTimer: 0, warned: false, facing: Math.PI / 2 });
-    coworkers.forEach((c, i) => { c.cooldown = 0; c.talkTimer = 0; c.idleTimer = 5 + i * 3; c.alert = 0; c.away = !!c.remote; c.slack = null; c.slackTimer = 10 + rand() * 12; c.scoldCooldown = 0; c.rocketAt = 660 + rand() * 360; c.draftCd = 0; });
+    coworkers.forEach((c, i) => { c.cooldown = 0; c.talkTimer = 0; c.idleTimer = 2 + rand() * 12; c.alert = 0; c.away = !!c.remote; c.slack = null; c.slackTimer = 10 + rand() * 12; c.scoldCooldown = 0; c.rocketAt = 660 + rand() * 360; c.draftCd = 0; });
+    banterT = 10 + rand() * 12; pendingSays.length = 0;
     day = { misses: 0, lunchCalled: false, lunchOpen: false, fed: false, hungry: false, bossLunch: false, beer: null, toiletCd: 0, queue: 0, queueTotal: 0, qShift: 0, knock: 3, cabinDoor: 0, npcInside: 0, npcTimer: 20 };
     walkers = [];
     bossKeyCd = 0; choice = null; nudge = null;
@@ -605,7 +608,7 @@
     day.smog = unlocked('almaty') && dayIndex !== 4 && rand() < 0.3;
     day.traffic = unlocked('almaty') && !auto.on && rand() < 0.25;
     // Второй ряд до четверга на удалёнке
-    coworkers.forEach(c => { c.remote = c.extra && !c.ghost && !unlocked('row2'); c.away = c.remote; });
+    coworkers.forEach(c => { c.remote = c.extra && !c.ghost && !c.statist && !unlocked('row2'); c.away = c.remote; });
     // Обед открывается со среды: до этого обеденных механик нет
     if (!unlocked('lunch')) Object.assign(day, { lunchCalled: true, lunchOpen: true, bossLunch: true, fed: true });
     if (day.smog) addLog('Смог над Алматы: гор не видно, перекур без вида — кайфа меньше.', 'info');
@@ -1090,7 +1093,7 @@
   }
   function startAction(action, seconds) {
     if (SLACK_BASE.has(action) && action !== 'phone') hint('slack', 'Это палево: если Д.Н. (или камера СБ) увидит — растёт подозрение. Следи за его конусом и радаром справа вверху.');
-    if (action === 'phone') hint('phone', 'Телефон — тоже палево, но можно ходить. Tab / Q — убрать.');
+    if (action === 'phone') hint('phone', coarsePointer ? 'Телефон — тоже палево, но можно ходить. 📱 — убрать.' : 'Телефон — тоже палево, но можно ходить. Tab / Q — убрать.');
     player.action = action;
     player.actionTimer = seconds;
     player.actionTotal = seconds;
@@ -1157,9 +1160,7 @@
     if (c.perk === 'report') { addWork(8); floater(player.x, player.y - 64, '+8 К ПЛАНУ', '#57d08a'); }
     if (c.perk === 'snack') { nextBossCheck += 15; floater(player.x, player.y - 64, 'ПРОВЕРКА НА 15 С ПОЗЖЕ', '#f2bb38'); }
     if (c.perk === 'callhack') { phoneSafe = 25; floater(player.x, player.y - 64, '📱 25 С БЕЗ ПАЛЕВА', '#9fe0b0'); }
-    if (c.perk === 'gossip') { fun += 6; floater(player.x, player.y - 64, '+6 КАЙФА', '#e0a0f0'); }
     if (c.perk === 'rocket') { boss.suspicion = 0; floater(player.x, player.y - 64, 'ПОЕХАЛИ! ПОДОЗРЕНИЕ 0', '#9fd0ff'); }
-    if (c.perk === 'task') { addWork(6); floater(player.x, player.y - 64, '+6 К ПЛАНУ', '#57d08a'); }
     playSound('success');
     toast(LINES.perks[c.perk], 3.2);
     addLog(`Поболтал с ${c.name}. ${LINES.perks[c.perk]}`, 'good');
@@ -1765,7 +1766,7 @@
       default: break;
     }
 
-    // Второй ряд проёбывается: Д.Н. замечает и идёт отчитывать (громоотвод для Быкентия)
+    // Второй ряд отвлекается: Д.Н. замечает и идёт отчитывать (громоотвод для Быкентия)
     if ((boss.state === 'patrol' || boss.state === 'look') && mode === 'playing') {
       const range = CFG.visionRange * (today().visionMul || 1) * diff().vision * (eventIs('arrfr') ? 1.2 : 1);
       const target = coworkers.find(c => c.extra && c.slack && !c.away && c.scoldCooldown <= 0 && dist(boss, c) < range &&
@@ -1791,7 +1792,7 @@
     const before = boss.suspicion;
     boss.suspicion = clamp(boss.suspicion + rate * dt, 0, 100);
     if (before === 0 && boss.suspicion > 0) {
-      hint('suspicion', '«?» над Д.Н.: он видит, что ты бездельничаешь в его конусе. Уйди из конуса, сядь в Excel, спрячься (H) или жми B — альт-таб.');
+      hint('suspicion', `«?» над Д.Н.: он видит, что ты бездельничаешь в его конусе. Уйди из конуса, сядь в Excel, спрячься (H) или ${coarsePointer ? 'жми ⎇' : 'жми B'} — альт-таб.`);
       playSound('suspect'); if (rand() < 0.5) say('boss', pick(LINES.boss.suspicious), 1.6); }
     if (boss.suspicion >= 100 && boss.catchCooldown <= 0) caught();
 
@@ -1854,7 +1855,7 @@
       ['toilet', day.toiletCd > 0 ? 0 : 1, () => autoGoal('toilet', z('toilet'))],
       ['phone', 1, () => autoGoal('phone', { x: player.x, y: player.y })],
     ];
-    const free = coworkers.filter(c => !c.away && c.cooldown <= 0);
+    const free = coworkers.filter(c => !c.away && !c.statist && c.cooldown <= 0);
     if (free.length) { const c = free[Math.floor(rand() * free.length)]; opts.push(['chat', 2.5, () => autoGoal('chat', zoneCenter(`chat_${c.id}`))]); }
     const sum = opts.reduce((a, o) => a + o[1], 0);
     let r = rand() * sum;
@@ -2025,7 +2026,31 @@
     }
   }
 
+  // Перепалки соседей: реплика и ответ через пару секунд (по игровому времени — пауза их тоже останавливает)
+  let banterT = 15;
+  const pendingSays = [];
+  function updateBanter(dt) {
+    for (let i = pendingSays.length - 1; i >= 0; i--) {
+      const p = pendingSays[i];
+      p.t -= dt;
+      if (p.t > 0) continue;
+      pendingSays.splice(i, 1);
+      const c = coworkerById(p.owner);
+      if (c && !c.away) say(p.owner, p.text, 3, '#eef6f4');
+    }
+    banterT -= dt;
+    if (banterT > 0) return;
+    banterT = 14 + rand() * 16;
+    const here = id => { const c = coworkerById(id); return c && !c.away && !c.remote; };
+    const opts = LINES.banter.filter(([a, , b]) => here(a) && here(b));
+    if (!opts.length) return;
+    const [a, la, b, lb] = pick(opts);
+    say(a, la, 3, '#eef6f4');
+    pendingSays.push({ owner: b, text: lb, t: 1.2 + rand() * 0.8 });
+  }
+
   function updateCoworkers(dt) {
+    updateBanter(dt);
     for (const c of coworkers) {
       if (c.remote) { c.away = true; c.slack = null; continue; }
       if (c.ghost) { // дух офиса: пуск ракеты раз в смену, Д.Н. чувствует только сквозняк
@@ -2051,9 +2076,11 @@
         const line = rand() < 0.3 ? pick(LINES.whine) : pick(LINES.coworkerIdle[c.id]);
         if (!c.talkTimer && !bubbles.some(b => b.owner === c.id) && rand() < 0.6) say(c.id, line, 2.6, '#eef6f4');
         c.idleTimer = (c.extra ? 9 : 12) + rand() * 14;
+        // иногда сосед подхватывает почти одновременно — офис говорит вразнобой, а не по очереди
+        if (rand() < 0.3) { const o = pick(coworkers.filter(x => x !== c && !x.away)); if (o) o.idleTimer = Math.min(o.idleTimer, 0.3 + rand() * 1.2); }
       }
-      // Второй ряд: то работают, то проёбываются (телефон, сон, танчики, чипсы)
-      if (c.extra && !c.ghost) {
+      // Второй ряд: то работают, то отвлекаются (телефон, сон, танчики, чипсы)
+      if (c.extra && !c.ghost && (!c.statist || unlocked('row2'))) {
         c.slackTimer -= dt;
         if (c.alert && c.slack && !(boss.state === 'scold' && boss.scoldTarget === c.id)) { c.slack = null; c.slackTimer = 6 + rand() * 6; }
         if (c.slackTimer <= 0) {
@@ -2079,6 +2106,16 @@
     shiftTime += dt;
     clockMinutes = CFG.shiftStart + (shiftTime / CFG.shiftSeconds) * (CFG.shiftEnd - CFG.shiftStart);
     intelTimer = Math.max(0, intelTimer - dt);
+    // 17:00: если план отстаёт — одна подсказка, сколько осталось (дедлайн предсказуемый, а не внезапный)
+    if (mode === 'playing' && !day.planWarned && clockMinutes >= 17 * 60) {
+      day.planWarned = true;
+      if (!planDone()) {
+        const left = Math.ceil(planTarget - usefulness);
+        const hrs = ((CFG.shiftEnd - clockMinutes) / 60).toFixed(1).replace('.', ',');
+        toast(`💡 До плана ${left}, до 19:30 ~${hrs} ч. Посиди в Excel, особенно когда Д.Н. рядом.`, 3.6);
+        addLog(`17:00 — до плана ещё ${left}. Не сделаешь к 19:30 — выговор.`, 'bad');
+      }
+    }
 
     updatePlayer(dt);
     updateBoss(dt);
@@ -2221,6 +2258,45 @@
     const w = ctx.measureText(text).width;
     T(text, x, y, w > maxW ? size * maxW / w : size, color, align, weight, FONT_SANS);
   }
+  // Текст с многоточием: не сжимает кегль, а обрезает хвост
+  function TE(text, x, y, size, maxW, color, align = 'left', weight = 700) {
+    ctx.font = `${weight} ${size}px ${FONT_SANS}`;
+    let t = text;
+    if (ctx.measureText(t).width > maxW) {
+      while (t.length > 1 && ctx.measureText(`${t}…`).width > maxW) t = t.slice(0, -1);
+      t = `${t.trimEnd()}…`;
+    }
+    T(t, x, y, size, color, align, weight, FONT_SANS);
+  }
+
+  // ---------- МАСШТАБ ИНТЕРФЕЙСА ----------
+  // Мир рисуется в 960×540 и масштабируется целиком, поэтому на ноутбуке и телефоне надписи выходили 5–7 px.
+  // UI — множитель для всего текста поверх мира: основной кегль (8.5 ед.) даёт не меньше 12 px
+  // (13 px на сенсорных экранах, +15% в режиме «Крупный текст»). Экранные элементы рисуются в UI-единицах
+  // (ширина VW = W / k), подписи над персонажами масштабируются вокруг своей точки привязки.
+  let UI = 1, unitPx = 1, bigText = !!store.get('bigText', false);
+  const coarsePointer = !!(window.matchMedia && window.matchMedia('(pointer: coarse)').matches);
+  function canvasBox() { // где игра реально нарисована внутри <canvas> (object-fit: contain)
+    const r = canvas.getBoundingClientRect();
+    const k = Math.min(r.width / W, r.height / H) || 1;
+    const w = W * k, h = H * k;
+    return { left: r.left + (r.width - w) / 2, top: r.top + (r.height - h) / 2, width: w, height: h, k };
+  }
+  function updateUiScale() {
+    const b = canvasBox();
+    if (b.height > 0) unitPx = b.k;
+    const target = (coarsePointer ? 13 : 12) * (bigText ? 1.15 : 1);
+    UI = Math.max(1, Math.min(2.4, target / (8.5 * unitPx)));
+    document.documentElement.classList.toggle('text-lg', bigText);
+  }
+  const uiK = cap => Math.min(UI, cap);
+  const compactHud = () => UI > 1.05;
+  const hudScale = () => uiK(2.1);
+  const hudBottom = () => (compactHud() ? Math.max(WD.HUD_H, HUDC_H * hudScale()) : WD.HUD_H);
+  function uiSpace(k) { ctx.setTransform(S * k, 0, 0, S * k, 0, 0); return { VW: W / k, VH: H / k }; }
+  // Нарисовать fn в локальных координатах, увеличенных в k раз вокруг точки (ax, ay)
+  function around(ax, ay, k, fn) { ctx.save(); ctx.translate(ax, ay); ctx.scale(k, k); fn(); ctx.restore(); }
+
   function roundRect(x, y, w, h, r) {
     ctx.beginPath();
     ctx.moveTo(x + r, y); ctx.lineTo(x + w - r, y); ctx.quadraticCurveTo(x + w, y, x + w, y + r);
@@ -2606,61 +2682,98 @@
     return lines;
   }
 
+  let bannerBottom = 0; // нижний край баннера дня (мировые единицы), чтобы реплики не лезли под него
+  const screenRects = {}; // экранные плашки прошлого кадра (строка задания, автопилот) — реплики их обходят
   function drawBubbles() {
+    const k = uiK(1.6);
+    const top = Math.max(hudBottom() + 4, banner ? bannerBottom + 4 : 0);
+    const items = [];
     for (const b of bubbles) {
       const head = entityHead(b.owner);
       if (!head) continue;
       const size = 9;
       const lh = 10.5;
-      const shown = b.text.slice(0, Math.ceil(b.text.length * Math.min(1, b.t * 3.5)));
       const lines = wrap(b.text, 160, size);
-      const shownLines = wrap(shown, 160, size);
       ctx.font = `700 ${size}px ${FONT_SANS}`;
       const w = Math.max(...lines.map(l => ctx.measureText(l).width)) + 12;
       const h = lines.length * lh + 7;
+      const bx = clamp(head.x - w * k / 2, 4, W - w * k - 4);
+      items.push({ b, head, size, lh, w, h, bx, y: Math.max(top, head.y - (h + 6) * k) });
+    }
+    // Раскладка без наложений: Д.Н. и Быкентий первыми, остальные уступают — выше, а если некуда, ниже
+    const prio = o => (o === 'boss' ? 2 : o === 'player' ? 1 : 0);
+    items.sort((a, c) => prio(c.b.owner) - prio(a.b.owner));
+    const placed = Object.values(screenRects).filter(Boolean);
+    for (const it of items) {
+      const bw = it.w * k, bh = (it.h + 5) * k;
+      const free = y => y >= top && y + bh <= H - 4 && !placed.some(p => it.bx < p.x + p.w && it.bx + bw > p.x && y < p.y + p.h && y + bh > p.y);
+      if (!free(it.y)) { // ближайшее свободное место: над или под уже размещёнными плашками
+        let best = null;
+        for (const p of placed) for (const c of [p.y - bh - 2, p.y + p.h + 2]) if (free(c) && (best === null || Math.abs(c - it.y) < Math.abs(best - it.y))) best = c;
+        if (best !== null) it.y = best;
+      }
+      placed.push({ x: it.bx, y: it.y, w: bw, h: bh });
+    }
+    for (const it of items) {
+      const { b, head, size, lh, w, h, bx, y: by } = it;
+      const shown = b.text.slice(0, Math.ceil(b.text.length * Math.min(1, b.t * 3.5)));
+      const shownLines = wrap(shown, 160, size);
       const pop = Math.min(1, b.t * 8);
       const fade = b.t > b.dur - 0.3 ? (b.dur - b.t) / 0.3 : 1;
-      let x = clamp(head.x - w / 2, 4, W - w - 4);
-      const y = Math.max(banner ? WD.HUD_H + 52 : 52, head.y - h - 6);
       ctx.save();
       ctx.globalAlpha = fade;
-      ctx.translate(head.x, y + h);
+      // реплику отодвинули от головы — тянем тонкую линию к говорящему
+      const tipY = by + (h + 5) * k;
+      if (Math.abs(head.y - tipY) > 10) {
+        ctx.strokeStyle = 'rgba(245,237,217,0.55)'; ctx.lineWidth = 0.8;
+        ctx.beginPath(); ctx.moveTo(clamp(head.x, bx + 4, bx + w * k - 4), tipY > head.y ? by : tipY); ctx.lineTo(head.x, head.y); ctx.stroke();
+      }
+      ctx.translate(head.x, by + h * k);
       ctx.scale(pop, pop);
-      ctx.translate(-head.x, -(y + h));
+      ctx.translate(-head.x, -(by + h * k));
+      ctx.translate(bx, by);
+      ctx.scale(k, k);
       const isBoss = b.owner === 'boss';
+      const tx = clamp((head.x - bx) / k, 6, w - 6);
       ctx.fillStyle = 'rgba(0,0,0,0.35)';
-      roundRect(x + 1.5, y + 1.5, w, h, 3); ctx.fill();
+      roundRect(1.5, 1.5, w, h, 3); ctx.fill();
       ctx.fillStyle = b.color;
-      roundRect(x, y, w, h, 3); ctx.fill();
+      roundRect(0, 0, w, h, 3); ctx.fill();
       ctx.strokeStyle = isBoss ? '#b3261e' : '#1c2a2e';
       ctx.lineWidth = isBoss ? 1.2 : 0.8;
       ctx.stroke();
       ctx.fillStyle = b.color;
-      ctx.beginPath(); ctx.moveTo(head.x - 3, y + h - 0.5); ctx.lineTo(head.x + 3, y + h - 0.5); ctx.lineTo(head.x, y + h + 5); ctx.fill();
-      shownLines.forEach((l, i) => T(l, x + 6, y + 8.8 + i * lh, size, isBoss ? '#5a1010' : '#14232a', 'left', 700, FONT_SANS));
+      ctx.beginPath(); ctx.moveTo(tx - 3, h - 0.5); ctx.lineTo(tx + 3, h - 0.5); ctx.lineTo(tx, h + 5); ctx.fill();
+      shownLines.forEach((l, i) => T(l, 6, 8.8 + i * lh, size, isBoss ? '#5a1010' : '#14232a', 'left', 700, FONT_SANS));
       ctx.restore();
     }
   }
 
   function drawOverheads() {
+    const k = uiK(1.55);
     // Шкала подозрения над начальником
     if (mode !== 'menu' && boss.suspicion > 0 && boss.state !== 'office') {
-      const x = boss.x, y = boss.y - 76;
       const s = boss.suspicion / 100;
       const icon = s > 0.7 ? '!' : '?';
-      R(x - 14, y + 8, 28, 3.5, 'rgba(10,16,20,0.85)');
-      R(x - 13.5, y + 8.5, 27 * s, 2.5, s > 0.7 ? '#ff4a3a' : '#f2bb38');
-      T(icon, x, y, 11 + (s > 0.7 ? Math.sin(performance.now() / 60) * 1.5 : 0), s > 0.7 ? '#ff4a3a' : '#f2bb38', 'center', 900);
+      around(boss.x, boss.y - 64, k, () => {
+        R(-14, -4, 28, 3.5, 'rgba(10,16,20,0.85)');
+        R(-13.5, -3.5, 27 * s, 2.5, s > 0.7 ? '#ff4a3a' : '#f2bb38');
+        T(icon, 0, -12, 11 + (s > 0.7 ? Math.sin(performance.now() / 60) * 1.5 : 0), s > 0.7 ? '#ff4a3a' : '#f2bb38', 'center', 900);
+      });
     } else if (boss.state === 'waitDesk') {
       const blink = Math.floor(performance.now() / 250) % 2 === 0;
       const txt = `ГДЕ БЫКЕНТИЙ? ${Math.max(0, Math.ceil(boss.waitT))}`;
-      R(boss.x - 38, boss.y - 96, 76, 14, blink ? '#c62a22' : '#7a1612');
-      T(txt, boss.x, boss.y - 89, 9, '#fff', 'center', 900, FONT_SANS);
-      R(boss.x - 30, boss.y - 81, 60 * clamp(boss.waitT / diff().wait, 0, 1), 3, '#f2bb38');
+      around(boss.x, boss.y - 78, k, () => {
+        R(-38, -18, 76, 14, blink ? '#c62a22' : '#7a1612');
+        T(txt, 0, -11, 9, '#fff', 'center', 900, FONT_SANS);
+        R(-30, -3, 60 * clamp(boss.waitT / diff().wait, 0, 1), 3, '#f2bb38');
+      });
     } else if (boss.state === 'inspect' && !bubbles.some(b => b.owner === 'boss')) {
       const blink = Math.floor(performance.now() / 220) % 2 === 0;
-      R(boss.x - 22, boss.y - 80, 44, 11, blink ? '#c62a22' : '#7a1612');
-      T('ПРОВЕРКА', boss.x, boss.y - 74.3, 7.5, '#fff');
+      around(boss.x, boss.y - 69, k, () => {
+        R(-22, -11, 44, 11, blink ? '#c62a22' : '#7a1612');
+        T('ПРОВЕРКА', 0, -5.3, 7.5, '#fff');
+      });
     }
     // Статус Быкентия
     const labels = {
@@ -2675,32 +2788,38 @@
     const lab = labels[player.action];
     if (lab && !bubbles.some(b => b.owner === 'player')) {
       const head = entityHead('player');
-      ctx.font = `700 8px ${FONT_SANS}`;
-      const w = ctx.measureText(lab[0]).width + 12;
-      R(head.x - w / 2, head.y - 13, w, 11, 'rgba(10,16,20,0.9)');
-      R(head.x - w / 2, head.y - 13, 2, 11, lab[1]);
-      T(lab[0], head.x + 1, head.y - 7.2, 8, '#fff', 'center', 700, FONT_SANS);
-      if (player.actionTotal > 0 && player.actionTimer > 0) {
-        const k = 1 - player.actionTimer / player.actionTotal;
-        R(head.x - w / 2, head.y - 2, w, 2, 'rgba(10,16,20,0.9)');
-        R(head.x - w / 2, head.y - 2, w * k, 2, '#f2bb38');
-      }
+      around(head.x, head.y, k, () => {
+        ctx.font = `700 8px ${FONT_SANS}`;
+        const w = ctx.measureText(lab[0]).width + 12;
+        R(-w / 2, -13, w, 11, 'rgba(10,16,20,0.9)');
+        R(-w / 2, -13, 2, 11, lab[1]);
+        T(lab[0], 1, -7.2, 8, '#fff', 'center', 700, FONT_SANS);
+        if (player.actionTotal > 0 && player.actionTimer > 0) {
+          const p = 1 - player.actionTimer / player.actionTotal;
+          R(-w / 2, -2, w, 2, 'rgba(10,16,20,0.9)');
+          R(-w / 2, -2, w * p, 2, '#f2bb38');
+        }
+      });
     }
     // Имена коллег, когда Быкентий рядом
     for (const c of coworkers) {
       if (!c.away && Math.hypot(player.x - c.x, player.y - c.y) < 90 && !bubbles.some(b => b.owner === c.id)) {
-        const tx = `${c.name} · ${c.role}`;
-        ctx.font = `700 7.5px ${FONT_SANS}`;
-        const w = ctx.measureText(tx).width + 10;
-        R(c.x - w / 2, c.desk.y - 73, w, 11, 'rgba(10,16,20,0.82)');
-        T(tx, c.x, c.desk.y - 67.3, 7.5, c.cooldown > 0 ? '#9aa' : '#f5edd9', 'center', 700, FONT_SANS);
+        const tx = `${c.name} · ${c.role.replace(/ \(.*\)$/, '')}`;
+        around(c.x, c.desk.y - 62, k, () => {
+          ctx.font = `700 7.5px ${FONT_SANS}`;
+          const w = ctx.measureText(tx).width + 10;
+          R(-w / 2, -11, w, 11, 'rgba(10,16,20,0.82)');
+          T(tx, 0, -5.3, 7.5, c.cooldown > 0 ? '#9aa' : '#f5edd9', 'center', 700, FONT_SANS);
+        });
       }
     }
     for (const f of floaters) {
       const a = 1 - f.t / 1.4;
       ctx.save(); ctx.globalAlpha = a;
-      T(f.text, f.x + 0.7, f.y - f.t * 22 + 0.7, 9, 'rgba(0,0,0,0.75)', 'center', 900, FONT_SANS);
-      T(f.text, f.x, f.y - f.t * 22, 9, f.color, 'center', 900, FONT_SANS);
+      around(f.x, f.y - f.t * 22, k, () => {
+        T(f.text, 0.7, 0.7, 9, 'rgba(0,0,0,0.75)', 'center', 900, FONT_SANS);
+        T(f.text, 0, 0, 9, f.color, 'center', 900, FONT_SANS);
+      });
       ctx.restore();
     }
   }
@@ -2729,21 +2848,31 @@
     const t = banner.t;
     const dur = banner.dur || 4.4;
     const slide = t < 0.25 ? t / 0.25 : (t > dur - 0.3 ? (dur - t) / 0.3 : 1);
-    const y = WD.HUD_H + 10 - (1 - slide) * 30;
+    const k = uiK(1.45);
+    const { VW } = uiSpace(k);
+    const y = hudBottom() / k + 6 - (1 - slide) * 30;
     ctx.save();
     ctx.globalAlpha = clamp(slide, 0, 1);
-    const subLines = wrap(banner.sub, W - 120, 10);
+    const maxW = compactHud() ? Math.min(VW - 40, VW * 0.72) : VW - 40;
+    let subLines = wrap(banner.sub, maxW, 10);
+    if (compactHud() && subLines.length > 2) subLines = [subLines[0], `${subLines[1].replace(/[\s.,;:·—-]+$/, '')}…`];
     ctx.font = `700 10px ${FONT_SANS}`;
     const subW = Math.max(...subLines.map(l => ctx.measureText(l).width));
+    const title = banner.bad ? `📝 ${banner.text}` : `★ ${banner.text} ★`;
+    const titleLines = wrap(title, maxW, 13);
     ctx.font = `900 13px ${FONT_SANS}`;
-    const w = Math.min(W - 20, Math.max(ctx.measureText(banner.text).width, subW, 200) + 34);
-    const h = 26 + subLines.length * 12;
+    const titleW = Math.max(...titleLines.map(l => ctx.measureText(l).width));
+    const w = Math.min(maxW + 30, Math.max(titleW, subW, 200) + 30);
+    const h = 12 + titleLines.length * 15 + subLines.length * 12;
     const accent = banner.bad ? '#e8433e' : '#f2bb38';
-    ctx.fillStyle = banner.bad ? 'rgba(60,12,14,0.96)' : 'rgba(12,20,24,0.95)'; roundRect(W / 2 - w / 2, y, w, h, 3); ctx.fill();
-    R(W / 2 - w / 2, y, w, 2, accent);
-    T(banner.bad ? `📝 ${banner.text}` : `★ ${banner.text} ★`, W / 2, y + 13, 13, accent, 'center', 900, FONT_SANS);
-    subLines.forEach((l, i) => T(l, W / 2, y + 28 + i * 12, 10, '#f5edd9', 'center', 700, FONT_SANS));
+    ctx.fillStyle = banner.bad ? 'rgba(60,12,14,0.96)' : 'rgba(12,20,24,0.95)'; roundRect(VW / 2 - w / 2, y, w, h, 3); ctx.fill();
+    R(VW / 2 - w / 2, y, w, 2, accent);
+    titleLines.forEach((l, i) => T(l, VW / 2, y + 13 + i * 15, 13, accent, 'center', 900, FONT_SANS));
+    const sy = y + 13 + titleLines.length * 15;
+    subLines.forEach((l, i) => T(l, VW / 2, sy + i * 12, 10, '#f5edd9', 'center', 700, FONT_SANS));
     ctx.restore();
+    bannerBottom = (y + h) * k;
+    ctx.setTransform(S, 0, 0, S, 0, 0);
   }
 
   function drawLighting() {
@@ -2766,7 +2895,7 @@
     R(x + 1, y + 6, (w - 2) * clamp(value / 100, 0, 1), 1.5, 'rgba(255,255,255,0.25)');
   }
 
-  function drawHUD() {
+  function drawHUDWide() {
     const g = ctx.createLinearGradient(0, 0, 0, WD.HUD_H);
     g.addColorStop(0, '#0a1316'); g.addColorStop(1, '#13242a');
     ctx.fillStyle = g; ctx.fillRect(0, 0, W, WD.HUD_H);
@@ -2810,7 +2939,19 @@
     R(x0 + 1, 7, W - x0 - 10, 34, alert ? (Math.floor(performance.now() / 250) % 2 ? '#7a1a1f' : '#5f1418') : '#16303a');
     // мини-портрет
     R(x0 + 5, 10, 26, 28, '#e0b088'); R(x0 + 11, 11, 12, 2.5, '#fff'); R(x0 + 13, 27, 10, 1.5, '#8a3a30'); R(x0 + 8, 18, 8, 3, '#222'); R(x0 + 20, 18, 8, 3, '#222'); R(x0 + 5, 33, 26, 5, '#9ab8e0'); R(x0 + 16, 33, 3, 5, '#c02a2a');
-    const status = {
+    const status = bossStatus();
+    TF(status, x0 + 38, 15, 8.5, W - x0 - 54, alert ? '#fff' : '#f5edd9');
+    // подозрение
+    T('ПОДОЗРЕНИЕ', x0 + 38, 27, 6.5, '#9ab', 'left', 700, FONT_SANS);
+    R(x0 + 88, 24, 112, 6, '#0b1417');
+    R(x0 + 89, 25, 110 * (boss.suspicion / 100), 4, boss.suspicion > 70 ? '#ff4a3a' : '#f2bb38');
+    if (boss.seesPlayer && mode === 'playing') T('👁 ВИДИТ ТЕБЯ', W - 14, 27, 6.5, '#ff8a7a', 'right', 700, FONT_SANS);
+    const info = hudInfo();
+    TF(info.join('  '), x0 + 38, 37.5, 6.5, W - x0 - 54, '#f2bb38');
+  }
+
+  function bossStatus() {
+    return {
       office: eventIs('call') ? `Д.Н. на созвоне с правлением · ${Math.ceil(officeEvent.t)} с` : 'Д.Н. в кабинете: чай и чак-чак',
       patrol: `Д.Н. идёт: ${boss.spotDesc}`,
       look: 'Д.Н. озирается по сторонам',
@@ -2824,13 +2965,9 @@
       out: boss.outWhy === 'lunch' ? `Д.Н. на обеде в «Мюнхене» · ${Math.max(0, Math.ceil(boss.outTimer))} с` : 'Д.Н. на улице: учения',
       scold: `Д.Н. отчитывает: ${(coworkerById(boss.scoldTarget) || {}).name || 'кого-то'}`,
       standup: 'Д.Н. ведёт летучку у доски',
-    }[boss.state];
-    TF(status, x0 + 38, 15, 8.5, W - x0 - 54, alert ? '#fff' : '#f5edd9');
-    // подозрение
-    T('ПОДОЗРЕНИЕ', x0 + 38, 27, 6.5, '#9ab', 'left', 700, FONT_SANS);
-    R(x0 + 88, 24, 112, 6, '#0b1417');
-    R(x0 + 89, 25, 110 * (boss.suspicion / 100), 4, boss.suspicion > 70 ? '#ff4a3a' : '#f2bb38');
-    if (boss.seesPlayer && mode === 'playing') T('👁 ВИДИТ ТЕБЯ', W - 14, 27, 6.5, '#ff8a7a', 'right', 700, FONT_SANS);
+    }[boss.state] || '';
+  }
+  function hudInfo() {
     const info = [];
     if (intelTimer > 0 && boss.state !== 'inspect') info.push(`📅 проверка через ${Math.max(0, Math.ceil(nextBossCheck))} с`);
     if (coverTokens) info.push('🛡 прикрытие');
@@ -2838,26 +2975,105 @@
     if (phoneSafe > 0) info.push(`📱 созвон ${Math.ceil(phoneSafe)} с`);
     if (day.hungry) info.push('🍽 голоден');
     if (officeEvent && officeEvent.id !== 'call') info.push(`★ ${EVENTS[officeEvent.id].title.toLowerCase()} · ${Math.ceil(officeEvent.t)} с`);
-    TF(info.join('  '), x0 + 38, 37.5, 6.5, W - x0 - 54, '#f2bb38');
+    return info;
+  }
 
-    // Контекстная подсказка
+  // Компактный HUD для небольших экранов: рисуется в UI-единицах, ширина VW = W / масштаб.
+  // Три строки: подписи и значения, полоски, вторичная строка. Ничего мельче 7.5 ед.
+  const HUDC_H = 32;
+  function drawHUDCompact() {
+    const k = hudScale();
+    const { VW } = uiSpace(k);
+    const HH = HUDC_H;
+    const g = ctx.createLinearGradient(0, 0, 0, HH);
+    g.addColorStop(0, '#0a1316'); g.addColorStop(1, '#13242a');
+    ctx.fillStyle = g; ctx.fillRect(0, 0, VW, HH);
+    R(0, HH - 1.5, VW, 1.5, '#d8aa40');
+    const gap = 7;
+    let x = 6;
+    // выговоры и «не застал»
+    for (let i = 0; i < 3; i++) {
+      const cx = x + 5 + i * 13, on = i < reprimands;
+      ctx.fillStyle = on ? '#e8433e' : '#0b1417'; ctx.beginPath(); ctx.arc(cx, 10, 5, 0, TAU); ctx.fill();
+      ctx.strokeStyle = on ? '#ff8a7a' : '#4a6a70'; ctx.lineWidth = 1; ctx.stroke();
+      if (on) T('!', cx, 10.4, 7.5, '#fff', 'center', 900);
+    }
+    const lim = diff().missLimit, m = day.misses || 0;
+    T(`👀 ${m}/${lim}`, x, 24.5, 7.5, m >= lim - 1 ? '#ff8a7a' : '#9fb', 'left', 700, FONT_SANS);
+    x += 42 + gap;
+    // план
+    const pw = clamp(VW * 0.17, 66, 150);
+    T('ПЛАН', x, 9, 8, '#f5edd9', 'left', 700, FONT_SANS);
+    T(planDone() ? `✓${Math.round(usefulness)}/${planTarget}` : `${Math.floor(usefulness)}/${planTarget}`, x + pw, 9, 8.5, planDone() ? '#9fe0b0' : '#57b867', 'right', 700, FONT_SANS);
+    R(x, 16, pw, 7, '#0b1417');
+    R(x + 1, 17, (pw - 2) * clamp(usefulness / planTarget, 0, 1), 5, planDone() ? '#2f9a5a' : '#57b867');
+    if (!planDone() && dayProgress() > 0.65 && usefulness / planTarget < dayProgress()) R(x, 16, pw, 7, `rgba(232,67,62,${0.25 + Math.sin(performance.now() / 200) * 0.15})`);
+    TE(planDone() ? 'сделан — кайфуй' : 'план на день', x, 27, 7.5, pw, '#9ab');
+    x += pw + gap;
+    // кайф
+    const fw = clamp(VW * 0.13, 56, 120);
+    T('КАЙФ', x, 9, 8, '#f5edd9', 'left', 700, FONT_SANS);
+    T(`${Math.round(fun)}`, x + fw, 9, 8.5, '#e0a0f0', 'right', 700, FONT_SANS);
+    R(x, 16, fw, 7, '#0b1417');
+    R(x + 1, 17, (fw - 2) * clamp(fun / 100, 0, 1), 5, '#c76ad8');
+    x += fw + gap;
+    // часы
+    const cw = 64;
+    R(x, 2.5, cw, HH - 6, '#081012');
+    T(timeString(clockMinutes), x + cw / 2, 10.5, 12.5, '#fff');
+    R(x + 5, 18, cw - 10, 2, '#0b1417'); R(x + 5, 18, (cw - 10) * dayProgress(), 2, '#f2bb38');
+    const dshort = { easy: 'стажёр', normal: 'сотр.', hard: 'ветеран' }[diffKey];
+    TE(`${today().short} · ${dshort}${timeScale !== 1 ? ` ×${+timeScale.toFixed(2)}` : ''}`, x + cw / 2, 25.5, 7.5, cw - 6, '#9fb', 'center');
+    x += cw + gap;
+    // радар Д.Н.
+    const rw = VW - x - 5;
+    const alert = boss.state === 'inspect' || boss.state === 'waitDesk';
+    R(x, 2.5, rw, HH - 6, alert ? (Math.floor(performance.now() / 250) % 2 ? '#7a1a1f' : '#5f1418') : '#16303a');
+    TE(bossStatus(), x + 5, 9.5, 8.5, rw - 10, alert ? '#fff' : '#f5edd9');
+    R(x + 5, 15.5, rw - 10, 4, '#0b1417');
+    R(x + 5.5, 16, (rw - 11) * (boss.suspicion / 100), 3, boss.suspicion > 70 ? '#ff4a3a' : '#f2bb38');
+    const info = hudInfo();
+    const sees = boss.seesPlayer && mode === 'playing';
+    if (sees) info.unshift('👁 ВИДИТ ТЕБЯ');
+    TE(info.length ? info.join('  ') : 'подозрение Д.Н.', x + 5, 25, 7.5, rw - 10, sees ? '#ff8a7a' : (info.length ? '#f2bb38' : '#789'));
+    ctx.setTransform(S, 0, 0, S, 0, 0);
+  }
+
+  function drawHUD() {
+    if (compactHud()) drawHUDCompact(); else drawHUDWide();
+    drawAlertFrame();
+    drawPrompt();
+  }
+
+  // Контекстная подсказка «что сделает E» — внизу по центру, в UI-масштабе
+  let promptTop = H;
+  function drawPrompt() {
+    promptTop = H;
     const act = mode === 'playing' ? getActionInfo() : null;
-    if (act) {
-      ctx.font = `700 10.5px ${FONT_SANS}`;
-      const w = ctx.measureText(act.prompt).width + 28;
-      const x = W / 2 - w / 2;
-      const y = H - 44;
-      ctx.fillStyle = 'rgba(8,16,20,0.92)'; roundRect(x, y, w, 20, 4); ctx.fill();
-      ctx.strokeStyle = '#f2bb38'; ctx.lineWidth = 1; ctx.stroke();
-      T(act.prompt, W / 2, y + 10.4, 10.5, '#fff', 'center', 700, FONT_SANS);
-    }
-    // Мигающая рамка тревоги
-    if (alert) {
-      const a = 0.25 + Math.sin(performance.now() / 120) * 0.15;
-      ctx.strokeStyle = `rgba(230,50,40,${a})`;
-      ctx.lineWidth = 6;
-      ctx.strokeRect(3, WD.HUD_H + 3, W - 6, H - WD.HUD_H - 6);
-    }
+    if (!act) return;
+    const k = uiK(1.6);
+    const { VW, VH } = uiSpace(k);
+    const lines = wrap(act.prompt, coarsePointer ? VW * 0.5 : VW - 60, 10.5);
+    ctx.font = `700 10.5px ${FONT_SANS}`;
+    const w = Math.max(...lines.map(l => ctx.measureText(l).width)) + 28;
+    const h = 8 + lines.length * 12.5;
+    const x = VW / 2 - w / 2;
+    const y = VH - 24 - h;
+    ctx.fillStyle = 'rgba(8,16,20,0.92)'; roundRect(x, y, w, h, 4); ctx.fill();
+    ctx.strokeStyle = '#f2bb38'; ctx.lineWidth = 1; ctx.stroke();
+    lines.forEach((l, i) => T(l, VW / 2, y + 10.4 + i * 12.5, 10.5, '#fff', 'center', 700, FONT_SANS));
+    promptTop = y * k;
+    ctx.setTransform(S, 0, 0, S, 0, 0);
+  }
+
+  // Мигающая рамка тревоги по краю офиса
+  function drawAlertFrame() {
+    if (boss.state !== 'inspect' && boss.state !== 'waitDesk') return;
+    const a = 0.25 + Math.sin(performance.now() / 120) * 0.15;
+    ctx.strokeStyle = `rgba(230,50,40,${a})`;
+    ctx.lineWidth = 6;
+    const top = hudBottom();
+    ctx.strokeRect(3, top + 3, W - 6, H - top - 6);
   }
 
   function perkLines() {
@@ -2869,7 +3085,7 @@
     if (intelTimer > 0) out.push(['📅', `Инсайд Хлада: проверка через ${Math.max(0, Math.ceil(nextBossCheck))} с`, '#f2bb38']);
     if (player.coffeeBoost > 0) out.push(['☕', `Кофеин: ещё ${Math.ceil(player.coffeeBoost)} с`, '#e8b070']);
     out.push(['🏔', `Маджикистан на этой неделе: ${majikArc > 0 ? '+' : ''}${majikArc} (цель — +2 к пятнице)`, majikArc >= 0 ? '#9fe0b0' : '#ff9a8a']);
-    if (bossKeyCd > 0) out.push(['⎇', `Альт-таб (B) перезарядка: ${Math.ceil(bossKeyCd)} с`, '#9ab']);
+    if (bossKeyCd > 0) out.push(['⎇', `Альт-таб (${coarsePointer ? '⎇' : 'B'}) перезарядка: ${Math.ceil(bossKeyCd)} с`, '#9ab']);
     if (phoneSafe > 0) out.push(['📱', `Приём Сиргея: ещё ${Math.ceil(phoneSafe)} с телефон не палево`, '#9fe0b0']);
     if (day.hungry) out.push(['🍽', 'Голоден: кайф −20%. Обед был 13:00–14:30', '#ff9a8a']);
     else if (!day.fed && clockMinutes < CFG.lunchClose) out.push(['🍽', 'Обед 13:00–14:30 в «Мюнхене» (выход слева)', '#9ab']);
@@ -2882,17 +3098,21 @@
   function drawPhone() {
     if (phoneAnim <= 0) return;
     const e = 1 - Math.pow(1 - phoneAnim, 3);
-    const pw = 250, ph = 380;
-    const x = W - pw - 18;
-    const y = H - ph * e - 8 + (1 - e) * 20;
+    const k = uiK(1.5);
+    const { VW, VH } = uiSpace(k);
+    const pw = 250, ph = Math.min(380, VH - hudBottom() / k - 10);
+    // на телефоне справа внизу сенсорные кнопки — сдвигаем телефон левее них
+    const x = VW - pw - 18 - (coarsePointer ? 150 / (unitPx * k) : 0);
+    const y = VH - ph * e - 6 + (1 - e) * 20;
     ctx.save();
     ctx.globalAlpha = Math.min(1, phoneAnim * 1.5);
     // корпус
     ctx.fillStyle = 'rgba(0,0,0,0.45)'; roundRect(x + 4, y + 5, pw, ph, 16); ctx.fill();
     ctx.fillStyle = '#15191c'; roundRect(x, y, pw, ph, 16); ctx.fill();
     ctx.fillStyle = '#0d2a30'; roundRect(x + 7, y + 8, pw - 14, ph - 16, 11); ctx.fill();
+    ctx.save(); roundRect(x + 7, y + 8, pw - 14, ph - 16, 11); ctx.clip(); // длинный список не вылезает за экран телефона
     R(x + pw / 2 - 18, y + 11, 36, 5, '#15191c');
-    // трещина на экране — телефон тоже «убогий»
+    // трещина на экране — телефон тоже потрёпанный
     ctx.strokeStyle = 'rgba(255,255,255,0.18)'; ctx.lineWidth = 0.6;
     ctx.beginPath(); ctx.moveTo(x + pw - 30, y + 20); ctx.lineTo(x + pw - 48, y + 60); ctx.lineTo(x + pw - 40, y + 90); ctx.moveTo(x + pw - 48, y + 60); ctx.lineTo(x + pw - 70, y + 72); ctx.stroke();
     const cx = x + 16;
@@ -2925,7 +3145,7 @@
     cy += 13;
     const bottom = y + ph - 24;
     for (const e2 of logEntries) {
-      const lines = wrap(e2.text, pw - 44, 7.5);
+      const lines = wrap(e2.text, pw - 72, 7.5);
       const hh = lines.length * 9 + 5;
       if (cy + hh > bottom) break;
       ctx.fillStyle = e2.kind === 'good' ? 'rgba(47,154,90,0.35)' : (e2.kind === 'bad' ? 'rgba(200,50,40,0.35)' : 'rgba(255,255,255,0.08)');
@@ -2934,14 +3154,16 @@
       T(e2.time, x + pw - 16, cy, 6, '#9ab', 'right', 700, FONT_SANS);
       cy += hh + 3;
     }
-    T('Tab / Q — убрать · смотреть в телефон = палево', x + pw / 2, y + ph - 15, 7, '#7a9a94', 'center', 700, FONT_SANS);
+    T(coarsePointer ? '📱 — убрать · смотреть в телефон = палево' : 'Tab / Q — убрать · смотреть в телефон = палево', x + pw / 2, y + ph - 15, 7.5, '#7a9a94', 'center', 700, FONT_SANS);
     ctx.restore();
+    ctx.restore();
+    ctx.setTransform(S, 0, 0, S, 0, 0);
   }
 
   // Обучение: подсказки со стрелкой на первых минутах, пока игрок не освоится
   const TUTORIAL = [
     { text: 'Подойди к своему столу сзади и нажми E — это Excel', target: () => ({ x: SEAT.x, y: SEAT.y - 58 }), done: () => player.action === 'work' },
-    { text: 'Tab / Q — телефон: там список дел, бонусы и чат', target: null, done: () => player.action === 'phone' },
+    { text: coarsePointer ? '📱 — телефон: там список дел, бонусы и чат' : 'Tab / Q — телефон: там список дел, бонусы и чат', target: null, done: () => player.action === 'phone' },
     { text: 'Поболтай с коллегой: встань перед его столом и жми E', target: () => ({ x: coworkers[1].x, y: coworkers[1].desk.y - 60 }), done: () => player.action === 'chat' || stats.chats > 0 },
     { text: 'Жёлтый конус — взгляд Д.Н. Прокрастинируешь в нём — растёт «?»', target: () => ({ x: boss.x, y: boss.y - 84 }), done: () => tutorial.t > 7 },
   ];
@@ -2967,12 +3189,16 @@
       ctx.beginPath(); ctx.moveTo(p.x - 6, p.y - 10 + bounce); ctx.lineTo(p.x + 6, p.y - 10 + bounce); ctx.lineTo(p.x, p.y + bounce); ctx.fill();
       ctx.strokeStyle = '#172027'; ctx.lineWidth = 1; ctx.stroke();
     }
+    const k = uiK(1.55);
+    const { VW, VH } = uiSpace(k);
+    const lines = wrap(`💡 ${cur.text}`, coarsePointer ? VW * 0.55 : VW - 60, 10);
     ctx.font = `700 10px ${FONT_SANS}`;
-    const text = `💡 ${cur.text}`;
-    const w = ctx.measureText(text).width + 22;
-    const y = H - 68;
-    ctx.fillStyle = 'rgba(242,187,56,0.95)'; roundRect(W / 2 - w / 2, y, w, 19, 4); ctx.fill();
-    T(text, W / 2, y + 9.9, 10, '#172027', 'center', 700, FONT_SANS);
+    const w = Math.max(...lines.map(l => ctx.measureText(l).width)) + 22;
+    const h = 7 + lines.length * 12;
+    const y = Math.min(promptTop / k, VH - 24) - 4 - h;
+    ctx.fillStyle = 'rgba(242,187,56,0.95)'; roundRect(VW / 2 - w / 2, y, w, h, 4); ctx.fill();
+    lines.forEach((l, i) => T(l, VW / 2, y + 9.9 + i * 12, 10, '#172027', 'center', 700, FONT_SANS));
+    ctx.setTransform(S, 0, 0, S, 0, 0);
   }
 
   // Выбор ответа на летучке: 1 / 2 / 3 или тап
@@ -2980,7 +3206,10 @@
   function drawChoice() {
     choiceRects.length = 0;
     if (!choice || !choice.asked || choice.done || player.action !== 'standup' || mode !== 'playing') return;
-    const w = 420, h = 74, x = W / 2 - w / 2, y = H - 150;
+    const k = uiK(1.65);
+    choiceK = k;
+    const { VW, VH } = uiSpace(k);
+    const w = 420, h = 74, x = VW / 2 - w / 2, y = Math.min(VH - 150, VH - h - 40);
     ctx.fillStyle = 'rgba(8,16,20,0.94)'; roundRect(x, y, w, h, 4); ctx.fill();
     ctx.strokeStyle = '#f2bb38'; ctx.lineWidth = 1; ctx.stroke();
     T('Д.Н.: «Что по твоему направлению?» — выбери ответ', W / 2, y + 10, 9, '#f2bb38', 'center', 700, FONT_SANS);
@@ -2990,40 +3219,57 @@
       ctx.fillStyle = '#16303a'; roundRect(bx, by, bw, bh, 3); ctx.fill();
       T(c.key, bx + 12, by + bh / 2, 14, '#f2bb38', 'center', 900);
       const lines = wrap(c.text, bw - 30, 8.5);
-      lines.forEach((l, k) => T(l, bx + 24, by + bh / 2 - (lines.length - 1) * 5 + k * 10, 8.5, '#fff', 'left', 700, FONT_SANS));
+      lines.forEach((l, n) => T(l, bx + 24, by + bh / 2 - (lines.length - 1) * 5 + n * 10, 8.5, '#fff', 'left', 700, FONT_SANS));
     });
+    ctx.setTransform(S, 0, 0, S, 0, 0);
   }
+  let choiceK = 1;
   canvas.addEventListener('pointerdown', e => {
     if (!choiceRects.length) return;
-    const r = canvas.getBoundingClientRect();
-    const gx = (e.clientX - r.left) / r.width * W, gy = (e.clientY - r.top) / r.height * H;
+    const r = canvasBox();
+    const gx = (e.clientX - r.left) / r.width * W / choiceK, gy = (e.clientY - r.top) / r.height * H / choiceK;
     const hit = choiceRects.find(c => gx >= c.x && gx <= c.x + c.w && gy >= c.y && gy <= c.y + c.h);
     if (hit) { e.preventDefault(); answerStandup(hit.i); }
   });
   function drawAutoBadge() {
+    screenRects.auto = null;
     if (!auto.on || mode !== 'playing') return;
     const blink = Math.floor(performance.now() / 700) % 2 === 0;
     const text = `🍿 АВТОПИЛОТ ×${+timeScale.toFixed(2)} · ${auto.goal ? AUTO_LABELS[auto.goal.kind] || '' : 'думает…'} · WASD — взять управление`;
+    const k = uiK(1.6);
+    const { VW, VH } = uiSpace(k);
     ctx.font = `700 8.5px ${FONT_SANS}`;
-    const w = ctx.measureText(text).width + 14;
-    ctx.fillStyle = 'rgba(8,16,20,0.88)'; roundRect(10, H - 20, w, 15, 3); ctx.fill();
-    R(10, H - 20, 3, 15, blink ? '#f2bb38' : '#c76ad8');
-    T(text, 17, H - 12.2, 8.5, '#f5edd9', 'left', 700, FONT_SANS);
+    const w = Math.min(ctx.measureText(text).width + 14, VW * 0.55);
+    const y = compactHud() ? hudBottom() / k + 4 : VH - 20;
+    ctx.fillStyle = 'rgba(8,16,20,0.88)'; roundRect(6, y, w, 15, 3); ctx.fill();
+    screenRects.auto = { x: 6 * k, y: y * k, w: w * k, h: 15 * k };
+    R(6, y, 3, 15, blink ? '#f2bb38' : '#c76ad8');
+    TE(text, 13, y + 7.8, 8.5, w - 12, '#f5edd9');
+    ctx.setTransform(S, 0, 0, S, 0, 0);
   }
   const AUTO_LABELS = { desk: 'идёт работать', coffee: 'за кофе', smoke: 'на перекур', server: 'в серверную', fridge: 'к холодильнику', water: 'к кулеру', printer: 'печатать мем', toilet: 'в биотуалет', phone: 'залипает в телефон', chat: 'болтать', hide: 'прячется!', exit: 'к выходу', standup: 'на летучку', feast: 'за едой' };
   function drawObjective() {
+    screenRects.obj = null;
     if (mode !== 'playing' || player.action === 'phone') return;
+    if (compactHud() && banner) return; // на маленьком экране не спорим с баннером дня
     const next = todo.find(t => !t.done);
     const done = todo.filter(t => t.done).length;
     const text = next ? `📋 ${next.text}${next.goal > 1 ? ` ${Math.min(next.goal, todoProgress(next))}/${next.goal}` : ''}  ·  ${done}/${todo.length}` : `📋 Все дела сделаны! ${done}/${todo.length}`;
-    ctx.font = `700 8.5px ${FONT_SANS}`;
-    const w = ctx.measureText(text).width + 64;
-    const x = W - w - 10;
-    const y = H - 20;
-    ctx.fillStyle = 'rgba(8,16,20,0.85)'; roundRect(x, y, w, 15, 3); ctx.fill();
-    T(text, x + 6, y + 7.8, 8.5, '#e8f2ee', 'left', 700, FONT_SANS);
+    const k = uiK(1.6);
+    const { VW, VH } = uiSpace(k);
     const buzz = phoneBuzz > 0 && Math.floor(performance.now() / 200) % 2 === 0;
-    T(buzz ? '📱 Tab ●' : '📱 Tab', x + w - 6, y + 7.8, 8.5, buzz ? '#f2bb38' : '#9ab', 'right', 700, FONT_SANS);
+    const tab = buzz ? '📱 Tab ●' : '📱 Tab';
+    ctx.font = `700 8.5px ${FONT_SANS}`;
+    const tabW = coarsePointer ? 0 : ctx.measureText(tab).width + 8;
+    const w = Math.min(ctx.measureText(text).width + 14 + tabW, VW * 0.5);
+    const x = VW - w - 6;
+    const y = compactHud() ? hudBottom() / k + 4 : VH - 20;
+    ctx.fillStyle = 'rgba(8,16,20,0.85)'; roundRect(x, y, w, 15, 3); ctx.fill();
+    screenRects.obj = { x: x * k, y: y * k, w: w * k, h: 15 * k };
+    TE(text, x + 6, y + 7.8, 8.5, w - 12 - tabW, '#e8f2ee');
+    if (tabW) T(tab, x + w - 6, y + 7.8, 8.5, buzz ? '#f2bb38' : '#9ab', 'right', 700, FONT_SANS);
+    else if (buzz) T('●', x + w - 4, y + 3, 7, '#f2bb38');
+    ctx.setTransform(S, 0, 0, S, 0, 0);
   }
 
   function draw() {
@@ -3220,6 +3466,11 @@
   document.querySelectorAll('[data-diff]').forEach(b => addTap(b, () => { playSound('click'); setDifficulty(b.dataset.diff); }));
   setDifficulty(diffKey);
   document.querySelectorAll('.music-toggle').forEach(b => addTap(b, toggleMusic));
+  document.querySelectorAll('.text-toggle').forEach(b => addTap(b, () => { bigText = !bigText; store.set('bigText', bigText); updateUiScale(); syncAudioButtons(); toast(bigText ? '🔠 Крупный текст включён' : '🔠 Обычный размер текста', 1.4); }));
+  window.addEventListener('resize', updateUiScale);
+  window.addEventListener('orientationchange', () => setTimeout(updateUiScale, 250));
+  if (window.ResizeObserver) new ResizeObserver(updateUiScale).observe(canvas);
+  updateUiScale();
   document.querySelectorAll('.sound-toggle').forEach(b => addTap(b, () => { muted = !muted; store.set('muted', muted); syncAudioButtons(); }));
   syncAudioButtons();
 
@@ -3234,6 +3485,13 @@
     get day() { return dayIndex; },
     set(v) { if ('usefulness' in v) usefulness = v.usefulness; if ('reprimands' in v) reprimands = v.reprimands; if ('misses' in v) day.misses = v.misses; if ('fun' in v) fun = v.fun; },
     interact, quickHide, togglePhone, startInspection, blocked, findPath, nav, startEvent,
+    say(owner, text, dur = 4) { say(owner, text, dur); },
+    banterNow() { banterT = 0; updateBanter(0); updateBanter(2.1); return bubbles.map(b => b.owner); },
+    get zones() { return WD.zones.map(z => z.id); },
+    hideBanner() { banner = null; },
+    get planWarned() { return !!day.planWarned; },
+    get ui() { return { UI, unitPx, compact: compactHud(), hudBottom: hudBottom(), bigText }; },
+    setBigText(v) { bigText = !!v; updateUiScale(); syncAudioButtons(); },
     chatPerk(id) { grantPerk(coworkers.find(c => c.id === id)); }, setSuspicion(v) { boss.suspicion = v; },
     get event() { return officeEvent; },
     get flags() { return { ...day }; },

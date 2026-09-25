@@ -4,17 +4,13 @@
 const path = require('path');
 const fs = require('fs');
 
-function loadPlaywright() {
-  const candidates = ['playwright', '/opt/node22/lib/node_modules/playwright'];
-  for (const c of candidates) { try { return require(c); } catch (_) { /* next */ } }
-  throw new Error('Playwright не найден: npm i -g playwright');
-}
+const { loadPlaywright } = require('./pw');
 
 (async () => {
   const { chromium } = loadPlaywright();
   const outDir = process.argv[2] || path.join(__dirname, '..', '.qa');
   fs.mkdirSync(outDir, { recursive: true });
-  const url = 'file://' + path.join(__dirname, '..', 'index.html');
+  const url = require('url').pathToFileURL(path.join(__dirname, '..', 'index.html')).href;
   const browser = await chromium.launch(fs.existsSync('/opt/pw-browsers/chromium') ? {} : {});
   const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
   const errors = [];
@@ -187,7 +183,7 @@ function loadPlaywright() {
   st = await page.evaluate(() => NP_DEBUG.state);
   check('туалет после очереди', st.stats.toilet === 1, `toilet=${st.stats.toilet} action=${st.player.action}`);
 
-  // Второй ряд проёбывается — Д.Н. идёт отчитывать
+  // Второй ряд отвлекается — Д.Н. идёт отчитывать
   await page.evaluate(() => { NP_DEBUG.teleport(520, 260); NP_DEBUG.forceSlack('yerzhan', 'game'); NP_DEBUG.setBoss(728, 380, 'look', -Math.PI / 2); });
   await page.evaluate(() => NP_DEBUG.skip(0.2));
   st = await page.evaluate(() => NP_DEBUG.state);
@@ -447,17 +443,17 @@ function loadPlaywright() {
   const prog = await page.evaluate(() => {
     localStorage.setItem('nepalsya.weekDone', 'false');
     NP_DEBUG.setDay(0); NP_DEBUG.restart();
-    const mon = { u: NP_DEBUG.unlocked, q: NP_DEBUG.eventQueue.length, remote: NP_DEBUG.coworkers.filter(c => c.away).length, todo: NP_DEBUG.state.todo.map(t => t.id) };
+    const mon = { u: NP_DEBUG.unlocked, q: NP_DEBUG.eventQueue.length, remote: NP_DEBUG.coworkers.filter(c => c.away).length, statists: NP_DEBUG.coworkers.filter(c => (c.id === 'asel' || c.id === 'yerzhan') && !c.away).length, todo: NP_DEBUG.state.todo.map(t => t.id) };
     NP_DEBUG.setDay(3); NP_DEBUG.restart();
     const thu = { u: NP_DEBUG.unlocked, q: NP_DEBUG.eventQueue.length, away: NP_DEBUG.coworkers.filter(c => c.away).length, todo: NP_DEBUG.state.todo.map(t => t.id) };
     localStorage.setItem('nepalsya.weekDone', 'true');
     return { mon, thu };
   });
-  check('понедельник: только ядро (без событий, коллег, обеда, второго ряда)', prog.mon.q === 0 && !prog.mon.u.coworkers && !prog.mon.u.lunch && prog.mon.remote === 3 && prog.mon.todo.includes('coffee1'), JSON.stringify(prog.mon));
+  check('понедельник: только ядро (без событий, коллег, обеда, второго ряда)', prog.mon.q === 0 && !prog.mon.u.coworkers && !prog.mon.u.lunch && prog.mon.remote === 1 && prog.mon.statists === 2 && prog.mon.todo.includes('coffee1'), JSON.stringify(prog.mon));
   check('четверг: второй ряд, летучка, события открыты', prog.thu.u.row2 && prog.thu.u.standup && prog.thu.q > 3 && prog.thu.away === 0 && prog.thu.todo.includes('majik'), JSON.stringify(prog.thu));
   await page.screenshot({ path: path.join(outDir, '24-thursday-card.png') });
 
-  // Тигран — дух офиса: сидит всегда, не проёбывается, «Поехали!» обнуляет подозрение
+  // Тигран — дух офиса: сидит всегда, не отвлекается, «Поехали!» обнуляет подозрение
   const tig = await page.evaluate(() => {
     NP_DEBUG.setDay(0); NP_DEBUG.restart();
     const mon = NP_DEBUG.coworkers.find(c => c.id === 'tigran');
@@ -478,7 +474,47 @@ function loadPlaywright() {
     const k = box.w / 960; await page.screenshot({ path: path.join(outDir, '25-tigran.png'), clip: { x: box.x + 340 * k, y: box.y + 230 * k, width: 160 * k, height: 130 * k } }); }
   check('стол r2_1 — Тиграна, в заголовке «Не пались»', tig.desk === 'tigran' && tig.title.startsWith('Не пались'), JSON.stringify(tig));
 
+  // Асель и Ержан — статисты: сидят всегда, болтать с ними нельзя; соседи перекидываются фразами
+  const stat = await page.evaluate(() => {
+    NP_DEBUG.setDay(0); NP_DEBUG.restart(); NP_DEBUG.clearEvents();
+    const zones = NP_DEBUG.zones;
+    const talk = NP_DEBUG.banterNow();
+    return { noChat: !zones.includes('chat_asel') && !zones.includes('chat_yerzhan'), sirgeyChat: zones.includes('chat_sirgey'), banter: window.NP_LINES.banter.length, talk };
+  });
+  check('Асель и Ержан — статисты без болтовни', stat.noChat && stat.sirgeyChat, JSON.stringify(stat));
+  check('перепалка соседей: реплика и ответ', stat.banter >= 10 && stat.talk.length >= 2, JSON.stringify(stat.talk));
+
+  // 17:00: подсказка про план, если отстаёшь
+  const pw = await page.evaluate(async () => {
+    NP_DEBUG.setDay(1); NP_DEBUG.restart(); NP_DEBUG.clearEvents();
+    NP_DEBUG.setClock(17 * 60 + 2);
+    await new Promise(r => setTimeout(r, 200));
+    return { warned: NP_DEBUG.planWarned, toast: document.getElementById('toast').textContent };
+  });
+  check('17:00: подсказка «до плана N»', pw.warned && /До плана/.test(pw.toast), JSON.stringify(pw));
+
   check('нет ошибок в консоли', errors.length === 0, errors.join(' | '));
+
+  // Небольшие экраны: крупный интерфейс в Canvas, меню прокручивается, кнопка старта достижима
+  for (const [name, vp, mobile] of [['iPhone 13 альбом', { width: 844, height: 390 }, true], ['ноутбук 1280×720', { width: 1280, height: 609 }, false]]) {
+    const ctx2 = await browser.newContext({ viewport: vp, deviceScaleFactor: mobile ? 3 : 1, hasTouch: mobile, isMobile: mobile });
+    const p2 = await ctx2.newPage();
+    const errs2 = []; p2.on('pageerror', e => errs2.push(e.message));
+    await p2.goto(url); await p2.waitForTimeout(500);
+    const r = await p2.evaluate(() => {
+      const ov = document.getElementById('screen-overlay');
+      const btn = document.getElementById('start-btn');
+      btn.scrollIntoView({ block: 'nearest' });
+      const b = btn.getBoundingClientRect();
+      const box = document.getElementById('game').getBoundingClientRect();
+      const fs = parseFloat(getComputedStyle(document.querySelector('.title-card p')).fontSize);
+      return { ui: NP_DEBUG.ui, overflow: getComputedStyle(ov).overflowY, btnVisible: b.top >= 0 && b.bottom <= innerHeight, canvasH: Math.round(Math.min(box.height, box.width * 9 / 16)), fs };
+    });
+    const minCss = 8.5 * r.ui.UI * r.ui.unitPx;
+    check(`${name}: основной текст Canvas ≥ 12 px, меню прокручивается`, minCss >= 11.9 && r.overflow === 'auto' && r.btnVisible && r.fs >= 13 && errs2.length === 0, JSON.stringify({ ...r, minCss: +minCss.toFixed(1), errs2 }));
+    await p2.screenshot({ path: path.join(outDir, `26-${mobile ? 'phone' : 'laptop'}-menu.png`) });
+    await ctx2.close();
+  }
   await browser.close();
 
   let failed = 0;
