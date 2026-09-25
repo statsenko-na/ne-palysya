@@ -364,7 +364,7 @@ function loadPlaywright() {
   check('лимит 5 «не застал» → выговор', wd.afterLimit.misses === 0 && wd.afterLimit.rep === 1, JSON.stringify(wd.afterLimit));
   check('апгрейд кактус: Д.Н. ждёт дольше', wd.cactusWait === 4, String(wd.cactusWait));
   await page.evaluate(() => { NP_DEBUG.setBoss(728, 222, 'inspect'); NP_DEBUG.teleport(470, 260); NP_DEBUG.deskCheck(); NP_DEBUG.skip(1); });
-  await page.screenshot({ path: path.join(outDir, '22-where-is-vikentiy.png') });
+  await page.screenshot({ path: path.join(outDir, '22-where-is-bykentiy.png') });
   await page.evaluate(() => { NP_DEBUG.teleport(728, 150); NP_DEBUG.interact(); NP_DEBUG.skip(0.5); NP_DEBUG.set({ misses: 0 }); });
 
   // План: сверх плана работа идёт с отдачей ×0.25
@@ -375,7 +375,7 @@ function loadPlaywright() {
   });
   check('сверх плана — отдача ×0.25', Math.abs(pl.after - (pl.t + 2)) < 0.01, JSON.stringify(pl));
 
-  // Автопилот: Викентий сам играет, скорость времени
+  // Автопилот: Быкентий сам играет, скорость времени
   const ap = await page.evaluate(() => {
     NP_DEBUG.setTimeScale(2);
     NP_DEBUG.startAutopilot();
@@ -456,6 +456,27 @@ function loadPlaywright() {
   check('понедельник: только ядро (без событий, коллег, обеда, второго ряда)', prog.mon.q === 0 && !prog.mon.u.coworkers && !prog.mon.u.lunch && prog.mon.remote === 3 && prog.mon.todo.includes('coffee1'), JSON.stringify(prog.mon));
   check('четверг: второй ряд, летучка, события открыты', prog.thu.u.row2 && prog.thu.u.standup && prog.thu.q > 3 && prog.thu.away === 0 && prog.thu.todo.includes('majik'), JSON.stringify(prog.thu));
   await page.screenshot({ path: path.join(outDir, '24-thursday-card.png') });
+
+  // Тигран — дух офиса: сидит всегда, не проёбывается, «Поехали!» обнуляет подозрение
+  const tig = await page.evaluate(() => {
+    NP_DEBUG.setDay(0); NP_DEBUG.restart();
+    const mon = NP_DEBUG.coworkers.find(c => c.id === 'tigran');
+    NP_DEBUG.startEvent('drill');
+    const t = NP_DEBUG.coworkers.find(c => c.id === 'tigran');
+    NP_DEBUG.setSuspicion(70); NP_DEBUG.chatPerk('tigran');
+    const sus = NP_DEBUG.state.boss.suspicion;
+    const desk = window.NP_WORLD ? NP_WORLD.desks.find(d => d.id === 'r2_1').owner : 'tigran';
+    return { monAway: mon.away, slack: t.slack, sus, desk, title: document.title };
+  });
+  await new Promise(r => setTimeout(r, 1500));
+  const tigDrill = await page.evaluate(() => NP_DEBUG.coworkers.find(c => c.id === 'tigran').away);
+  check('Тигран: сидит с понедельника, на учениях не уходит', !tig.monAway && !tigDrill && !tig.slack, JSON.stringify(tig) + ' drill:' + tigDrill);
+  check('Тигран: «Поехали!» обнуляет подозрение', tig.sus === 0, String(tig.sus));
+  await page.evaluate(() => { NP_DEBUG.clearEvents && NP_DEBUG.clearEvents(); });
+  await new Promise(r => setTimeout(r, 600));
+  { const box = await page.$eval('#game', el => { const b = el.getBoundingClientRect(); return { x: b.x, y: b.y, w: b.width }; });
+    const k = box.w / 960; await page.screenshot({ path: path.join(outDir, '25-tigran.png'), clip: { x: box.x + 340 * k, y: box.y + 230 * k, width: 160 * k, height: 130 * k } }); }
+  check('стол r2_1 — Тиграна, в заголовке «Не пались»', tig.desk === 'tigran' && tig.title.startsWith('Не пались'), JSON.stringify(tig));
 
   check('нет ошибок в консоли', errors.length === 0, errors.join(' | '));
   await browser.close();

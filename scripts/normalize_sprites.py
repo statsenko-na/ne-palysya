@@ -53,12 +53,12 @@ def normalize(frames, out_h, name):
 
 
 if __name__ == "__main__":
-    # Викентий без очков (он ближе к рокеру), Директор Начальникович — без усов
-    vik = edit_frames(frames_from_strip(Image.open(ASSETS / "vikentiy-walk-v1.png").convert("RGBA"), 4), remove_glasses,
+    # Быкентий без очков (он ближе к рокеру), Директор Начальникович — без усов
+    vik = edit_frames(frames_from_strip(Image.open(ASSETS / "bykentiy-walk-v1.png").convert("RGBA"), 4), remove_glasses,
                        # в кадрах 3–4 глаза тёмные и не распознаются — радужки заданы вручную
                        [{}, {}, {"boxes": [(100, 108, 314, 326), (99, 107, 339, 348)]},
                         {"boxes": [(93, 101, 186, 198), (92, 100, 216, 226)]}])
-    normalize(vik, 120, "vikentiy-walk-v2.png")
-    boss = edit_frames(frames_from_strip(Image.open(ASSETS / "fedor-walk-v1.png").convert("RGBA"), 4), remove_moustache)
+    normalize(vik, 120, "bykentiy-walk-v2.png")
+    boss = edit_frames(frames_from_strip(Image.open(ASSETS / "boss-walk-v1.png").convert("RGBA"), 4), remove_moustache)
     normalize(boss, 134, "boss-walk-v2.png")
     normalize(frames_from_atlas(Image.open(ASSETS / "coworkers-atlas-v1.png").convert("RGBA"), 2, 2), 112, "coworkers-v2.png")
