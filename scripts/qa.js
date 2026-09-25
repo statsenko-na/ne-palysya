@@ -623,6 +623,16 @@ const { loadPlaywright } = require('./pw');
   });
   check('сохранение восстанавливает время, счётчики, флаги дня и список дел', Math.abs(sv.clock - 850.27) < 0.1 && sv.u === 33 && sv.f === 44 && sv.rep === 1 && sv.w === 2 && sv.water === 1 && sv.sameTodo && sv.lunchCalled, JSON.stringify(sv));
 
+  // Укрытие не бесконечное: через 25 с «хвостик торчит», потом 20 с нельзя прятаться
+  const hd = await page.evaluate(() => {
+    NP_DEBUG.setDay(0); NP_DEBUG.clearSavedProgress(); NP_DEBUG.restart(); NP_DEBUG.clearEvents(); NP_DEBUG.setBoss(706, 446, 'office');
+    const p = NP_DEBUG.state; NP_DEBUG.teleport(776, 276); NP_DEBUG.quickHide();
+    const hid = NP_DEBUG.state.player.action; NP_DEBUG.skip(26);
+    const out = NP_DEBUG.state.player.action; NP_DEBUG.quickHide();
+    return { hid, out, again: NP_DEBUG.state.player.action };
+  });
+  check('укрытие: через 25 с выгоняет, повторно сразу нельзя', hd.hid === 'plant_hide' && hd.out === 'none' && hd.again === 'none', JSON.stringify(hd));
+
   // Альджазира ходит по навигационному графу, не сквозь столы
   const aw = await page.evaluate(() => {
     NP_DEBUG.setDay(3); NP_DEBUG.clearSavedProgress(); NP_DEBUG.restart(); NP_DEBUG.clearEvents();

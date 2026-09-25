@@ -32,7 +32,7 @@ py -m pip install pillow numpy scipy
 ```powershell
 node --check game.js
 Get-ChildItem js\*.js | ForEach-Object { node --check $_.FullName }
-node scripts\qa.js          # автотест: 78 проверок, скриншоты в .qa\
+node scripts\qa.js          # автотест: 79 проверок, скриншоты в .qa\
 node scripts\screens.js     # меню, онбординг, игра, реплики, телефон на 6 экранах → .qa\screens\
 ```
 

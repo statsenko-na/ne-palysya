@@ -18,7 +18,7 @@
   canvas.height = H * S;
 
   // Версия в URL сбрасывает кэш браузера, когда спрайт заменён под тем же именем файла
-  const ASSET_V = '0.20.0';
+  const ASSET_V = '0.20.1';
   function loadImage(src) { const i = new Image(); i.src = `${src}?v=${ASSET_V}`; return i; }
   const img = {
     vik: loadImage('assets/bykentiy-walk-v4.png'),
@@ -64,7 +64,9 @@
     toiletPerPerson: 2.2,      // очередь в туалет: секунд на человека
     toiletSeconds: 6,
     toiletCooldown: 45,
-    overtimeSeconds: 30,       // сверхурочные после плана: снять сегодняшний выговор (раз в смену)
+    overtimeSeconds: 30,
+    hideMax: 25,               // сколько секунд подряд можно сидеть в укрытии
+    hideCooldown: 20,          // потом укрытия недоступны       // сверхурочные после плана: снять сегодняшний выговор (раз в смену)
     peeTimes: [2, 3],          // сколько раз за смену Быкентию приспичит (со среды, когда открыт биотуалет)
     peeRise: 1.8,              // рост «приспичило» в секунду (0–100): ~55 с до конфуза
     peeFail: 15,               // −кайфа, если не дотерпел
@@ -1206,6 +1208,7 @@
   }
 
   // ---------- ВЗАИМОДЕЙСТВИЯ ----------
+  const COVER = new Set(['plant_hide', 'cabinet_hide', 'printer_hide']);
   const HIDDEN = new Set(['plant_hide', 'cabinet_hide', 'printer_hide', 'toilet', 'lunch', 'evac']);
   const AWAY = new Set(['toilet', 'lunch', 'evac']); // Быкентия нет в опенспейсе — не рисуем
   const SLACK_BASE = new Set(['smoke', 'youtube', 'fridge', 'chat', 'phone', 'meme']);
@@ -1330,6 +1333,9 @@
     return 'Выход на лестницу. Обед — 13:00–14:30, до 19:30 ни шагу.';
   }
   function startAction(action, seconds) {
+    // Бесконечно сидеть в кустах нельзя: после «хвостик торчит» укрытия недоступны на время
+    if (COVER.has(action) && day.hideCd > 0) { say('player', `Фикус ещё помнит мой хвостик… (${Math.ceil(day.hideCd)} с)`, 2); player.hideSpot = null; return; }
+    if (COVER.has(action)) player.hideT = 0;
     if (SLACK_BASE.has(action) && action !== 'phone') hint('slack', 'Это палево: если Д.Н. (или камера СБ) увидит — растёт подозрение. Следи за его конусом и радаром справа вверху.');
     if (action === 'phone') hint('phone', coarsePointer ? 'Телефон — тоже палево, но можно ходить. 📱 — убрать.' : 'Телефон — тоже палево, но можно ходить. Tab / Q — убрать.');
     player.action = action;
@@ -1707,7 +1713,7 @@
   const achCount = () => ACHIEVEMENTS.filter(a => achieved[a.id]).length;
 
   // ---------- БОСС-КЛАВИША («АЛЬТ-ТАБ») ----------
-  // B / И: мгновенно сделать вид, что работаешь. Спасает, если Д.Н. уже что-то заподозрил.
+  // B: мгновенно сделать вид, что работаешь. Спасает, если Д.Н. уже что-то заподозрил.
   const FAKE_TEXT = {
     youtube: ['EXCEL ПОВЕРХ YOUTUBE', 'Это... обучающее видео по Excel!'],
     phone: ['ПИШЕТ В РАБОЧИЙ ЧАТ', 'Отвечаю по Маджикистану!'],
@@ -2243,6 +2249,17 @@
 
   // ---------- ИГРОК ----------
   function updatePlayer(dt) {
+    day.hideCd = Math.max(0, (day.hideCd || 0) - dt);
+    if (COVER.has(player.action)) {
+      player.hideT = (player.hideT || 0) + dt;
+      if (player.hideT > CFG.hideMax) {
+        endAction('cancel');
+        day.hideCd = CFG.hideCooldown;
+        say('player', pick(LINES.hideOut), 2.6);
+        toast(`🌿 Хвостик торчит из укрытия! Прятаться снова можно через ${CFG.hideCooldown} с`, 2.6);
+        addLog('Быкентий слишком долго сидел в укрытии — его стало видно.', 'bad');
+      }
+    }
     let dx = 0;
     let dy = 0;
     if (keys.has('arrowleft') || keys.has('a')) dx -= 1;
