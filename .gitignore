@@ -17,3 +17,4 @@ Desktop.ini
 *.log
 .qa/
 .claude/settings.local.json
+sqlite_mcp_server.db

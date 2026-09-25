@@ -34,7 +34,8 @@
 ## OpenAI / Codex / Antigravity
 
 - Для генерации новых пиксельных ассетов используй встроенный инструмент `generate_image` (модель Nano Banana / Imagen) по подписке без платных API-кредитов, следуя промпт-шаблонам из скила `pixel-game-design`.
-- Для обработки и нарезки спрайтов используй локальный скрипт `python scripts/pixel_processor.py`.
+- Для обработки и нарезки спрайтов используй локальный скрипт `python scripts/pixel_processor.py`; замена одной ячейки листа с удалением пурпурного фона — `python scripts/replace_sprite.py`.
+- Headless-генерацию (`agy -p`, `codex exec`) запускай из пустой папки вне репозитория, по шагам проектного скилла `.claude/skills/game-image-gen/SKILL.md`. Если тебя запустили только чтобы сгенерировать картинку, не трогай файлы проекта.
 - При работе в среде Antigravity доступны глобальные скилы: `pixel-game-design`, `systematic-debugging`, `code-review-standards`, `git-mastery`, а также локальный `office-game-dev`.
 - Если задача касается OpenAI, Codex, моделей, промптов или агентов, сверяй актуальный официальный OpenAI Developer Docs; краткие проектные правила и ссылки хранятся в `docs/OPENAI_CODEX_GUIDE.md`. Для самой игры API-вызовов нет, модель в коде не задаётся.
 
