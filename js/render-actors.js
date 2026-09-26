@@ -44,6 +44,14 @@
       const bob = player.moving ? 0 : Math.sin(performance.now() / 450) * 0.5;
       drawStripFrame(img.vik, 4, frame, player.x, player.y + 1 + bob, player.facingX < 0, null, alpha);
     }
+    if (disguiseFolderHeld()) {
+      const folderX = player.x + 9 * player.facingX;
+      const folderY = player.y - 25;
+      R(folderX - 4, folderY - 5, 9, 8, '#49311e');
+      R(folderX - 3, folderY - 4, 7, 6, '#b97936');
+      R(folderX - 3, folderY - 5, 3, 2, '#e3b85f');
+      R(folderX - 2, folderY - 2, 5, 1, '#f0d99c');
+    }
     if (player.action === 'smoke') { R(player.x + 9 * player.facingX, player.y - 34, 6 * player.facingX, 1.2, '#f2efe6'); R(player.x + 15 * player.facingX, player.y - 34.3, 1.6, 1.8, '#ff5a2a'); }
   }
 

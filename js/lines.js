@@ -362,6 +362,12 @@
     failed: ['Не дошёл до приманки. Время проверять столы.'],
   };
 
+  const disguise = {
+    prep: ['Возьму папку. Может, с ней хотя бы пройду мимо начальника.'],
+    ready: ['Папка при мне. Главное — не останавливаться и не подходить вплотную.'],
+    bossQuestion: ['А в папке что?'],
+  };
+
   // Маджикистан (проект Быкентия, где всё плохо) и автошка Сиргея
   const majik = {
     down: ['Маджикистан лёг! Опять!', 'В Маджикистане отключили свет. Опять. Сервер тоже.', 'Маджикистан: база данных — это Excel на флешке у сторожа.'],
@@ -515,5 +521,5 @@
   // Д.Н. проходит мимо стола Тиграна — духа он не видит, только чувствует
   const tigranDraft = ['Бр-р… Откуда сквозняк у пустого стола?', 'Кто тут рычит?.. Показалось.', 'Почему тут пахнет космосом?'];
 
-  window.NP_LINES = { banter, tigranDraft, boss, chat, perks, coworkerIdle, coworkerWarn, thoughts, distraction, dayTasks, excuses, majik, sb, nudge, arrfr, slack, whine, complaints, lunch, munich, toilet, pee, hideOut, bday, aljazira, adhoc, excelTasks, coffeeQueue };
+  window.NP_LINES = { banter, tigranDraft, boss, chat, perks, coworkerIdle, coworkerWarn, thoughts, distraction, disguise, dayTasks, excuses, majik, sb, nudge, arrfr, slack, whine, complaints, lunch, munich, toilet, pee, hideOut, bday, aljazira, adhoc, excelTasks, coffeeQueue };
 })();

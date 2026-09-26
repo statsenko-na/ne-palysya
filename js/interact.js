@@ -134,7 +134,7 @@
     const state = saveExtensions.distractions;
     const seconds = state && Number.isFinite(state.cooldownRemaining) ? Math.ceil(state.cooldownRemaining) : 0;
     const messages = {
-      busy: 'Сначала закончи текущее действие',
+      busy: 'Папка уже готовится или действует',
       paused: 'Игра на паузе',
       shift_ended: 'Смена уже закончилась',
       legal_away: 'Во время обеда и эвакуации нельзя отвлекать Д.Н.',
@@ -272,6 +272,115 @@
     return true;
   }
 
+  let disguisePreparationCompletedPending = false;
+  function ensureDisguiseExtension() {
+    const current = saveExtensions.disguise;
+    if (!disguiseStateIsValid(current) || (current.shiftId && current.shiftId !== shiftId)) {
+      saveExtensions.disguise = createDisguise();
+      saveExtensions.disguise.folderQuestionSourceId = null;
+      if (current) saveExtensionErrors.disguise = 'state_invalid';
+    } else if (current.shiftId === null || typeof current.folderQuestionSourceId !== 'string') {
+      saveExtensions.disguise = { ...current, shiftId: current.shiftId || shiftId, folderQuestionSourceId: null };
+    }
+    return saveExtensions.disguise;
+  }
+  function commitDisguiseTransition(result, previous = saveExtensions.disguise) {
+    if (!result || !result.ok) return false;
+    const warningSourceId = previous && typeof previous.folderQuestionSourceId === 'string'
+      ? previous.folderQuestionSourceId : null;
+    saveExtensions.disguise = { ...result.state, folderQuestionSourceId: warningSourceId };
+    delete saveExtensionErrors.disguise;
+    return true;
+  }
+  function disguiseStartContext(action = player.action) {
+    return {
+      shiftId,
+      printerAvailable: !(eventIs('jam') && !officeEvent.used),
+      action,
+      paused: mode !== 'playing',
+      shiftEnded: mode === 'ended' || clockMinutes >= CFG.shiftEnd,
+    };
+  }
+  function canStartDisguisePrep() {
+    const state = ensureDisguiseExtension();
+    const context = disguiseStartContext();
+    const result = beginDisguise(state, context);
+    return { ok: result.ok, reason: result.reason, state, context };
+  }
+  function disguiseReasonText(reason) {
+    return ({
+      already_used: 'Папку уже брали сегодня',
+      printer_unavailable: 'Сначала почини зажёванную бумагу',
+      busy: 'Сначала закончи текущее действие',
+      action_busy: 'Сначала закончи текущее действие',
+      paused: 'Игра на паузе',
+      shift_ended: 'Смена уже закончилась',
+      state_invalid: 'Папку сейчас не взять',
+    })[reason] || 'Папку сейчас не взять';
+  }
+  function startDisguisePrep() {
+    const access = canStartDisguisePrep();
+    if (!access.ok) { toast(disguiseReasonText(access.reason), 2.2); return false; }
+    const result = beginDisguise(access.state, access.context);
+    if (!commitDisguiseTransition(result, access.state)) {
+      toast(disguiseReasonText(result.reason), 2.2);
+      return false;
+    }
+    disguisePreparationCompletedPending = false;
+    startAction('takeFolder', 2);
+    say('player', pick(LINES.disguise.prep), 2.4);
+    playSound('click');
+    return true;
+  }
+  function tickDisguiseAdapter(dt) {
+    const current = ensureDisguiseExtension();
+    if (!current.active) { disguisePreparationCompletedPending = false; return false; }
+    if (mode === 'ended' || clockMinutes >= CFG.shiftEnd) {
+      const ended = cancelDisguise(current, 'shift_ended');
+      disguisePreparationCompletedPending = false;
+      return commitDisguiseTransition(ended, current);
+    }
+    const wasPreparing = current.active.phase === 'preparing';
+    const action = wasPreparing
+      ? (player.action === 'takeFolder' || disguisePreparationCompletedPending ? 'takeFolder' : player.action)
+      : (SLACK.has(player.action) ? 'rest' : player.action);
+    const result = tickDisguise(current, dt, {
+      action,
+      paused: mode !== 'playing',
+      shiftEnded: mode === 'ended' || clockMinutes >= CFG.shiftEnd,
+    });
+    disguisePreparationCompletedPending = false;
+    if (!commitDisguiseTransition(result, current)) return false;
+    if (wasPreparing && result.state.active && result.state.active.phase === 'active') {
+      say('player', pick(LINES.disguise.ready), 2.8);
+      hint('disguise', 'Папка помогает пройти во время рейда, только пока ты движешься. При остановке и рядом с Д.Н. она не прикрывает.');
+      addLog('Быкентий взял папку. Во время рейда она прикроет только на ходу и не рядом с Д.Н.', 'good');
+    }
+    return true;
+  }
+  function disguiseCoverStatus() {
+    return canDisguiseCover(ensureDisguiseExtension(), {
+      moving: !!player.moving,
+      action: player.action,
+      bossDistance: dist(boss, player),
+      isRaid: boss.state === 'inspect',
+      paused: mode !== 'playing',
+      shiftEnded: mode === 'ended' || clockMinutes >= CFG.shiftEnd,
+    });
+  }
+  function disguiseFolderHeld() {
+    const state = ensureDisguiseExtension();
+    return !!(state.active && state.active.phase === 'active');
+  }
+  function noteBossDisguiseQuestion() {
+    const state = ensureDisguiseExtension();
+    const active = state.active;
+    if (!active || active.phase !== 'active' || dist(boss, player) > 34 || state.folderQuestionSourceId === active.sourceId) return false;
+    state.folderQuestionSourceId = active.sourceId;
+    say('boss', pick(LINES.disguise.bossQuestion), 2.6);
+    return true;
+  }
+
   function requestFavor(npcId, kind) {
     if (!RELATIONSHIP_NPC_IDS.includes(npcId)) return { ok: false, reason: 'unknown_npc' };
     if (typeof kind !== 'string' || !kind.trim()) return { ok: false, reason: 'invalid_favor_kind' };
@@ -302,6 +411,7 @@
     if (player.action === 'printer_hide') return { prompt: 'E / H — вылезти из-за ксерокса', target: 'printer' };
     if (player.action === 'chat') return { prompt: 'Болтаете… (шаг — прервать)', target: `chat_${player.chatWith}` };
     if (player.action === 'printer-distraction-prep') return { prompt: 'Готовишь приманку у ксерокса…', target: 'printer' };
+    if (player.action === 'takeFolder') return { prompt: 'Берёшь папку…', target: 'printer' };
     if (player.action === 'queue') return { prompt: `Очередь в биотуалет: впереди ${day.queue} чел. (шаг — потерять место)`, target: 'toilet' };
     if (player.action === 'toilet') return { prompt: 'В синей кабинке. Единственное место без Д.Н.', target: 'toilet' };
     if (player.action === 'lunch') return { prompt: day.vilka ? 'Обед в «Вилке»: стейк, медиум, счастье…' : 'Обед в «Мюнхене»: жуёшь хрючево дня…', target: 'exit' };
@@ -324,7 +434,7 @@
         : `E — налить воды из кулера (${day.waterCups || 4}/4)`,
       smoke: player.action === 'smoke' ? 'E — потушить сигарету' : 'E — перекур с видом на горы',
       archive: 'E / H — затаиться за шкафами',
-      printer: eventIs('jam') && !officeEvent.used ? 'E — вытащить зажёванную бумагу (+9 к плану) · H — спрятаться' : 'E — мем или приманка для Д.Н. · H — спрятаться за ксероксом',
+      printer: eventIs('jam') && !officeEvent.used ? 'E — вытащить зажёванную бумагу (+9 к плану) · H — спрятаться' : 'E — выбрать мем, приманку или папку · H — спрятаться за ксероксом',
       server: player.action === 'youtube' ? 'E — закрыть вкладку' : (eventIs('internet') ? 'Интернета нет. Только Excel, только хардкор.' : 'E — YouTube на гигабитном канале'),
       exit: exitPrompt(),
       toilet: day.peeActive ? 'E — СРОЧНО в синюю кабинку! 🚽' : day.toiletCd > 0 ? `Биотуалет: пока не хочется (${Math.ceil(day.toiletCd)} с)` : 'E — встать в очередь в синюю кабинку',
@@ -389,6 +499,7 @@
     return result;
   }
   function startAction(action, seconds) {
+    if (player.action === 'takeFolder' && action !== 'takeFolder') endAction('cancel');
     // Бесконечно сидеть в кустах нельзя: после «хвостик торчит» укрытия недоступны на время
     if (COVER.has(action) && day.hideCd > 0) { say('player', `Фикус ещё помнит мой хвостик… (${Math.ceil(day.hideCd)} с)`, 2); player.hideSpot = null; return; }
     if (COVER.has(action)) player.hideT = 0;
@@ -501,6 +612,15 @@
   function endAction(reason, finishedActivity = null) {
     const a = player.action;
     const startPrinterDistraction = a === 'printer-distraction-prep' && reason === 'done';
+    if (a === 'takeFolder') {
+      if (reason === 'done') disguisePreparationCompletedPending = true;
+      else {
+        const current = ensureDisguiseExtension();
+        const canceled = cancelDisguise(current, reason === 'shift_ended' ? 'shift_ended' : 'cancel');
+        commitDisguiseTransition(canceled, current);
+        disguisePreparationCompletedPending = false;
+      }
+    }
     let activityVariant = finishedActivity && finishedActivity.variant;
     if (!finishedActivity) {
       const currentActivity = saveExtensions.activities;
@@ -740,7 +860,7 @@
           break;
         }
         if (auto.on) { startPrinterMeme(); break; }
-        openActionChoice({ id: 'printer-approach', owner: 'player', options: ['meme', 'distraction'], expiresIn: 10 });
+        openActionChoice({ id: 'printer-approach', owner: 'player', options: ['meme', 'distraction', 'folder'], expiresIn: 10 });
         break;
       case 'server':
         if (player.action === 'youtube') { endAction('cancel'); toast('Вкладка закрыта.', 1.4); return; }
@@ -936,13 +1056,18 @@
     title: 'Ксерокс: выбрать действие',
     options: [
       { id: 'meme', label: 'Распечатать мем', detail: '3.5 с · +3 кайфа · +2 к плану' },
-      { id: 'distraction', label: 'Отвлечь Д.Н.', detail: '2 с подготовки · без награды · затем маршрут к ксероксу', disabledReason: () => {
+      { id: 'distraction', label: 'Отвлечь Д.Н.', detail: '2 с без награды · Д.Н. к ксероксу', disabledReason: () => {
         const access = canStartBossDistraction('printer');
         return access.ok ? '' : distractionReasonText(access.reason, 'printer');
+      } },
+      { id: 'folder', label: 'Взять папку', detail: '2 с подготовки · 12 с прикрытия на ходу', disabledReason: () => {
+        const access = canStartDisguisePrep();
+        return access.ok ? '' : disguiseReasonText(access.reason);
       } },
     ],
     handlers: {
       meme: () => startPrinterMeme(),
       distraction: () => startPrinterDistractionPrep(),
+      folder: () => startDisguisePrep(),
     },
   });

@@ -402,13 +402,18 @@
       }
     }
 
+    tickDisguiseAdapter(dt);
+
     // Подозрение
     const seen = mode === 'playing' && playerVisibleToBoss();
     boss.seesPlayer = seen;
     let rate = -CFG.suspicionDecay;
     const grace = boss.catchCooldown > 0 || (banner && banner.dur && shiftTime < banner.dur); // после выговора и пока читаешь баннер дня
     if (seen && !grace && boss.state !== 'lecture' && boss.state !== 'office') {
-      if ((boss.state === 'inspect' || boss.state === 'waitDesk') && !playerIsWorking()) rate = CFG.suspicionInspect;
+      if (boss.state === 'inspect' && disguiseFolderHeld() && dist(boss, player) <= 34) noteBossDisguiseQuestion();
+      if ((boss.state === 'inspect' || boss.state === 'waitDesk') && !playerIsWorking()) {
+        rate = boss.state === 'inspect' && disguiseCoverStatus().cover ? 0 : CFG.suspicionInspect;
+      }
       else if (SLACK.has(player.action)) rate = CFG.suspicionSlack * diff().slack;
       if (rate > 0 && eventIs('noise')) rate *= 0.6; // за перфоратором шорохов не слышно
       if (rate > 0 && boss.snus > 0) rate *= CFG.snusSuspicion; // под снюсом добрее
