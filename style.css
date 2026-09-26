@@ -442,3 +442,22 @@ body.is-playing {
 .ach b { color: #fff5d0; font-size: .8125rem; }
 .ach small { color: var(--text-dim); font-size: .75rem; }
 .ach.got { opacity: 1; border-color: var(--yellow); }
+
+/* Громкость и переназначение клавиш */
+.vol-row { display: flex; flex-wrap: wrap; justify-content: center; align-items: center; gap: .4rem .9rem; margin-top: .55rem; color: #c8d6ca; font-size: .8125rem; }
+.vol-row label { display: inline-flex; align-items: center; gap: .35rem; }
+.vol-range { width: 6.5rem; accent-color: var(--yellow); }
+.keys-list { display: grid; gap: .3rem; margin: .8rem 0; text-align: left; }
+.keys-row { display: grid; grid-template-columns: 1fr auto auto; align-items: center; gap: .6rem; font-size: .875rem; color: #c8d6ca; }
+.keys-row kbd { min-width: 3.2rem; padding: .15rem .4rem; border: 1px solid #416064; color: var(--yellow); font-family: inherit; text-align: center; }
+.keys-row .audio-btn { min-width: 9rem; }
+.keys-row .audio-btn.wait { color: var(--yellow); border-color: var(--yellow); }
+@media (max-height: 580px), (max-width: 950px) and (orientation: landscape) {
+  .end-grade b { font-size: 1.6rem; text-shadow: 3px 3px 0 var(--red); }
+  .end-stats { margin-top: .5rem; gap: 4px; }
+  .end-stat { padding: .3rem .2rem; }
+  .end-stat b { font-size: .625rem; line-height: 1.5; }
+  .end-stat span { margin-top: .2rem; }
+  .end-card p { margin: .35rem 0; font-size: .8125rem; line-height: 1.4; }
+  .end-card .btn-row .pixel-btn { margin-top: .4rem; }
+}

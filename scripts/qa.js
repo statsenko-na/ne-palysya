@@ -108,15 +108,19 @@ const { loadPlaywright } = require('./pw');
   });
   check('стол доступен из прохода и пустое E не спамит тостом', !deskFront.emptyToast && deskFront.sitAction === 'work' && deskFront.standY > 200 && deskFront.toastTop <= 60, JSON.stringify(deskFront));
 
-  // 7. Начальник смотрит, как работаешь — KPI растёт быстрее
-  const watched = await page.evaluate(() => {
-    const before = NP_DEBUG.state.usefulness;
-    NP_DEBUG.setBoss(728, 228, 'look');
-    return before;
+  // 7. Начальник смотрит, как работаешь — KPI растёт быстрее (детерминированно: одинаковые отрезки через skip)
+  const kpiW = await page.evaluate(() => {
+    NP_DEBUG.clearEvents();
+    const rate = look => {
+      NP_DEBUG.set({ usefulness: 0 });
+      if (look) NP_DEBUG.setBoss(728, 228, 'look'); else NP_DEBUG.setBoss(706, 446, 'office');
+      if (NP_DEBUG.state.player.action !== 'work') { NP_DEBUG.teleport(728, 150); NP_DEBUG.interact(); }
+      NP_DEBUG.skip(2);
+      return NP_DEBUG.state.usefulness;
+    };
+    return { alone: rate(false), watched: rate(true) };
   });
-  await page.waitForTimeout(1500);
-  st = await page.evaluate(() => NP_DEBUG.state);
-  check('работа к плану ускоряется при начальнике (×2)', st.usefulness - watched > 2.5, `${watched.toFixed(1)} → ${st.usefulness.toFixed(1)}`);
+  check('работа к плану ускоряется при начальнике (×2)', kpiW.alone > 0 && kpiW.watched > kpiW.alone * 1.6, JSON.stringify(kpiW));
   await page.screenshot({ path: path.join(outDir, '02-watched.png') });
 
   // 8. Болтовня с коллегой
@@ -181,11 +185,10 @@ const { loadPlaywright } = require('./pw');
   st = await page.evaluate(() => ({ ...NP_DEBUG.state, ev: NP_DEBUG.event }));
   check('событие «угощение»', st.ev && st.ev.used === true && st.player.action === 'eat', JSON.stringify(st.ev));
   await page.screenshot({ path: path.join(outDir, '07-food.png') });
-  await page.evaluate(() => { NP_DEBUG.set({ usefulness: 40 }); NP_DEBUG.startEvent('jam'); NP_DEBUG.teleport(460, 456); });
+  await page.evaluate(() => { NP_DEBUG.clearEvents(); NP_DEBUG.setBoss(706, 446, 'office'); NP_DEBUG.set({ usefulness: 40 }); NP_DEBUG.startEvent('jam'); NP_DEBUG.teleport(460, 456); });
   const kBefore = await page.evaluate(() => NP_DEBUG.state.usefulness);
   await page.keyboard.press('KeyE');
-  await page.waitForTimeout(3300);
-  st = await page.evaluate(() => NP_DEBUG.state);
+  st = await page.evaluate(() => { NP_DEBUG.skip(3.5); return NP_DEBUG.state; }); // детерминированно, без ожидания реального времени
   check('событие «ксерокс» даёт KPI', st.usefulness > kBefore + 5, `${kBefore.toFixed(1)} → ${st.usefulness.toFixed(1)}`);
   await page.evaluate(() => { NP_DEBUG.setBoss(470, 452, 'look'); NP_DEBUG.startEvent('call'); NP_DEBUG.skip(10); });
   st = await page.evaluate(() => NP_DEBUG.state);
@@ -293,7 +296,7 @@ const { loadPlaywright } = require('./pw');
   // Апгрейды реально работают: KPI в Excel с креслом и монитором, турка, лава, кактус, гитара
   const up = await page.evaluate(() => {
     NP_DEBUG.setClock(11 * 60); NP_DEBUG.set({ reprimands: 0, misses: 0, usefulness: 20 }); NP_DEBUG.clearEvents();
-    const kpiRate = () => { NP_DEBUG.clearEvents(); NP_DEBUG.setBoss(706, 446, 'office'); NP_DEBUG.set({ usefulness: 20, reprimands: 0, fun: 20 }); NP_DEBUG.teleport(728, 150); NP_DEBUG.interact(); NP_DEBUG.skip(5); const s = NP_DEBUG.state; return { k: s.usefulness - 20, fun: s.fun }; };
+    const kpiRate = () => { NP_DEBUG.clearEvents(); NP_DEBUG.setBoss(706, 446, 'office'); NP_DEBUG.set({ usefulness: 20, reprimands: 0, fun: 20, noPee: true }); NP_DEBUG.teleport(728, 150); NP_DEBUG.interact(); NP_DEBUG.skip(5); const s = NP_DEBUG.state; return { k: s.usefulness - 20, fun: s.fun }; };
     NP_DEBUG.setUpgrades({});
     const base = kpiRate();
     NP_DEBUG.setUpgrades({ chair: true, monitor: true, cactus: true, guitar: true });
@@ -767,6 +770,68 @@ const { loadPlaywright } = require('./pw');
   check('автосохранение: время shiftTime и состояние полностью восстанавливаются', autosaveSync.clockPreserved && autosaveSync.usefulness === 45 && autosaveSync.fun === 70 && autosaveSync.reprimands === 1 && autosaveSync.weekReprimands === 2 && autosaveSync.waterCups === 2 && Math.abs(autosaveSync.waterRecharge - 15) < 1 && autosaveSync.coffeeJammed && autosaveSync.adhocDone && autosaveSync.overtimeWork === 8, JSON.stringify(autosaveSync));
 
   check('нет ошибок в консоли', errors.length === 0, errors.join(' | '));
+
+  // 17:00: подсказка про план, если отстаёшь
+  const pw = await page.evaluate(() => {
+    NP_DEBUG.setDay(1); NP_DEBUG.restart(); NP_DEBUG.clearEvents();
+    NP_DEBUG.set({ usefulness: 5, fed: true, noPee: true }); NP_DEBUG.setClock(17 * 60 + 1); NP_DEBUG.skip(0.2);
+    return { warned: !!NP_DEBUG.flags.planWarned, toast: document.getElementById('toast').textContent };
+  });
+  check('17:00: подсказка, что нет половины плана', pw.warned && /половин/i.test(pw.toast), JSON.stringify(pw));
+
+  // Сохранение: список дел восстанавливается из актуальных задач дня, отметки «сделано» сохраняются
+  const svTodo = await page.evaluate(() => {
+    NP_DEBUG.setDay(0); NP_DEBUG.restart(); NP_DEBUG.clearEvents();
+    const s = JSON.parse(localStorage.getItem('nepalsya.currentSave') || 'null');
+    NP_DEBUG.saveProgress();
+    const save = JSON.parse(localStorage.getItem('nepalsya.currentSave'));
+    save.todo = [{ id: 'coffee1', done: true }, { id: 'oldPoolTask', text: 'старое', done: false }, { id: 'lunch', done: false }];
+    localStorage.setItem('nepalsya.currentSave', JSON.stringify(save));
+    NP_DEBUG.restart();
+    const todo = NP_DEBUG.state.todo.map(t => ({ id: t.id, done: t.done, stat: t.stat }));
+    NP_DEBUG.clearSavedProgress();
+    return { todo, had: !!s };
+  });
+  check('сохранение: старые задачи отброшены, отметки «сделано» и stat из актуальных задач', svTodo.todo.length === 2 && svTodo.todo[0].id === 'coffee1' && svTodo.todo[0].done && svTodo.todo[0].stat === 'coffees', JSON.stringify(svTodo));
+
+  // Громкость и переназначение клавиш
+  const kb = await page.evaluate(async () => {
+    NP_DEBUG.setDay(0); NP_DEBUG.restart(); NP_DEBUG.clearEvents();
+    document.querySelector('.keys-open').click();
+    const open = !document.getElementById('keys-overlay').classList.contains('hidden');
+    document.querySelector('[data-bind="e"]').click();
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyF', key: 'f', bubbles: true }));
+    const bound = JSON.parse(localStorage.getItem('nepalsya.bindings'));
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'Escape', key: 'Escape', bubbles: true }));
+    const closed = document.getElementById('keys-overlay').classList.contains('hidden');
+    NP_DEBUG.teleport(728, 150);
+    window.dispatchEvent(new KeyboardEvent('keydown', { code: 'KeyF', key: 'f', bubbles: true }));
+    window.dispatchEvent(new KeyboardEvent('keyup', { code: 'KeyF', key: 'f', bubbles: true }));
+    const act = NP_DEBUG.state.player.action;
+    document.querySelector('.keys-reset').click();
+    const sfx = document.querySelector('.vol-sfx'); sfx.value = '0.3'; sfx.dispatchEvent(new Event('input'));
+    const vol = JSON.parse(localStorage.getItem('nepalsya.sfxVol'));
+    sfx.value = '1'; sfx.dispatchEvent(new Event('input'));
+    return { open, bound, closed, act, vol, reset: JSON.parse(localStorage.getItem('nepalsya.bindings')) };
+  });
+  check('клавиши: F назначается на «Действие» и садит за Excel, сброс; громкость сохраняется', kb.open && kb.bound.KeyF === 'e' && kb.closed && kb.act === 'work' && kb.vol === 0.3 && Object.keys(kb.reset).length === 0, JSON.stringify(kb));
+
+  // Неделя на автопилоте: все 5 смен доигрываются без ошибок, автопилот закрывает перекуры и кофе из задач дня
+  const weekErrs = [];
+  page.on('pageerror', e => weekErrs.push(e.message));
+  const wk = await page.evaluate(() => {
+    const out = [];
+    for (let d = 0; d < 5; d++) {
+      NP_DEBUG.setDay(d); NP_DEBUG.restart(); NP_DEBUG.startAutopilot();
+      for (let k = 0; k < 600 && NP_DEBUG.state.mode === 'playing'; k++) NP_DEBUG.skip(1);
+      const s = NP_DEBUG.state;
+      out.push({ d, mode: s.mode, cig: s.stats.cigarettes, coffees: s.stats.coffees, done: s.todo.filter(t => t.done).length, of: s.todo.length });
+    }
+    NP_DEBUG.stopAutopilot(); NP_DEBUG.setDay(0);
+    return out;
+  });
+  const wkDone = wk.reduce((a, x) => a + x.done, 0), wkAll = wk.reduce((a, x) => a + x.of, 0);
+  check('неделя на автопилоте: 5 смен закончены, закрыто ≥ 60% задач дня, перекуры и кофе есть', wk.every(x => x.mode === 'ended') && wkDone >= wkAll * 0.6 && wk.filter(x => x.cig > 0).length >= 3 && wk.filter(x => x.coffees > 0).length >= 4 && weekErrs.length === 0, JSON.stringify(wk) + weekErrs.join('; '));
 
   // Небольшие экраны: крупный интерфейс в Canvas, меню прокручивается, кнопка старта достижима
   for (const [name, vp, mobile] of [['iPhone 13 альбом', { width: 844, height: 390 }, true], ['ноутбук 1280×720', { width: 1280, height: 609 }, false]]) {
