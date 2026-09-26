@@ -251,6 +251,7 @@
     }
 
     updatePlayer(dt);
+    updateActionChoice(dt);
     updateBoss(dt);
     updateCoworkers(dt);
     updateAmbient(dt);
@@ -310,6 +311,7 @@
 
   function finishGame(result) {
     if (mode !== 'playing') return;
+    closeActionChoice('shift_ended');
     // Конец смены: меньше половины плана — выговор (на лимите — увольнение); от половины — без выговора, но и без бонуса
     let planFailed = false;
     const dMax = diff().dayReprimandsMax;

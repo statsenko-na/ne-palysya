@@ -71,6 +71,12 @@
   let autoBadgeRect = null;
   canvas.addEventListener('pointerdown', e => {
     const r = canvasBox();
+    if (actionChoiceState && mode === 'playing') {
+      const index = actionChoiceIndexAtClient(e.clientX, e.clientY);
+      if (index >= 0) selectActionChoice(index);
+      e.preventDefault();
+      return;
+    }
     if (autoBadgeRect && mode === 'playing') {
       const ax = (e.clientX - r.left) / r.width * W / autoBadgeK, ay = (e.clientY - r.top) / r.height * H / autoBadgeK;
       const b = autoBadgeRect;

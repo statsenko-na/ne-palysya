@@ -36,7 +36,7 @@ const SAVE_SCHEMA_STATS_FIELDS = [
 ];
 const SAVE_SCHEMA_EVENT_FIELDS = ['id', 't', 'used', 'food', 'toy', 'work', 'watch'];
 const SAVE_SCHEMA_TIMER_KEYS = new Set([
-  't', 'timer', 'actionTimer', 'actionTotal', 'nextEvent', 'nextBossCheck', 'nextDrill', 'coffeeBoost',
+  't', 'timer', 'remaining', 'actionTimer', 'actionTotal', 'nextEvent', 'nextBossCheck', 'nextDrill', 'coffeeBoost',
   'bumpCooldown', 'hideT', 'cooldown', 'talkTimer', 'idleTimer', 'slackTimer', 'scoldCooldown', 'stateTimer',
   'catchCooldown', 'quoteTimer', 'praiseTimer', 'lookTimer', 'inspectTimer', 'inspectAge', 'snus', 'snusCd',
   'waitT', 'outTimer', 'toiletCd', 'waterRecharge', 'coffeeQueueTimer', 'overtimeWork', 'overworkT', 'aljaziraTimer',
@@ -203,13 +203,13 @@ function saveSchemaActionChoice(choice) {
   const picked = saveSchemaPick(choice, ['id', 'owner', 'options', 'remaining']);
   if (!picked.ok) return picked;
   const value = picked.value;
+  if (typeof value.id !== 'string' || !value.id.trim() || value.id.length > 96 || typeof value.owner !== 'string' || !value.owner.trim() || value.owner.length > 96) return { ok: false, reason: 'invalid_choice_owner' };
+  if (typeof value.remaining !== 'number' || !Number.isFinite(value.remaining) || value.remaining < 0) return { ok: false, reason: 'invalid_choice_timer' };
   if (!Array.isArray(value.options) || value.options.length < 1 || value.options.length > 3) return { ok: false, reason: 'invalid_choice_options' };
   const options = [];
-  for (const option of value.options) {
-    const item = saveSchemaPick(option, ['id', 'text', 'detail', 'disabledReason']);
-    if (!item.ok) return item;
-    if (typeof item.value.id !== 'string' || typeof item.value.text !== 'string') return { ok: false, reason: 'invalid_choice_option' };
-    options.push(item.value);
+  for (const optionId of value.options) {
+    if (typeof optionId !== 'string' || !optionId.trim() || optionId.length > 96 || options.includes(optionId)) return { ok: false, reason: 'invalid_choice_option' };
+    options.push(optionId);
   }
   value.options = options;
   return { ok: true, value };

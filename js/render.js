@@ -98,6 +98,7 @@
     drawChoice();
     drawPhone();
     drawBanner();
+    drawActionChoice();
     if (flash > 0) R(0, 0, W, H, `rgba(224,68,62,${flash * 0.35})`);
   }
 

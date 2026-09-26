@@ -33,6 +33,7 @@
       bindWait = null; renderKeys(); return;
     }
     if (keysOpen) { e.preventDefault(); if (e.key === 'Escape' || e.key === 'Enter') closeKeys(); return; }
+    if (e.target && e.target.matches && e.target.matches('input, textarea, select, [contenteditable="true"]')) return;
     const key = getControlKey(e);
     if (MOVE_KEYS.includes(key) || ['e', 'h', 'p', 'q', 'o', 'enter', ' '].includes(key)) e.preventDefault();
     if (onb.open) {
@@ -47,6 +48,7 @@
       if (key === 'escape' || key === 'u' || key === 'enter') { e.preventDefault(); closeShop(); }
       return;
     }
+    if (handleActionChoiceKeyDown(e, key, MOVE_KEYS)) return;
     if (key === 'u' && (mode === 'menu' || mode === 'ended')) { openShop(); return; }
     if (key === 'm') { muted = !muted; store.set('muted', muted); toast(muted ? 'Звук выключен (M)' : 'Звук включён (M)', 1.4); syncAudioButtons(); return; }
     if (key === 'n') { toggleMusic(); return; }
@@ -66,7 +68,7 @@
     if (key === 'q') { if (!e.repeat) togglePhone(); return; }
     if (MOVE_KEYS.includes(key)) keys.add(key);
   });
-  window.addEventListener('keyup', e => { keys.delete(getControlKey(e)); });
+  window.addEventListener('keyup', e => { releaseActionChoiceKey(e); keys.delete(getControlKey(e)); });
   window.addEventListener('blur', () => keys.clear());
 
   // Сенсорное управление: виртуальный стик + кнопки
@@ -91,6 +93,10 @@
     const handleTouchStart = e => {
       if (sid !== null) return;
       const t = e.changedTouches[0];
+      if (actionChoiceState) {
+        const choiceIndex = actionChoiceIndexAtClient(t.clientX, t.clientY);
+        if (choiceIndex >= 0) { selectActionChoice(choiceIndex); e.preventDefault(); return; }
+      }
       sid = t.identifier;
       getAudio();
 
@@ -143,6 +149,7 @@
         b.classList.add('active');
         const act = b.dataset.act;
         if (act === 'p') { if (mode === 'playing' || mode === 'paused') pauseGame(); return; }
+        if (actionChoiceState) return;
         if (act === 'auto') { if (mode === 'playing') toggleAutopilot(); return; }
         if (mode !== 'playing') return;
         if (act === 'e') interact();
@@ -232,6 +239,13 @@
     setCoins(v) { coins = v; store.set('coins', v); },
     buyUpgrade, startAutopilot, stopAutopilot,
     get choice() { return choice && { ...choice }; },
+    get actionChoice() { return actionChoiceState && { ...actionChoiceState, options: actionChoiceState.options.slice() }; },
+    get actionChoiceView() { return getActionChoiceView(); },
+    get actionChoiceHitboxes() { return actionChoiceHitboxDebug(); },
+    get actionChoiceResult() { return { optionId: actionChoiceDebugResult, calls: actionChoiceDebugCalls, closeReason: actionChoiceLastCloseReason }; },
+    openActionChoice, openDebugActionChoice, closeActionChoice, selectActionChoice,
+    setActionChoiceDebugBlocked(value) { actionChoiceDebugBlocked = !!value; },
+    setStandupChoice(value) { choice = value && { ...value }; },
     setUpgrades(o) { owned = { ...o }; },
     deskCheck() { finishDeskInspection(); },
     restart(seed) { resetGame(seed); },
