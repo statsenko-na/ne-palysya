@@ -122,6 +122,14 @@
   function pickTodo() {
     return (today().tasks || []).map(id => LINES.dayTasks.find(t => t.id === id)).filter(Boolean).map(t => ({ ...t, done: false, day: true }));
   }
+  function requiredEventForTodo(tasks) {
+    const prerequisites = window.NP_CONFIG.TASK_EVENT_PREREQUISITES || {};
+    const task = (tasks || []).find(t => !t.done && prerequisites[t.id]);
+    if (!task) return null;
+    const id = prerequisites[task.id];
+    if (!EVENT_TIER[id] || !unlocked(EVENT_TIER[id])) return null;
+    return { id, deadlineStart: 15 * 60, dispatched: false };
+  }
   function todoProgress(t) {
     if (t.stat) return Math.floor(stats[t.stat] || 0);
     switch (t.id) {
@@ -133,9 +141,11 @@
     }
   }
   function checkTodo() {
+    let completed = false;
     for (const t of todo) {
       if (t.done) continue;
       if (todoProgress(t) >= t.goal) {
+        completed = true;
         t.done = true;
         addFun(8);
         playSound('success');
@@ -144,10 +154,84 @@
         floater(player.x, player.y - 70, '✔ ДЕЛО СДЕЛАНО', '#f2bb38');
       }
     }
+    if (completed) refreshPinnedObjective();
+  }
+
+  function createRelationshipStateAtDay(targetDay) {
+    return advanceRelationshipsDay(createRelationships(), targetDay).state;
+  }
+  function readRelationshipSnapshot(key) {
+    const raw = store.get(key, null);
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+    const sourceDay = raw.dayIndex === null ? 0 : raw.dayIndex;
+    if (!Number.isInteger(sourceDay) || sourceDay < 0 || sourceDay > 4) return null;
+    const checked = advanceRelationshipsDay(raw, sourceDay);
+    return checked.ok ? checked.state : null;
+  }
+  function relationshipSnapshotAtDay(state, targetDay) {
+    if (!state || (state.dayIndex !== null && state.dayIndex > targetDay)) return null;
+    const result = relationshipStateForDay(state, targetDay);
+    return result.ok ? result.state : null;
+  }
+  function prepareRelationshipsForShift(loadResult) {
+    const rawExtension = saveExtensions.relationships;
+    let loadedState = null;
+    if (rawExtension) {
+      const check = relationshipStateForDay(rawExtension, dayIndex);
+      if (check.ok && (rawExtension.dayIndex === null || rawExtension.dayIndex === dayIndex)) loadedState = check.state;
+      else if (!saveExtensionErrors.relationships) saveExtensionErrors.relationships = check.reason || 'day_mismatch';
+    }
+
+    const savedDayStart = readRelationshipSnapshot('relationships.dayStart');
+    const savedWeekStart = readRelationshipSnapshot('relationships.weekStart');
+    const savedCurrent = readRelationshipSnapshot('relationships.current');
+    const dayStart = savedDayStart && savedDayStart.dayIndex === dayIndex ? savedDayStart : null;
+    const currentAtDay = relationshipSnapshotAtDay(savedCurrent, dayIndex);
+    const weekAtDay = savedWeekStart && savedWeekStart.dayIndex === 0
+      ? relationshipSnapshotAtDay(savedWeekStart, dayIndex)
+      : null;
+
+    if (loadResult.status === 'resumed' && loadedState) saveExtensions.relationships = loadedState;
+    else saveExtensions.relationships = dayStart || currentAtDay || weekAtDay || createRelationshipStateAtDay(dayIndex);
+
+    if (auto.on && auto.demo) return;
+    if (!savedWeekStart || savedWeekStart.dayIndex !== 0) store.set('relationships.weekStart', createRelationshipStateAtDay(0));
+    const resolvedDayStart = dayStart || currentAtDay || weekAtDay || createRelationshipStateAtDay(dayIndex);
+    if (!dayStart) store.set('relationships.dayStart', resolvedDayStart);
+    if (!savedCurrent) store.set('relationships.current', resolvedDayStart);
+  }
+
+  function resetRelationshipsForNewWeek() {
+    if (auto.on && auto.demo) return;
+    const start = createRelationshipStateAtDay(0);
+    store.set('relationships.weekStart', start);
+    store.set('relationships.dayStart', start);
+    store.set('relationships.current', start);
+  }
+
+  function commitRelationshipProgress(completedDay, nextDay, newWeek = false) {
+    if (auto.on && auto.demo) return;
+    if (newWeek) { resetRelationshipsForNewWeek(); return; }
+    const current = ensureRelationshipsExtension();
+    const completed = relationshipStateForDay(current, completedDay);
+    if (!completed.ok) return;
+    const next = relationshipStateForDay(completed.state, nextDay);
+    if (!next.ok) return;
+    store.set('relationships.current', completed.state);
+    store.set('relationships.dayStart', next.state);
   }
 
   function resetGame(seed) {
+    closePhonePanel(true, true);
     rngSeed = Number.isInteger(seed) ? seed : Math.floor(Date.now() % 100000); // seed — только для автотестов
+    shiftId = createShiftId();
+    shiftRulesetId = OFFICE_STORIES_RULESET_ID;
+    autoUsed = false;
+    recoveryGraceUsed = false;
+    requiredEvent = null;
+    actionChoiceState = null;
+    saveExtensions = { moments: createMoments() };
+    saveExtensionErrors = {};
     clockMinutes = CFG.shiftStart;
     shiftTime = 0;
     reprimands = 0;
@@ -160,18 +244,21 @@
     coverTokens = 0;
     particles = []; floaters = []; bubbles = []; logEntries = [];
     todo = pickTodo();
+    requiredEvent = requiredEventForTodo(todo);
     officeEvent = null;
     banner = null;
     tutorial = { step: store.get('tutorialDone', false) ? 99 : 0, t: 0 };
     nextEvent = 32 + rand() * 12;
     eventQueue = shuffleEvents();
-    Object.assign(player, { x: SEAT.x, y: WD.ROW1_Y + 62, action: 'none', actionTimer: 0, coffeeBoost: 0, speed: CFG.playerSpeed, chatWith: null, hideSpot: null, facingX: -1 });
-    Object.assign(boss, { x: WD.bossHome.x, y: WD.bossHome.y, state: 'office', stateTimer: 5, path: [], suspicion: 0, catchCooldown: 0, quoteTimer: 4, praiseTimer: 0, warned: false, facing: Math.PI / 2 });
-    coworkers.forEach(c => { c.cooldown = 0; c.talkTimer = 0; c.idleTimer = 2 + rand() * 12; c.alert = 0; c.slack = null; c.slackTimer = 10 + rand() * 12; c.scoldCooldown = 0; c.rocketAt = 660 + rand() * 360; c.draftCd = 0; });
+    Object.assign(player, { x: SEAT.x, y: WD.ROW1_Y + 62, action: 'none', actionTimer: 0, actionTotal: 0, coffeeBoost: 0, speed: CFG.playerSpeed, chatWith: null, chatPair: null, chatReplied: false, hideSpot: null, hideT: 0, queueTarget: null, workFromFront: false, bumpCooldown: 0, walkTimer: 0, moving: false, facingX: -1 });
+    for (const key of ['alarm', 'caught', 'coworker', 'emptyDesk', 'gaveUp', 'heat', 'lunchBack', 'noise', 'office', 'patrol', 'praise', 'scold', 'scoldTarget', 'seesPlayer', 'silentCheck', 'snus', 'snusCd', 'standupTalk', 'stroll', 'suspicious', 'waitT', 'watchingWork', 'outTimer', 'outWhy']) delete boss[key];
+    Object.assign(boss, { x: WD.bossHome.x, y: WD.bossHome.y, state: 'office', stateTimer: 5, path: [], mode: 'patrol', spotDesc: 'кабинет', suspicion: 0, catchCooldown: 0, quoteTimer: 4, praiseTimer: 0, lookTimer: 0, inspectTimer: 0, visitedSpots: 0, warned: false, facing: Math.PI / 2, walkTimer: 0, moving: false });
+    coworkers.forEach(c => { c.cooldown = 0; c.talkTimer = 0; c.idleTimer = 2 + rand() * 12; c.alert = 0; c.slack = null; c.slackTimer = 10 + rand() * 12; c.scoldCooldown = 0; c.rocketAt = 660 + rand() * 360; c.draftCd = 0; c.path = null; });
     banterT = 10 + rand() * 12; pendingSays.length = 0;
     day = {
       misses: 0, lunchCalled: false, lunchOpen: false, fed: false, hungry: false, bossLunch: false, beer: null,
       toiletCd: 0, queue: 0, queueTotal: 0, qShift: 0, knock: 3, cabinDoor: 0, npcInside: 0, npcTimer: 20,
+      drillAwayTimer: 0, drillAwayIndex: 0, lunchAwayTimer: 0, lunchAwayIndex: 0, beerAwayTimer: 0, beerAwayIndex: 0,
       waterCups: 4, waterRecharge: 0,
       coffeeCups: 0, coffeeJammed: false, coffeeQueueTimer: 0, coffeeQueueChecked: false,
       excelWorkAcc: 0, overtimeWork: 0,
@@ -184,6 +271,9 @@
     };
     day.vilka = dayIndex === 3; // четверг — стейки в «Вилке»
     day.peeAt = CFG.shiftStart + 50 + rand() * 90; // первый раз — между 09:40 и 11:10
+    day.smog = unlocked('almaty') && dayIndex !== 4 && rand() < 0.3;
+    day.traffic = unlocked('almaty') && !auto.on && rand() < 0.25;
+    coworkers.forEach(c => { c.remote = c.extra && !c.ghost && !c.statist && !unlocked('row2'); c.away = c.remote; });
     walkers = [];
     choice = null; nudge = null;
     shownThisShift.clear();
@@ -191,32 +281,35 @@
     if (dayIndex === 0 && !store.get('currentSave', null)) {
       weekReprimands = 0; store.set('weekReprimands', 0);
     }
-    const loadedSave = loadSavedProgress();
-    if (has('lava')) addFun(3);
+    const loadResult = loadSavedProgress();
+    refreshPinnedObjective();
+    lastLoadResult = { ...loadResult };
+    prepareRelationshipsForShift(loadResult);
+    const hasSavedShift = loadResult.status !== 'new';
+    if (!hasSavedShift && has('lava')) addFun(3);
     addLog(`${today().name}: ${today().mod}.`);
-    if (loadedSave) {
+    if (hasSavedShift) {
       addLog(`Продолжение смены: ${timeString(clockMinutes)}, план ${Math.floor(usefulness)}/${planTarget}, кайф ${Math.round(fun)}.`, 'info');
     } else {
       addLog('08:50 — Быкентий пришёл в БЦ «Угар». Хвостик поправлен, в наушниках — «Кино».');
       addLog('Директор Начальникович пьёт чай в кабинете. Пока.');
       addLog('Напоминание: ты ответственный за Маджикистан. Там опять что-то моргает.');
     }
-    if (dayIndex === 0 && !loadedSave) { majikArc = 0; store.set('majikArc', 0); }
-    // Алматинские дни: смог и утренняя пробка на Аль-Фараби
-    day.smog = unlocked('almaty') && dayIndex !== 4 && rand() < 0.3;
-    day.traffic = !loadedSave && unlocked('almaty') && !auto.on && rand() < 0.25;
-    // Второй ряд до четверга на удалёнке
-    coworkers.forEach(c => { c.remote = c.extra && !c.ghost && !c.statist && !unlocked('row2'); c.away = c.remote; });
-    if (loadedSave && day.lunchAway) coworkers.forEach(c => { if (!c.ghost) c.away = true; });
+    if (dayIndex === 0 && !hasSavedShift) { majikArc = 0; store.set('majikArc', 0); }
+    // Смог, пробка и удалёнка генерируются один раз до загрузки; v3 затем восстанавливает их точные значения.
     if (day.smog) addLog('Смог над Алматы: гор не видно, перекур без вида — кайфа меньше.', 'info');
-    if (day.traffic) {
+    if (day.traffic && !hasSavedShift) {
       player.x = WD.exitDoor.x + 12; player.y = WD.exitDoor.y;
       nextBossCheck = Math.min(nextBossCheck, 9);
       addLog('Пробка на Аль-Фараби! Быкентий опоздал — беги к столу, пока Д.Н. не заметил.', 'bad');
     }
     setMode('playing');
-    const firstWeek = !store.get('weekDone', false);
-    banner = { dur: firstWeek ? 8 : 4.4, text: `${today().name} · ДЕНЬ ${dayIndex + 1}/5 · ПЛАН ${planTarget}`, sub: firstWeek ? `${today().news} · ${today().mod}` : day.traffic ? 'Пробка на Аль-Фараби! Ты опоздал — беги к столу, Д.Н. скоро с проверкой.' : (day.smog ? `${today().mod} · Смог: гор не видно` : today().mod), t: 0 };
+    if (!hasSavedShift || loadResult.status === 'migrated') {
+      const firstWeek = !store.get('weekDone', false);
+      banner = { dur: firstWeek ? 8 : 4.4, text: `${today().name} · ДЕНЬ ${dayIndex + 1}/5 · ПЛАН ${planTarget}`, sub: firstWeek ? `${today().news} · ${today().mod}` : day.traffic ? 'Пробка на Аль-Фараби! Ты опоздал — беги к столу, Д.Н. скоро с проверкой.' : (day.smog ? `${today().mod} · Смог: гор не видно` : today().mod), t: 0 };
+    }
+    if (loadResult.status === 'migrated') saveProgress(); // заменяем v2 снимком v3 с уже использованной передышкой
+    if (loadResult.status === 'new' && loadResult.reason && !['context_mismatch', 'autopilot'].includes(loadResult.reason)) toast('Сохранение смены повреждено; началась новая смена.', 3);
   }
   function enterFullscreen() {
     try {
@@ -244,6 +337,6 @@
   }
   function pauseGame() {
     playSound('click');
-    if (mode === 'playing') setMode('paused');
+    if (mode === 'playing') { closePhonePanel(true, true); setMode('paused'); saveProgress(); }
     else if (mode === 'paused') setMode('playing');
   }

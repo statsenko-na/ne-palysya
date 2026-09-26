@@ -71,6 +71,13 @@
   let autoBadgeRect = null;
   canvas.addEventListener('pointerdown', e => {
     const r = canvasBox();
+    if (actionChoiceState && mode === 'playing') {
+      const index = actionChoiceIndexAtClient(e.clientX, e.clientY);
+      if (index >= 0) selectActionChoice(index);
+      e.preventDefault();
+      return;
+    }
+    if (handlePhonePanelPointer(e.clientX, e.clientY)) { e.preventDefault(); return; }
     if (autoBadgeRect && mode === 'playing') {
       const ax = (e.clientX - r.left) / r.width * W / autoBadgeK, ay = (e.clientY - r.top) / r.height * H / autoBadgeK;
       const b = autoBadgeRect;
@@ -106,11 +113,11 @@
   const AUTO_LABELS = { desk: 'идёт работать', coffee: 'за кофе', smoke: 'на перекур', server: 'в серверную', fridge: 'к холодильнику', water: 'к кулеру', printer: 'печатать мем', toilet: 'в биотуалет', phone: 'залипает в телефон', chat: 'болтать', hide: 'прячется!', exit: 'к выходу', standup: 'на летучку', feast: 'за едой' };
   function drawObjective() {
     screenRects.obj = null;
-    if (mode !== 'playing' || player.action === 'phone') return;
+    if (mode !== 'playing' || player.action === 'phone' || phonePanelOpen) return;
     if (compactHud() && banner) return; // на маленьком экране не спорим с баннером дня
-    const next = todo.find(t => !t.done);
+    const next = selectedObjectiveTodo();
     const done = todo.filter(t => t.done).length;
-    const text = next ? `📋 ${next.text}${next.goal > 1 ? ` ${Math.min(next.goal, todoProgress(next))}/${next.goal}` : ''}  ·  ${done}/${todo.length}` : `📋 Все дела сделаны! ${done}/${todo.length}`;
+    const text = next ? `📋 ${next.text}${next.goal > 1 ? ` ${Math.min(next.goal, todoProgress(next))}/${next.goal}` : ''}  ·  ${done}/${todo.length}` : `📋 Общий план ${Math.floor(usefulness)}/${planTarget} · дела ${done}/${todo.length}`;
     const k = uiK(1.6);
     const { VW, VH } = uiSpace(k);
     const buzz = phoneBuzz > 0 && Math.floor(performance.now() / 200) % 2 === 0;

@@ -38,8 +38,9 @@
     if (!day.peeActive) {
       if (day.peeLeft > 0 && clockMinutes >= day.peeAt && player.action !== 'toilet' && player.action !== 'queue') {
         day.peeActive = true; day.pee = 5; day.peeLeft--;
+        day.peeCriticalTold = false;
         say('player', pick(LINES.pee.start), 2.8);
-        hint('pee', 'Быкентию приспичило! Дойди до синего биотуалета (юго-запад), пока шкала 🚽 не дошла до 100%.');
+        hint('pee', 'Быкентию приспичило! Дойди до синего биотуалета. На 100% шаг замедлится, кайф начнёт уходить.');
       }
       return;
     }
@@ -48,13 +49,13 @@
     day.pee = Math.min(100, day.pee + CFG.peeRise * dt * (player.action === 'queue' ? 0.5 : 1) * (player.coffeeBoost > 0 ? 1.3 : 1));
     if (before < 70 && day.pee >= 70) say('player', pick(LINES.pee.urgent), 2.6);
     if (day.pee >= 100) {
-      day.peeActive = false; day.pee = 0;
-      addFun(-CFG.peeFail);
-      flash = 0.5; shake = 0.4; playSound('caught');
-      say('player', pick(LINES.pee.fail), 3.4);
-      banner = { text: 'НЕ ДОТЕРПЕЛ', sub: `Пришлось бежать в соседний БЦ. −${CFG.peeFail} кайфа`, t: 0, bad: true };
-      addLog(`🚽 Не дотерпел до биотуалета. −${CFG.peeFail} кайфа и немного достоинства.`, 'bad');
-      schedulePee();
+      day.pee = 100;
+      const drain = player.action === 'queue' ? CFG.peeQueueDrain : CFG.peeCriticalDrain;
+      addFun(-drain * dt);
+      if (!day.peeCriticalTold) {
+        day.peeCriticalTold = true;
+        toast(LINES.pee.critical, 3.6);
+      }
     }
   }
   function schedulePee() {
@@ -72,6 +73,22 @@
     return !o.path || !o.path.length;
   }
   function coworkerById(id) { return coworkers.find(c => c.id === id); }
+
+  function requestFavor(npcId, kind) {
+    if (!RELATIONSHIP_NPC_IDS.includes(npcId)) return { ok: false, reason: 'unknown_npc' };
+    if (typeof kind !== 'string' || !kind.trim()) return { ok: false, reason: 'invalid_favor_kind' };
+    const coworker = coworkerById(npcId);
+    if (!coworker || coworker.away || coworker.remote) return { ok: false, reason: 'npc_unavailable' };
+    if (!unlocked('coworkers')) return { ok: false, reason: 'mechanic_locked' };
+    if (player.action !== 'none' || actionChoiceState || (choice && choice.asked && !choice.done)
+      || coworker.cooldown > 0 || (coworker.slack && coworker.slackTimer > 0)) {
+      return { ok: false, reason: 'busy' };
+    }
+    const eligibility = canRequestFavor(ensureRelationshipsExtension(), npcId, dayIndex);
+    if (!eligibility.ok) return { ok: false, reason: eligibility.reason };
+    if (!eligibility.canRequest) return { ok: false, reason: eligibility.reason || 'favor_unavailable' };
+    return { ok: false, reason: 'unavailable' };
+  }
 
   function getActionInfo() {
     if (nudge && player.action === 'work') return { prompt: 'Блеб зовёт посмотреть мем: E — глянуть (кайф, палево) · не отвечать — обидится', target: 'desk' };
@@ -129,6 +146,41 @@
     if (clockMinutes < CFG.lunchOpen) return 'Выход на лестницу. Обед — с 12:30 до 14:00, раньше ни шагу.';
     return 'Выход на лестницу. Уйти на обед можно было до 14:00, теперь до 19:30 ни шагу.';
   }
+  function recordVarietyCompletion(activityId) {
+    if (shiftRulesetId !== OFFICE_STORIES_RULESET_ID) return null;
+    const sourceId = `${shiftId}:${activityId}:${Math.round(shiftTime * 1000)}`;
+    const result = awardMoment(ensureMomentsExtension(), 'variety', sourceId, {
+      activityId, active: false, completed: true, paused: false,
+    });
+    if (result.ok) saveExtensions.moments = result.state;
+    return result;
+  }
+  function tickPhoneMoment(dt) {
+    if (shiftRulesetId !== OFFICE_STORIES_RULESET_ID) return;
+    const state = ensureMomentsExtension();
+    const episode = state.variety && state.variety.phoneEpisode;
+    const sourceId = episode && typeof episode.sourceId === 'string'
+      ? episode.sourceId
+      : `${shiftId}:phone:${Math.floor(shiftTime * 1000)}`;
+    const result = awardMoment(state, 'variety', sourceId, {
+      activityId: 'phone', active: true, completed: false, paused: false, dt,
+    });
+    if (result.ok) saveExtensions.moments = result.state;
+  }
+  function finishPhoneMoment(allowCompletion = true) {
+    if (shiftRulesetId !== OFFICE_STORIES_RULESET_ID) return null;
+    const state = ensureMomentsExtension();
+    const episode = state.variety && state.variety.phoneEpisode;
+    const sourceId = episode && typeof episode.sourceId === 'string'
+      ? episode.sourceId
+      : `${shiftId}:phone:${Math.floor(shiftTime * 1000)}`;
+    const completed = !!allowCompletion && !!episode && Number.isFinite(episode.seconds) && episode.seconds >= 6;
+    const result = awardMoment(state, 'variety', sourceId, {
+      activityId: 'phone', active: false, completed, paused: false,
+    });
+    if (result.ok) saveExtensions.moments = result.state;
+    return result;
+  }
   function startAction(action, seconds) {
     // Бесконечно сидеть в кустах нельзя: после «хвостик торчит» укрытия недоступны на время
     if (COVER.has(action) && day.hideCd > 0) { say('player', `Фикус ещё помнит мой хвостик… (${Math.ceil(day.hideCd)} с)`, 2); player.hideSpot = null; return; }
@@ -139,11 +191,123 @@
     player.actionTimer = seconds;
     player.actionTotal = seconds;
   }
-  function endAction(reason) {
+  function ensureActivitiesExtension() {
+    const current = saveExtensions.activities;
+    if (current && activitiesStateIsValid(current) && (!current.shiftId || current.shiftId === shiftId)) return current;
+    const next = createActivities();
+    next.smokePrompted = false;
+    saveExtensions.activities = next;
+    if (current) saveExtensionErrors.activities = 'state_invalid';
+    return next;
+  }
+  function commitActivitiesTransition(result, previous) {
+    if (!result || !result.ok) return false;
+    result.state.smokePrompted = !!(previous && previous.smokePrompted);
+    saveExtensions.activities = result.state;
+    delete saveExtensionErrors.activities;
+    return true;
+  }
+  function activityContext(overrides) {
+    return Object.assign({
+      shiftId,
+      paused: mode !== 'playing',
+      shiftEnded: mode === 'ended',
+    }, overrides || {});
+  }
+  function activityVariantMatchesAction(variant, action) {
+    return (variant === 'smoke-listening' && action === 'smoke') ||
+      ((variant === 'youtube-quiet' || variant === 'youtube-loud') && action === 'youtube');
+  }
+  function startSmokeListening() {
+    const current = ensureActivitiesExtension();
+    const result = startActivityVariant(current, activityContext({
+      dayIndex,
+      ordinarySmokeCompleted: true,
+    }), 'smoke-listening');
+    if (!commitActivitiesTransition(result, current)) return false;
+    startAction('smoke', result.remaining);
+    playSound('smoke');
+    say('player', pick(LINES.thoughts.smoke), 2.4);
+    addLog('Быкентий прислушивается после перекура. Ещё три секунды без кайфа.', 'info');
+    return true;
+  }
+  function startYoutubeVariant(variant) {
+    const current = ensureActivitiesExtension();
+    const result = startActivityVariant(current, activityContext({
+      internetAvailable: !eventIs('internet'),
+    }), variant);
+    if (!commitActivitiesTransition(result, current)) {
+      if (result.reason === 'internet_unavailable') say('player', 'Интернета нет... Придётся работать?!', 2.4);
+      return false;
+    }
+    startAction('youtube', result.remaining);
+    playSound('click');
+    say('player', pick(LINES.thoughts.youtube), 3.2);
+    addLog(variant === 'youtube-loud'
+      ? 'Серверная: ролик со звуком. Шум может привлечь Д.Н.'
+      : 'Серверная: тихий ролик на гигабитном канале.', 'bad');
+    return true;
+  }
+  function offerSmokeListeningChoice() {
+    if (dayIndex < 1) return false;
+    const activities = ensureActivitiesExtension();
+    if (activities.smokePrompted || activities.listeningCompleted || activities.intelGranted) return false;
+    const opened = openActionChoice({
+      id: 'smoke-listening', owner: 'player', options: ['listen', 'later'], expiresIn: 10,
+    });
+    if (opened) {
+      activities.smokePrompted = true;
+      saveExtensions.activities = activities;
+    }
+    return opened;
+  }
+  function applyActivityEffects(effects) {
+    for (const effect of effects || []) {
+      if (effect.type === 'grantIntel') {
+        intelTimer = Math.max(intelTimer, effect.seconds);
+        say('player', bossIntelHasCountdown() ? LINES.thoughts.smokeIntel : bossIntelStatusText(), 3.2);
+        addLog('Быкентий запомнил расписание проверок Д.Н.', 'good');
+      } else if (effect.type === 'countCompleted' && effect.statId === 'videos') {
+        stats.videos++;
+      } else if (effect.type === 'requestBossRoute' && effect.targetId === 'server' && effect.reasonId === 'youtube_loud') {
+        if (!routeBossToServer()) {
+          say('boss', LINES.boss.youtubeNoiseBlocked, 2.4);
+        }
+      } else if (effect.type === 'message' && effect.lineId === 'youtubeNoiseBlocked') {
+        const message = LINES.boss.youtubeNoiseBlocked;
+        if (['gone', 'out', 'leaving', 'goout'].includes(boss.state)) toast(message, 2.4);
+        else say('boss', message, 2.4);
+      }
+    }
+  }
+  function cancelActiveActivitiesAtShiftEnd() {
+    const current = saveExtensions.activities;
+    if (!current || !current.active || !activitiesStateIsValid(current)) return false;
+    const result = cancelActivityVariant(current, 'shift_ended');
+    if (!commitActivitiesTransition(result, current)) return false;
+    if (activityVariantMatchesAction(result.variant, player.action)) {
+      player.action = 'none';
+      player.actionTimer = 0;
+    }
+    return true;
+  }
+  function endAction(reason, finishedActivity = null) {
     const a = player.action;
+    let activityVariant = finishedActivity && finishedActivity.variant;
+    if (!finishedActivity) {
+      const currentActivity = saveExtensions.activities;
+      if (currentActivity && currentActivity.active && activityVariantMatchesAction(currentActivity.active.variant, a)) {
+        activityVariant = currentActivity.active.variant;
+        const canceled = cancelActivityVariant(currentActivity, reason === 'shift_ended' ? 'shift_ended' : 'cancel');
+        if (commitActivitiesTransition(canceled, currentActivity) && activityVariant === 'smoke-listening' && reason === 'cancel') {
+          saveExtensions.activities.smokePrompted = false;
+        }
+      }
+    }
+    let completedChat = false;
     if (a === 'chat') {
       const c = coworkerById(player.chatWith);
-      if (reason === 'done' && c) grantPerk(c);
+      if (reason === 'done' && c) { grantPerk(c); completedChat = true; }
       player.chatWith = null;
     }
     if (a === 'fridge' && reason === 'done') stats.fridge++;
@@ -159,16 +323,18 @@
       toast('Ушёл из очереди. Место заняли.', 1.6);
     }
     if (a === 'toilet') {
-      stats.toilet++;
-      day.toiletCd = CFG.toiletCooldown;
-      playSound('flush');
-      day.cabinDoor = 0.8;
       player.x = WD.toiletDoor.x; player.y = WD.toiletDoor.y;
-      if (day.peeActive) {
-        day.peeActive = false; day.pee = 0; addFun(4); schedulePee();
-        floater(player.x, player.y - 64, 'ПОЛЕГЧАЛО! +4 КАЙФ', '#8fd0f0');
-        setTimeout(() => { if (mode === 'playing') say('player', pick(LINES.pee.relief), 2.8); }, 300);
-      } else floater(player.x, player.y - 64, 'ПОЛЕГЧАЛО', '#8fd0f0');
+      if (reason === 'done') {
+        stats.toilet++;
+        day.toiletCd = CFG.toiletCooldown;
+        playSound('flush');
+        day.cabinDoor = 0.8;
+        if (day.peeActive) {
+          day.peeActive = false; day.pee = 0; day.peeCriticalTold = false; addFun(4); schedulePee();
+          floater(player.x, player.y - 64, 'ПОЛЕГЧАЛО! +4 КАЙФ', '#8fd0f0');
+          scheduleShiftCallback(() => { if (mode === 'playing') say('player', pick(LINES.pee.relief), 2.8); }, 300);
+        } else floater(player.x, player.y - 64, 'ПОЛЕГЧАЛО', '#8fd0f0');
+      } else day.cabinDoor = 0.6;
     }
     if (a === 'lunch' && reason === 'done') {
       day.fed = true; day.hungry = false; stats.lunch++;
@@ -179,8 +345,8 @@
       floater(player.x, player.y - 64, `СЫТ · +${lf} КАЙФА`, '#e8b070');
       addLog(day.vilka ? `Обед в «Вилке»: ${day.dish}. Вот это жизнь!` : `Обед в «Мюнхене»: ${day.dish}. Невкусно, но сытно.`, 'good');
     }
-    if (a === 'smoke' && reason === 'done') stats.cigarettes++;
-    if (a === 'youtube' && reason === 'done') stats.videos++;
+    if (a === 'smoke' && reason === 'done' && activityVariant !== 'smoke-listening') stats.cigarettes++;
+    if (a === 'youtube' && reason === 'done' && !activityVariant) stats.videos++;
     if (a === 'printer' && reason === 'done') { stats.printed++; floater(player.x, player.y - 64, 'МЕМ НАПЕЧАТАН', '#bfe3f0'); }
     if (a === 'fixjam' && reason === 'done') {
       addWork(9);
@@ -188,6 +354,10 @@
       addLog('Быкентий починил ксерокс. Герой отдела.', 'good');
       if (boss.seesPlayer || dist(boss, player) < 150) { say('boss', 'О! Технарь! Вот это я понимаю!', 2.8); stats.praise++; }
       else say('shurik', 'Спасибо! Он снова жуёт только иногда.', 2.6);
+      recordRelationshipEvent('shurik', 'help', `${shiftId}:relationships:shurik:fixjam`);
+    }
+    if (a === 'meme' && reason === 'done') {
+      recordRelationshipEvent('bleb', 'help', `${shiftId}:relationships:bleb:meme`);
     }
     if (a === 'fix_coffee' && reason === 'done') {
       day.coffeeJammed = false;
@@ -198,10 +368,15 @@
       floater(player.x, player.y - 64, 'КОФЕМАШИНА ЧИСТА +3 KPI', '#57d08a');
       addLog('Быкентий почистил кофемашину. Офис спасён.', 'good');
     }
+    if (reason === 'done' && (a === 'smoke' || a === 'youtube' || a === 'fridge' || completedChat) &&
+        !(finishedActivity && finishedActivity.countAsBaseActivity === false)) {
+      recordVarietyCompletion(a);
+    }
     player.action = 'none';
     player.actionTimer = 0;
     player.hideSpot = null;
     checkTodo();
+    if (reason === 'done' && a === 'smoke' && activityVariant !== 'smoke-listening') offerSmokeListeningChoice();
   }
 
   function grantPerk(c) {
@@ -359,10 +534,8 @@
       case 'server':
         if (player.action === 'youtube') { endAction('cancel'); toast('Вкладка закрыта.', 1.4); return; }
         if (eventIs('internet')) { say('player', 'Интернета нет... Придётся работать?!', 2.4); return; }
-        startAction('youtube', 8);
-        playSound('click');
-        say('player', pick(LINES.thoughts.youtube), 3.2);
-        addLog('Серверная: 4K-ролик на гигабитном канале.', 'bad');
+        if (auto.on) { startYoutubeVariant('youtube-quiet'); return; }
+        openActionChoice({ id: 'youtube-risk', owner: 'player', options: ['quiet', 'loud'], expiresIn: 10 });
         break;
       case 'exit':
         if (day.beer) { goMunichBeer(); return; }
@@ -408,7 +581,7 @@
         officeEvent.used = true;
         fun += 5;
         say('player', kind === 'heat' ? 'Директор Начальникович, тут +32! Кондей сдох!' : 'Директор Начальникович, сверлят! Невозможно работать!', 2.8);
-        setTimeout(() => { if (mode === 'playing') say('boss', pick(LINES.boss.complain[kind]), 3); }, 1500);
+        scheduleShiftCallback(() => { if (mode === 'playing') say('boss', pick(LINES.boss.complain[kind]), 3); }, 1500);
         if (rand() < 0.5) {
           officeEvent.t = Math.min(officeEvent.t, 5);
           addLog(kind === 'heat' ? 'Жалоба сработала: АХО включило кондей.' : 'Жалоба сработала: соседи притихли.', 'good');
@@ -444,19 +617,33 @@
     }
   }
 
-  function togglePhone() {
-    if (player.action === 'phone') { endAction('cancel'); playSound('click'); return; }
-    if (AWAY.has(player.action)) return;
+  function startPhoneScrolling() {
+    if (mode !== 'playing') return false;
+    if (player.action === 'phone') { phonePage = 'reels'; phonePanelOpen = true; return true; }
+    if (AWAY.has(player.action)) return false;
     if (player.action === 'work' || HIDDEN.has(player.action) || player.action === 'chat') {
       // в Excel и в укрытии телефон тоже можно достать — но это палево
       if (player.action === 'work') player.y = SEAT.y;
       if (player.action === 'plant_hide' && player.hideSpot) player.y = player.hideSpot.y + 14;
-      if (player.action === 'chat') return;
+      if (player.action === 'chat') return false;
       endAction('cancel');
     }
     startAction('phone', 0);
     phoneBuzz = 0;
     playSound('blip');
+    phonePage = 'reels';
+    phonePanelOpen = true;
+    return true;
+  }
+  function finishPhoneScrolling() {
+    if (player.action !== 'phone') return false;
+    finishPhoneMoment(true);
+    endAction('cancel');
+    return true;
+  }
+  function togglePhone() {
+    if (player.action === 'phone') { finishPhoneScrolling(); playSound('click'); return; }
+    startPhoneScrolling();
   }
 
   function quickHide() {
@@ -510,3 +697,26 @@
     }
   }
   const achCount = () => ACHIEVEMENTS.filter(a => achieved[a.id]).length;
+
+  registerActionChoiceHandler('smoke-listening', {
+    title: 'Можно прислушаться: ещё 3 с',
+    options: [
+      { id: 'listen', label: 'Прислушаться', detail: 'Ещё 3 с на балконе · без кайфа' },
+      { id: 'later', label: 'Потом', detail: 'Закончить перекур' },
+    ],
+    handlers: {
+      listen: () => startSmokeListening(),
+      later: () => {},
+    },
+  });
+  registerActionChoiceHandler('youtube-risk', {
+    title: 'Серверная: выбрать риск',
+    options: [
+      { id: 'quiet', label: 'Тихо', detail: '8 с · 5 кайфа/с · итого 40', disabledReason: () => eventIs('internet') ? 'Интернет отключён' : '' },
+      { id: 'loud', label: 'Со звуком', detail: '6 с · 5.5 кайфа/с · итого 33 · шум на 3-й секунде', disabledReason: () => eventIs('internet') ? 'Интернет отключён' : '' },
+    ],
+    handlers: {
+      quiet: () => startYoutubeVariant('youtube-quiet'),
+      loud: () => startYoutubeVariant('youtube-loud'),
+    },
+  });

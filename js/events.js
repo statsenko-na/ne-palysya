@@ -32,14 +32,26 @@
     const pool = ['call', 'internet', 'jam', 'bday', 'heat', 'noise', 'drill', 'standup', 'majik', 'autoshka', 'arrfr'].filter(open);
     if (!open('food')) return []; // понедельник: только ядро, без событий
     for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
-    const ids = pool.slice(0, 5);
-    ids.splice(Math.floor(rand() * 2), 0, 'food');
+    let ids = pool.slice(0, 5);
+    const requiredId = requiredEvent && !requiredEvent.dispatched && pool.includes(requiredEvent.id) ? requiredEvent.id : null;
+    if (requiredId) {
+      ids = [requiredId, ...ids.filter(id => id !== requiredId).slice(0, 4)];
+      rand(); // Сохраняем прежнее потребление RNG при выборе позиции угощения.
+      ids.splice(1, 0, 'food');
+    } else {
+      ids.splice(Math.floor(rand() * 2), 0, 'food');
+    }
     if (open('sb') && rand() < 0.3) ids.splice(Math.min(ids.length, 2 + Math.floor(rand() * 3)), 0, 'sb'); // редкое: служба безопасности включает камеры
     return ids;
   }
   const bossBusy = () => ['inspect', 'waitDesk', 'lecture', 'leaving', 'gone', 'goout', 'out', 'scold'].includes(boss.state);
   function startEvent(id) {
     const def = EVENTS[id];
+    if (!def) return false;
+    if (requiredEvent && id === requiredEvent.id) {
+      requiredEvent.dispatched = true;
+      eventQueue = eventQueue.filter(eventId => eventId !== id);
+    }
     officeEvent = { id, t: def.dur, used: false };
     let text = def.title;
     if (id === 'food') { officeEvent.food = pick(FOODS); text = officeEvent.food.text; }
@@ -60,7 +72,7 @@
       fun = Math.max(0, fun - CFG.bdayFee);
       floater(player.x, player.y - 70, `−5000 ₸ · −${CFG.bdayFee} КАЙФА`, '#ff8a7a');
       say('shurik', LINES.bday[0], 3);
-      setTimeout(() => { if (mode === 'playing') say('asel', LINES.bday[1], 3); }, 1600);
+      scheduleShiftCallback(() => { if (mode === 'playing') say('asel', LINES.bday[1], 3); }, 1600);
       addLog(`Сбор на ДР: минус 5000 ₸. К плану это не прибавляет.`, 'bad');
     }
     if (id === 'heat') { text = has('fan') ? 'Жара! Но у тебя вентилятор 🌀. Кулер даёт больше кайфа.' : 'Жара: кайф копится медленнее. Кулер спасает. Можно пожаловаться Д.Н. у его двери.'; complainWave('heat'); }
@@ -70,7 +82,8 @@
       playSound('siren');
       if (!bossBusy() || boss.state === 'scold') bossGoOut(def.dur + 2, 'drill');
       say('boss', pick(LINES.boss.drill), 3);
-      coworkers.forEach((c, i) => setTimeout(() => { if (eventIs('drill') && !c.ghost) { c.away = true; puff(c.x, c.y - 20, 'rgba(230,230,230,0.7)', 5, 10); } }, 600 + i * 450));
+      day.drillAwayTimer = 0.6;
+      day.drillAwayIndex = 0;
     }
     if (id === 'standup') {
       text = 'Д.Н. собирает всех у доски (архив, слева внизу). Встань рядом и жми E!';
@@ -91,7 +104,7 @@
       officeEvent.work = 0;
       text = 'Ты ответственный за Маджикистан! Сядь в Excel на 4 с и подними его (+10 к плану), иначе выговор.';
       say('boss', pick(LINES.majik.boss), 3);
-      setTimeout(() => { if (mode === 'playing') say('player', pick(LINES.majik.down), 2.8); }, 1400);
+      scheduleShiftCallback(() => { if (mode === 'playing') say('player', pick(LINES.majik.down), 2.8); }, 1400);
     }
     if (id === 'autoshka') {
       const c = coworkerById('sirgey');
@@ -107,14 +120,15 @@
     banner = { text: officeEvent.toy ? 'СБОР НА ТОЙ' : def.title, sub: text, t: 0 };
     playSound('success');
     addLog(`Событие: ${text}`, 'info');
+    return true;
   }
   function complainWave(kind) {
     const pool = coworkers.filter(c => !c.away);
     for (let i = 0; i < 3; i++) {
       const c = pool[Math.floor(rand() * pool.length)];
-      setTimeout(() => { if (eventIs(kind) && !c.away) say(c.id, pick(LINES.complaints[kind]), 2.8, '#ffe6c8'); }, 400 + i * 1500);
+      scheduleShiftCallback(() => { if (eventIs(kind) && !c.away) say(c.id, pick(LINES.complaints[kind]), 2.8, '#ffe6c8'); }, 400 + i * 1500);
     }
-    setTimeout(() => { if (eventIs(kind)) say('player', pick(LINES.thoughts[kind]), 2.8); }, 5200);
+    scheduleShiftCallback(() => { if (eventIs(kind)) say('player', pick(LINES.thoughts[kind]), 2.8); }, 5200);
   }
   function endEvent() {
     const ev = officeEvent;
@@ -122,6 +136,8 @@
     if (!ev) return;
     if (ev.id === 'call') { nextBossCheck = Math.max(nextBossCheck, 6); if (boss.state === 'office') boss.stateTimer = 1.5; }
     if (ev.id === 'drill') {
+      day.drillAwayTimer = 0;
+      day.drillAwayIndex = coworkers.length;
       coworkers.forEach(c => { if (!day.lunchAway) c.away = !!c.remote; });
       if (player.action === 'evac') {
         endAction('done');
@@ -151,7 +167,72 @@
       checkTodo();
     }
   }
+  function updateDrillAway(dt) {
+    if (!eventIs('drill') || day.drillAwayIndex >= coworkers.length || day.drillAwayTimer <= 0) return;
+    day.drillAwayTimer -= dt;
+    while (day.drillAwayTimer <= 0 && day.drillAwayIndex < coworkers.length) {
+      const c = coworkers[day.drillAwayIndex++];
+      if (!c.ghost) { c.away = true; puff(c.x, c.y - 20, 'rgba(230,230,230,0.7)', 5, 10); }
+      day.drillAwayTimer += 0.45;
+    }
+    if (day.drillAwayIndex >= coworkers.length) day.drillAwayTimer = 0;
+  }
+  function updateLunchAway(dt) {
+    if (day.lunchAwayIndex >= coworkers.length || day.lunchAwayTimer <= 0) return;
+    day.lunchAwayTimer -= dt;
+    while (day.lunchAwayTimer <= 0 && day.lunchAwayIndex < coworkers.length) {
+      const c = coworkers[day.lunchAwayIndex++];
+      if (!eventIs('drill')) {
+        if (!c.ghost) c.away = true;
+        day.lunchAway = true;
+      }
+      day.lunchAwayTimer += 0.7;
+    }
+    if (day.lunchAwayIndex >= coworkers.length) day.lunchAwayTimer = 0;
+  }
+  function updateBeerAway(dt) {
+    if (day.beer !== true || day.beerAwayIndex >= coworkers.length || day.beerAwayTimer <= 0) return;
+    day.beerAwayTimer -= dt;
+    while (day.beerAwayTimer <= 0 && day.beerAwayIndex < coworkers.length) {
+      const c = coworkers[day.beerAwayIndex++];
+      if (!c.ghost) { c.away = true; puff(c.x, c.y - 20, 'rgba(240,200,90,0.8)', 5, 10); }
+      day.beerAwayTimer += 0.9;
+    }
+    if (day.beerAwayIndex >= coworkers.length) day.beerAwayTimer = 0;
+  }
+  function isEventWindowDeferred() {
+    return onLunch() || player.action === 'daily';
+  }
+  function canStartEventBeforeDeadline(eventId) {
+    if (!requiredEvent || requiredEvent.dispatched || eventId === requiredEvent.id) return true;
+    const def = EVENTS[eventId];
+    if (!def) return false;
+    const minutesPerSimulationSecond = (CFG.shiftEnd - CFG.shiftStart) / CFG.shiftSeconds;
+    const secondsUntilDeadline = Math.max(0, (requiredEvent.deadlineStart - clockMinutes) / minutesPerSimulationSecond);
+    return def.dur <= secondsUntilDeadline;
+  }
+  function dispatchRequiredEvent() {
+    if (!requiredEvent || requiredEvent.dispatched || clockMinutes < requiredEvent.deadlineStart || isEventWindowDeferred()) return false;
+    eventQueue = eventQueue.filter(id => id !== requiredEvent.id);
+    nextEvent = 30 + rand() * 14;
+    return startEvent(requiredEvent.id);
+  }
+  function ensureRequiredEventQueue() {
+    if (!requiredEvent || !EVENTS[requiredEvent.id] || !unlocked(EVENT_TIER[requiredEvent.id])) return;
+    const includesRequired = eventQueue.includes(requiredEvent.id);
+    let queue = eventQueue.filter(id => id !== requiredEvent.id);
+    if (requiredEvent.dispatched) { eventQueue = queue; return; }
+    if (!includesRequired && queue.length) {
+      let replace = -1;
+      for (let i = queue.length - 1; i >= 0; i--) {
+        if (queue[i] !== 'food' && queue[i] !== 'sb') { replace = i; break; }
+      }
+      if (replace >= 0) queue.splice(replace, 1);
+    }
+    eventQueue = [requiredEvent.id, ...queue];
+  }
   function updateEvents(dt) {
+    updateDrillAway(dt);
     if (officeEvent) {
       officeEvent.t -= dt;
       if (officeEvent.id === 'call' && boss.state === 'office') boss.stateTimer = Math.max(boss.stateTimer, 1);
@@ -171,15 +252,22 @@
           floater(player.x, player.y - 64, 'МАДЖИКИСТАН ПОДНЯТ +10 К ПЛАНУ', '#57d08a');
           addLog('Быкентий поднял Маджикистан. Там снова работает. Пока.', 'good');
           majikArc++; store.set('majikArc', majikArc); stats.majikFixed = (stats.majikFixed || 0) + 1;
+          recordRelationshipEvent('aimashyn', 'help', `${shiftId}:relationships:aimashyn:majik-fixed`);
           if (boss.seesPlayer || boss.watchingWork) { say('boss', 'Вот! Ответственный человек!', 2.6); stats.praise++; }
           playSound('success');
         }
       }
       if (officeEvent.id === 'heat' && rand() < dt * 0.12) { const c = pick(coworkers.filter(k => !k.away)); if (c) say(c.id, pick(LINES.complaints.heat), 2.4, '#ffe6c8'); }
       if (officeEvent.t <= 0) endEvent();
-    } else if (!['inspect', 'goout', 'out'].includes(boss.state) && !lunchTime() && !onLunch()) {
+    } else if (dispatchRequiredEvent()) {
+      // Гарантированное событие не ждёт свободного начальника.
+    } else if (!['inspect', 'goout', 'out'].includes(boss.state) && !lunchTime() && !onLunch() && !isEventWindowDeferred()) {
       nextEvent -= dt;
-      if (nextEvent <= 0 && eventQueue.length) { startEvent(eventQueue.shift()); nextEvent = 30 + rand() * 14; }
+      if (nextEvent <= 0 && eventQueue.length) {
+        const nextId = eventQueue[0];
+        if (!canStartEventBeforeDeadline(nextId)) nextEvent = 0.5;
+        else { eventQueue.shift(); startEvent(nextId); nextEvent = 30 + rand() * 14; }
+      }
     }
     updateSchedule(dt);
     if (banner) { banner.t += dt; if (banner.t > (banner.dur || 4.4)) banner = null; }
@@ -217,7 +305,7 @@
       if (boss.state !== 'gone' && boss.state !== 'out') {
         boss.suspicion = clamp(boss.suspicion + 40, 0, 99);
         if (!bossBusy()) bossGoTo({ x: player.x, y: player.y }, 'patrol', 'по звонку СБ');
-        setTimeout(() => { if (mode === 'playing') say('boss', pick(LINES.sb.boss), 2.8); }, 900);
+        scheduleShiftCallback(() => { if (mode === 'playing') say('boss', pick(LINES.sb.boss), 2.8); }, 900);
       }
     }
   }
@@ -286,16 +374,17 @@
     const opt = STANDUP_CHOICES[i];
     say('player', opt.text, 2.6);
     if (i === 0) {
-      if (day.majikFail) { boss.suspicion = clamp(boss.suspicion + 30, 0, 99); setTimeout(() => say('boss', 'Под контролем?! А Маджикистан?!', 2.8), 1200); }
-      else { addWork(4); floater(player.x, player.y - 70, '+4 К ПЛАНУ', '#57d08a'); setTimeout(() => say('boss', 'Вот это я понимаю, уверенность!', 2.6), 1200); }
+      if (day.majikFail) { boss.suspicion = clamp(boss.suspicion + 30, 0, 99); scheduleShiftCallback(() => say('boss', 'Под контролем?! А Маджикистан?!', 2.8), 1200); }
+      else { addWork(4); floater(player.x, player.y - 70, '+4 К ПЛАНУ', '#57d08a'); scheduleShiftCallback(() => say('boss', 'Вот это я понимаю, уверенность!', 2.6), 1200); }
     } else if (i === 1) {
       nextBossCheck += 15;
       floater(player.x, player.y - 70, 'ЧЕСТНО: ПРОВЕРКА НА 15 С ПОЗЖЕ', '#f2bb38');
-      setTimeout(() => say('boss', 'Хоть честно. Чини давай.', 2.6), 1200);
+      scheduleShiftCallback(() => say('boss', 'Хоть честно. Чини давай.', 2.6), 1200);
     } else {
       fun += 6;
       const c = coworkerById('sirgey');
-      if (c) { c.cooldown = 120; setTimeout(() => say('sirgey', 'Я?! У меня автошка лежит, я вообще ни при чём!', 3, '#ffd4c8'), 1400); }
+      if (c) { c.cooldown = 120; scheduleShiftCallback(() => say('sirgey', 'Я?! У меня автошка лежит, я вообще ни при чём!', 3, '#ffd4c8'), 1400); }
+      recordRelationshipEvent('sirgey', 'betrayal', `${shiftId}:relationships:sirgey:standup-blame`);
       floater(player.x, player.y - 70, '+6 КАЙФ · СИРГЕЙ ОБИДЕЛСЯ', '#e0a0f0');
     }
     playSound('click');
@@ -326,6 +415,8 @@
 
   function updateSchedule(dt) {
     updateSocial(dt);
+    updateLunchAway(dt);
+    updateBeerAway(dt);
     day.toiletCd = Math.max(0, day.toiletCd - dt);
     day.cabinDoor = Math.max(0, day.cabinDoor - dt);
     day.qShift = Math.max(0, day.qShift - dt * 30);
@@ -405,7 +496,7 @@
               banner = { text: 'АЛЬДЖАЗИРА: МАДЖИКИСТАН РУХНУЛ!', sub: 'Кайф сброшен до 0. План дня обнулён. Полный пересчёт!', t: 0, bad: true };
               toast('💥 АЛЬДЖАЗИРА: ВСЁ СГОРЕЛО! КАЙФ 0 · ПЛАН 0', 4.5);
               addLog('💥 Альджазира разнесла отдел: Маджикистан рухнул, кайф и план на нуле!', 'bad');
-              setTimeout(() => { if (mode === 'playing') say('player', 'Да е**ный в рот, Альджазира! За что?! Весь день заново?!', 3.5); }, 1400);
+              scheduleShiftCallback(() => { if (mode === 'playing') say('player', 'Да е**ный в рот, Альджазира! За что?! Весь день заново?!', 3.5); }, 1400);
             } else if (mood === 'good') {
               fun = Math.min(100, fun + 5);
               say('aljazira', pick(LINES.aljazira.good), 3.5, '#9f9');
@@ -444,8 +535,8 @@
     if (!day.lunchCalled && m >= CFG.lunchOpen - 5) {
       day.lunchCalled = true;
       say('player', pick(LINES.lunch.call), 3.4);
-      setTimeout(() => { if (mode === 'playing') say('bleb', pick(LINES.lunch.reply), 2.6); }, 1300);
-      setTimeout(() => { if (mode === 'playing') say('aimashyn', pick(LINES.lunch.reply), 2.6); }, 2500);
+      scheduleShiftCallback(() => { if (mode === 'playing') say('bleb', pick(LINES.lunch.reply), 2.6); }, 1300);
+      scheduleShiftCallback(() => { if (mode === 'playing') say('aimashyn', pick(LINES.lunch.reply), 2.6); }, 2500);
     }
     if (!day.lunchOpen && m >= CFG.lunchOpen) {
       day.lunchOpen = true;
@@ -453,7 +544,8 @@
         ? { text: 'ОБЕД В «ВИЛКЕ» · СТЕЙКИ 🥩', sub: 'Четверг — стейк-день! Выход слева, E у двери до 14:00. Кайфа больше обычного.', t: 0 }
         : { text: 'ОБЕД · 12:30–14:00', sub: 'Бизнес-ланч в «Мюнхене»: выход слева, E у двери. Обед длится час. Пропустишь — голодный до вечера.', t: 0 };
       addLog(day.vilka ? 'Обед! Все рванули в «Вилку» за стейками.' : 'Обед! Коллеги потянулись в «Мюнхен» за хрючевом дня.', 'info');
-      coworkers.forEach((c, i) => setTimeout(() => { if (mode === 'playing' && !eventIs('drill')) { if (!c.ghost) c.away = true; day.lunchAway = true; } }, 1200 + i * 700));
+      day.lunchAwayTimer = 1.2;
+      day.lunchAwayIndex = 0;
     }
     // Д.Н. тоже уходит на обед — если не занят проверкой
     if (!day.bossLunch && m >= CFG.lunchOpen + 12 && !bossBusy() && boss.state !== 'standup') {
@@ -478,7 +570,8 @@
         banner = { text: 'ПЯТНИЧНОЕ ПИВО В «МЮНХЕНЕ»', sub: 'Коллеги идут пить пиво. Жми E у выхода — и неделя закрыта!', t: 0 };
         say('aimashyn', pick(LINES.munich.yes), 3);
         playSound('clink');
-        coworkers.forEach((c, i) => setTimeout(() => { if (mode === 'playing' && !c.ghost) { c.away = true; puff(c.x, c.y - 20, 'rgba(240,200,90,0.8)', 5, 10); } }, 1500 + i * 900));
+        day.beerAwayTimer = 1.5;
+        day.beerAwayIndex = 0;
         addLog('🍺 Коллеги ушли в «Мюнхен» на пиво. Ждут тебя!', 'good');
       } else {
         say('hlad', pick(LINES.munich.no), 3);

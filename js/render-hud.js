@@ -91,7 +91,7 @@
   }
   function hudInfo() {
     const info = [];
-    if (intelTimer > 0 && boss.state !== 'inspect') info.push(`📅 проверка через ${Math.max(0, Math.ceil(nextBossCheck))} с`);
+    if (intelTimer > 0 && boss.state !== 'inspect') info.push(`📅 ${bossIntelStatusText()}`);
     if (coverTokens) info.push('🛡 прикрытие');
     if (player.coffeeBoost > 0) info.push(`☕ ${Math.ceil(player.coffeeBoost)} с`);
     if (phoneSafe > 0) info.push(`📱 созвон ${Math.ceil(phoneSafe)} с`);

@@ -5,6 +5,7 @@
 
   // ---------- ИГРОК ----------
   function updatePlayer(dt) {
+    let activityTick = null;
     day.hideCd = Math.max(0, (day.hideCd || 0) - dt);
     if (COVER.has(player.action)) {
       player.hideT = (player.hideT || 0) + dt;
@@ -29,6 +30,7 @@
       player.coffeeBoost = Math.max(0, player.coffeeBoost - dt);
       player.speed = CFG.playerSpeed * (player.coffeeBoost > 0 ? CFG.coffeeBoost : 1);
     }
+    const movementSpeed = player.speed * (day.hungry ? 0.9 : 1) * (day.peeActive && day.pee >= 100 ? CFG.peeCriticalSpeed : 1);
     player.bumpCooldown = Math.max(0, player.bumpCooldown - dt);
 
     player.moving = false;
@@ -44,16 +46,37 @@
       const len = Math.hypot(dx, dy);
       dx /= len; dy /= len;
       if (Math.abs(dx) > 0.05) player.facingX = dx < 0 ? -1 : 1;
-      const hit = moveWithCollision(player, dx * player.speed * (day.hungry ? 0.9 : 1) * dt, dy * player.speed * (day.hungry ? 0.9 : 1) * dt, player.r);
+      const hit = moveWithCollision(player, dx * movementSpeed * dt, dy * movementSpeed * dt, player.r);
       if (hit && player.bumpCooldown <= 0) { playSound('bump'); player.bumpCooldown = 0.35; }
       player.walkTimer += dt * (player.coffeeBoost > 0 ? 11 : 8);
       player.moving = true;
     }
 
     if (player.actionTimer > 0) {
-      player.actionTimer -= dt;
-      if (player.actionTimer <= 0) endAction('done');
+      const activities = saveExtensions.activities;
+      if (activities && activities.active && activitiesStateIsValid(activities) &&
+          activityVariantMatchesAction(activities.active.variant, player.action)) {
+        const consumedSeconds = Math.min(dt, activities.active.remainingSeconds);
+        const tickContext = activityContext();
+        const active = activities.active;
+        if (active.variant === 'youtube-loud' && !active.noiseTriggered && active.elapsedSeconds < 3 && active.elapsedSeconds + dt >= 3) {
+          tickContext.bossState = boss.state;
+          tickContext.bossDistance = dist(boss, player);
+          tickContext.bossRouteAvailable = bossCanRouteToServer();
+        }
+        const result = tickActivityVariant(activities, dt, tickContext);
+        if (commitActivitiesTransition(result, activities)) {
+          activityTick = Object.assign({}, result, { consumedSeconds });
+          player.actionTimer = result.remaining;
+          if (result.effects.length) applyActivityEffects(result.effects);
+          if (result.completed) endAction('done', result);
+        } else endAction('cancel');
+      } else {
+        player.actionTimer -= dt;
+        if (player.actionTimer <= 0) endAction('done');
+      }
     }
+    if (player.action === 'phone') tickPhoneMoment(dt);
 
     const a = player.action;
     const funBefore = fun;
@@ -73,7 +96,7 @@
       if (tgt) {
         const d = Math.hypot(tgt.x - player.x, tgt.y - player.y);
         if (d > 1) {
-          const step = Math.min(d, CFG.playerSpeed * 0.8 * dt);
+          const step = Math.min(d, movementSpeed * 0.8 * dt);
           player.x += (tgt.x - player.x) / d * step; player.y += (tgt.y - player.y) / d * step;
           player.facingX = tgt.x < player.x ? -1 : 1;
           player.moving = true; player.walkTimer += dt * 8;
@@ -136,7 +159,9 @@
       kpiTick -= dt;
       if (boss.watchingWork && kpiTick <= 0) { floater(player.x + (rand() - 0.5) * 20, player.y - 58, planDone() ? 'ПРИКРЫТИЕ' : `+ПЛАН ×${CFG.watchedKpiMultiplier}`, '#57d08a'); playSound('kpi'); kpiTick = 0.5; }
     }
-    if (a === 'smoke') {
+    if (activityTick) {
+      if (activityTick.countAsBaseActivity) fun += activityTick.rate * activityTick.consumedSeconds;
+    } else if (a === 'smoke') {
       fun += (day.smog ? 2.4 : 4) * dt;
       if (rand() < 0.5) particles.push({ x: player.x + 10 * player.facingX, y: player.y - 40, vx: 12 + rand() * 10, vy: -8 - rand() * 8, size: 2 + rand() * 2, life: 1.5, maxLife: 1.5, color: 'rgba(230,230,230,0.6)' });
     } else if (a === 'youtube') { fun += 5 * dt; }
@@ -250,6 +275,7 @@
     }
 
     updatePlayer(dt);
+    updateActionChoice(dt);
     updateBoss(dt);
     updateCoworkers(dt);
     updateAmbient(dt);
@@ -281,7 +307,7 @@
 
     if (toastTimer > 0) { toastTimer -= dt; if (toastTimer <= 0) ui.toast.classList.remove('show'); }
     shake = Math.max(0, shake - dt);
-    phoneAnim = clamp(phoneAnim + (player.action === 'phone' ? dt : -dt) * 6, 0, 1);
+    phoneAnim = clamp(phoneAnim + (phonePanelOpen ? dt : -dt) * 6, 0, 1);
     phoneBuzz = Math.max(0, phoneBuzz - dt * 0.2);
     flash = Math.max(0, flash - dt);
 
@@ -292,12 +318,23 @@
     else if (reprimands >= dMax || weekReprimands >= wMax) finishGame('fired');
   }
 
-  function gradeFor(score) {
-    if (score >= 160) return ['S', 'Легенда опенспейса'];
-    if (score >= 120) return ['A', 'Мастер имитации'];
-    if (score >= 85) return ['B', 'Крепкий середнячок'];
-    if (score >= 50) return ['C', 'Зелёный стажёр'];
-    return ['D', 'Слишком честный'];
+  function calculateCurrentShiftResult() {
+    const momentBonus = shiftRulesetId === OFFICE_STORIES_RULESET_ID
+      ? summarizeMoments(ensureMomentsExtension()).awarded
+      : 0;
+    const result = calculateShiftResult({
+      fun,
+      fullPlan: planDone(),
+      done: todo.filter(t => t.done).length,
+      reprimands,
+      momentBonus,
+    });
+    return result.ok ? { ...result, rulesetId: shiftRulesetId } : result;
+  }
+  function formatShiftResultValue(value) {
+    const rounded = Math.round(value * 10) / 10;
+    const display = Number.isInteger(rounded) ? String(rounded) : rounded.toFixed(1);
+    return value > 0 ? `+${display}` : value < 0 ? `−${display.replace('-', '')}` : '0';
   }
 
   function goMunichBeer() {
@@ -309,6 +346,9 @@
 
   function finishGame(result) {
     if (mode !== 'playing') return;
+    closeActionChoice('shift_ended');
+    closePhonePanel(true, true);
+    cancelActiveActivitiesAtShiftEnd();
     // Конец смены: меньше половины плана — выговор (на лимите — увольнение); от половины — без выговора, но и без бонуса
     let planFailed = false;
     const dMax = diff().dayReprimandsMax;
@@ -321,14 +361,16 @@
       addLog(`📝 ВЫГОВОР ${reprimands}/${dMax} (нед: ${weekReprimands}/${wMax}): не сделана даже половина плана (${Math.floor(usefulness)}/${planTarget}).`, 'bad');
       if (reprimands >= dMax || weekReprimands >= wMax) result = 'fired';
     }
+    if (player.action === 'phone') finishPhoneMoment(false);
     clearSavedProgress();
     setMode('ended');
     const win = result === 'win' || result === 'munich';
     ui.endCard.classList.toggle('good', win);
     ui.endCard.classList.toggle('bad', !win);
     const done = todo.filter(t => t.done).length;
-    const score = Math.max(0, Math.round(Math.min(100, Math.max(0, fun)) + (planDone() ? 20 : 0) + done * 12 - reprimands * 15));
-    const [grade, title] = gradeFor(score);
+    const shiftResult = calculateCurrentShiftResult();
+    const score = shiftResult.score;
+    const { grade, breakdown } = shiftResult;
     ui.endTitle.textContent = win ? (planFailed ? 'ВЫЖИЛ, НО БЕЗ ПЛАНА' : planHalf ? 'ВЫЖИЛ, ПЛАН НЕ ДОБИТ' : 'ТЫ ВЫЖИЛ!') : 'ТЕБЯ УВОЛИЛИ!';
     if (win) {
       ui.endCopy.textContent = planFailed
@@ -344,17 +386,34 @@
           ? `Превышен недельный лимит выговоров (${weekReprimands}/${wMax})! Правление банка расторгло трудовой договор.`
           : `Превышен дневной лимит выговоров (${reprimands}/${dMax})! Начальник сверил записи камер и объяснительные. Пропуск заблокирован.`);
     }
-    const bestKey = `best.${dayIndex}`;
+    const bestKey = shiftRulesetId === OFFICE_STORIES_RULESET_ID
+      ? `best.${shiftRulesetId}.${dayIndex}`
+      : `best.${dayIndex}`;
     const best = store.get(bestKey, 0);
+    const legacyBest = shiftRulesetId === OFFICE_STORIES_RULESET_ID ? store.get(`best.${dayIndex}`, 0) : 0;
     const record = win && score > best;
     if (record) store.set(bestKey, score);
     const dayName = today().name;
-    const earned = Math.max(1, Math.round(score / 10));
+    const earned = shiftResult.coins;
     coins += earned;
     store.set('coins', coins);
     if (win && dayName === 'ПЯТНИЦА') { store.set('weekDone', true); weekReprimands = 0; store.set('weekReprimands', 0); }
-    if (win) { dayIndex = dayIndex < DAYS.length - 1 ? dayIndex + 1 : 0; store.set('day', dayIndex); }
-    ui.grade.innerHTML = win ? `<b>${grade}</b><span>${title} · ${score} очков${record ? ' · НОВЫЙ РЕКОРД!' : ` · рекорд ${Math.max(best, score)}`}</span>` : '';
+    if (win) {
+      const completedDay = dayIndex;
+      const nextDay = completedDay < DAYS.length - 1 ? completedDay + 1 : 0;
+      commitRelationshipProgress(completedDay, nextDay, dayName === 'ПЯТНИЦА');
+      dayIndex = nextDay;
+      store.set('day', dayIndex);
+    }
+    ui.grade.innerHTML = win ? `<b>${grade.rank}</b><span>${grade.title} · ${score} очков${record ? ' · НОВЫЙ РЕКОРД!' : ` · рекорд ${Math.max(best, score)}`}${legacyBest > 0 ? ` · Старый рекорд, правила 0.24.1: ${legacyBest}` : ''}</span>` : '';
+    ui.endResult.innerHTML = [
+      ['Кайф', formatShiftResultValue(breakdown.fun)],
+      ['План', `${formatShiftResultValue(breakdown.fullPlan)} · ${Math.floor(usefulness)}/${planTarget}`],
+      ['Дела', `${formatShiftResultValue(breakdown.todos)} · ${done}/${todo.length}`],
+      ['Истории и хитрости', formatShiftResultValue(breakdown.moments)],
+      ['Выговоры', formatShiftResultValue(breakdown.reprimands)],
+      ['Итог', `${score} очков`, 'total'],
+    ].map(([label, value, className = '']) => `<div class="end-result-row ${className}"><span>${label}</span><b>${value}</b></div>`).join('');
     ui.endKicker.textContent = win ? `${dayName} ПЕРЕЖИТ · 19:30` : `${dayName} · ВЫГОВОРЫ (${reprimands}/${dMax}, нед: ${weekReprimands}/${wMax})`;
     if (win && dayName === 'ПЯТНИЦА') {
       let arc = 'Маджикистан так и мигает — как всегда.';
@@ -372,20 +431,22 @@
     ui.restart.innerHTML = win ? `${dayIndex === 0 ? 'НОВАЯ НЕДЕЛЯ' : DAYS[dayIndex].name} <span>↵</span>` : 'ПЕРЕИГРАТЬ ДЕНЬ <span>↵</span>';
     ui.grade.classList.toggle('hidden', !win);
     ui.endStats.innerHTML = [
-      [`${Math.floor(usefulness)}/${planTarget}`, planDone() ? 'план ✓' : 'план ✗'],
-      [Math.round(fun), 'кайфа'],
       [`${reprimands}/${dMax} (нед: ${weekReprimands}/${wMax})`, 'выговоров'],
-      [`${done}/${todo.length}`, 'дел из списка'],
       [stats.chats, 'разговоров'],
       [stats.praise, 'похвал Д.Н.'],
     ].map(s => `<div class="end-stat"><b>${s[0]}</b><span>${s[1]}</span></div>`).join('');
     playSound(win ? 'success' : 'caught');
-    if (auto.on) { clearTimeout(auto.restartTimer); auto.restartTimer = setTimeout(() => { if (auto.on && mode === 'ended') startAutopilot(); }, 7000); }
+    if (auto.on) {
+      clearTimeout(auto.restartTimer);
+      const endedShiftId = shiftId;
+      auto.restartTimer = setTimeout(() => { if (shiftId === endedShiftId && auto.on && mode === 'ended') startAutopilot(); }, 7000);
+    }
     addLog(win ? '19:30 — смена окончена. Свобода!' : 'Трудовой договор расторгнут.', win ? 'good' : 'bad');
     // Недельный лимит исчерпан: переигровка дня увольняла бы сразу — неделя начинается заново
     if (!win && weekReprimands >= wMax) {
       weekReprimands = 0; store.set('weekReprimands', 0);
       dayIndex = 0; store.set('day', 0);
+      resetRelationshipsForNewWeek();
       addLog('Новая неделя: с понедельника с чистого листа.', 'info');
     }
   }

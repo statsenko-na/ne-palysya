@@ -9,6 +9,43 @@
     boss.path = findPath(boss, target);
     boss.spotDesc = desc || boss.spotDesc;
   }
+  function bossIntelHasCountdown() {
+    return !onLunch() && !eventIs('call') && !eventIs('drill') &&
+      ['office', 'patrol', 'look', 'return'].includes(boss.state);
+  }
+  function bossIntelStatusText() {
+    if (bossIntelHasCountdown()) return `проверка через ${Math.max(0, Math.ceil(nextBossCheck))} с`;
+    if (onLunch()) return 'проверка после обеда';
+    if (eventIs('call')) return 'Д.Н. на созвоне';
+    if (eventIs('drill')) return 'Д.Н. на учениях';
+    const status = {
+      inspect: 'Д.Н. уже проверяет',
+      waitDesk: 'Д.Н. ждёт у стола',
+      lecture: 'Д.Н. читает нотацию',
+      standup: 'Д.Н. ведёт летучку',
+      leaving: 'Д.Н. уезжает на встречу',
+      gone: 'Д.Н. уехал',
+      goout: `Д.Н. уходит ${boss.spotDesc || 'из офиса'}`,
+      out: boss.outWhy === 'lunch' ? 'Д.Н. на обеде' : 'Д.Н. на улице',
+      scold: 'Д.Н. отчитывает коллегу',
+    }[boss.state];
+    return status || 'Д.Н. занят';
+  }
+  function youtubeServerApproach() {
+    return WD.patrolSpots.find(spot => spot.desc === 'серверную') || { x: 880, y: 432 };
+  }
+  function bossCanRouteToServer() {
+    if (!['office', 'patrol', 'look', 'return'].includes(boss.state) || onLunch() || eventIs('call') || eventIs('drill')) return false;
+    const target = youtubeServerApproach();
+    if (blocked(target.x, target.y, 6)) return false;
+    const path = findPath(boss, target);
+    return Array.isArray(path) && path.length > 0;
+  }
+  function routeBossToServer() {
+    if (!bossCanRouteToServer()) return false;
+    bossGoTo(youtubeServerApproach(), 'patrol', 'серверную');
+    return true;
+  }
   // Куда Д.Н. идёт гулять: общие точки или к столу случайного коллеги
   function strollSpot() {
     const people = coworkers.filter(c => !c.away && !c.ghost);
@@ -85,7 +122,7 @@
     if (coverTokens > 0) {
       coverTokens = 0;
       say('aimashyn', 'Директор Начальникович, он по моему поручению!', 3, '#ffd4c8');
-      setTimeout(() => { if (mode === 'playing') say('boss', 'Ну... ладно. Смотрите мне!', 2.6); }, 1200);
+      scheduleShiftCallback(() => { if (mode === 'playing') say('boss', 'Ну... ладно. Смотрите мне!', 2.6); }, 1200);
       addLog(`Аймашын отмазал Быкентия: «${short}» не засчитан.`, 'good');
       toast(`🛡 Аймашын прикрыл! Выговор за «${short}» не дали.`, 3);
       return false;
@@ -274,7 +311,7 @@
         boss.facing = -Math.PI / 2;
         if (playerIsWorking()) {
           say('player', pick(LINES.excuses), 2.6);
-          setTimeout(() => { if (mode === 'playing') say('boss', 'Ну-ну. Работай давай.', 2.2); }, 1300);
+          scheduleShiftCallback(() => { if (mode === 'playing') say('boss', 'Ну-ну. Работай давай.', 2.2); }, 1300);
           addLog('Быкентий успел к столу и отмазался.', 'info');
           endInspection();
           nextBossCheck *= 0.7; // Д.Н. насторожился — следующая проверка раньше
@@ -321,7 +358,7 @@
           boss.inspectTimer = 3.4;
           if (c) {
             say('boss', pick(LINES.boss.scold[c.id]), 3.2);
-            setTimeout(() => { if (mode === 'playing') say(c.id, pick(['Я работаю! Честно!', 'Это для отчёта!', 'Я на созвоне!', 'Уже убрал!']), 2.4, '#ffd4c8'); }, 1500);
+            scheduleShiftCallback(() => { if (mode === 'playing') say(c.id, pick(['Я работаю! Честно!', 'Это для отчёта!', 'Я на созвоне!', 'Уже убрал!']), 2.4, '#ffd4c8'); }, 1500);
             c.slack = null; c.slackTimer = 14 + rand() * 10; c.scoldCooldown = 45;
             stats.scolds++;
             addLog(`Д.Н. отчитывает: ${c.name}. У Быкентия — окно.`, 'good');

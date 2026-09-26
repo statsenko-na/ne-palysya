@@ -5,7 +5,7 @@
 
   // ---------- ОБРАБОТЧИКИ ----------
   // Переназначение клавиш: свои клавиши (KeyboardEvent.code → действие) работают вместе со стандартными
-  const BIND_ACTIONS = [['w', 'Вверх', 'W'], ['s', 'Вниз', 'S'], ['a', 'Влево', 'A'], ['d', 'Вправо', 'D'], ['e', 'Действие', 'E'], ['h', 'Спрятаться', 'H'], ['q', 'Телефон', 'Q / Tab'], ['p', 'Пауза', 'P / Esc'], ['o', 'Автопилот', 'O']];
+  const BIND_ACTIONS = [['w', 'Вверх', 'W'], ['s', 'Вниз', 'S'], ['a', 'Влево', 'A'], ['d', 'Вправо', 'D'], ['e', 'Действие', 'E'], ['h', 'Спрятаться', 'H'], ['q', 'Дела / телефон', 'Q / Tab'], ['p', 'Пауза', 'P / Esc'], ['o', 'Автопилот', 'O']];
   let customKeys = store.get('bindings', {}) || {};
   let bindWait = null;
   let keysOpen = false;
@@ -33,6 +33,7 @@
       bindWait = null; renderKeys(); return;
     }
     if (keysOpen) { e.preventDefault(); if (e.key === 'Escape' || e.key === 'Enter') closeKeys(); return; }
+    if (e.target && e.target.matches && e.target.matches('input, textarea, select, [contenteditable="true"]')) return;
     const key = getControlKey(e);
     if (MOVE_KEYS.includes(key) || ['e', 'h', 'p', 'q', 'o', 'enter', ' '].includes(key)) e.preventDefault();
     if (onb.open) {
@@ -47,10 +48,11 @@
       if (key === 'escape' || key === 'u' || key === 'enter') { e.preventDefault(); closeShop(); }
       return;
     }
+    if (handleActionChoiceKeyDown(e, key, MOVE_KEYS)) return;
     if (key === 'u' && (mode === 'menu' || mode === 'ended')) { openShop(); return; }
     if (key === 'm') { muted = !muted; store.set('muted', muted); toast(muted ? 'Звук выключен (M)' : 'Звук включён (M)', 1.4); syncAudioButtons(); return; }
     if (key === 'n') { toggleMusic(); return; }
-    if (key === 'escape' && player.action === 'phone' && mode === 'playing') { togglePhone(); return; }
+    if (key === 'escape' && phonePanelOpen && mode === 'playing') { closePhonePanel(); return; }
     if (key === 'p' || key === 'escape') { if (mode === 'playing' || mode === 'paused') pauseGame(); return; }
     if (key === 'o' && mode === 'paused') { resumeOnAuto(); return; }
     if (key === 'enter') {
@@ -63,10 +65,10 @@
     if (key === 'o') { if (!e.repeat) toggleAutopilot(); return; }
     if (key === '1' || key === '2' || key === '3') { answerStandup(Number(key) - 1); return; }
     if (key === 'h') { quickHide(); return; }
-    if (key === 'q') { if (!e.repeat) togglePhone(); return; }
+    if (key === 'q') { if (!e.repeat) togglePhonePanel(); return; }
     if (MOVE_KEYS.includes(key)) keys.add(key);
   });
-  window.addEventListener('keyup', e => { keys.delete(getControlKey(e)); });
+  window.addEventListener('keyup', e => { releaseActionChoiceKey(e); keys.delete(getControlKey(e)); });
   window.addEventListener('blur', () => keys.clear());
 
   // Сенсорное управление: виртуальный стик + кнопки
@@ -91,6 +93,11 @@
     const handleTouchStart = e => {
       if (sid !== null) return;
       const t = e.changedTouches[0];
+      if (actionChoiceState) {
+        const choiceIndex = actionChoiceIndexAtClient(t.clientX, t.clientY);
+        if (choiceIndex >= 0) { selectActionChoice(choiceIndex); e.preventDefault(); return; }
+      }
+      if (handlePhonePanelPointer(t.clientX, t.clientY)) { e.preventDefault(); return; }
       sid = t.identifier;
       getAudio();
 
@@ -143,11 +150,12 @@
         b.classList.add('active');
         const act = b.dataset.act;
         if (act === 'p') { if (mode === 'playing' || mode === 'paused') pauseGame(); return; }
+        if (actionChoiceState) return;
         if (act === 'auto') { if (mode === 'playing') toggleAutopilot(); return; }
         if (mode !== 'playing') return;
         if (act === 'e') interact();
         else if (act === 'h') quickHide();
-        else if (act === 'q') togglePhone();
+        else if (act === 'q') togglePhonePanel();
 
       };
       b.addEventListener('touchstart', trigger, { passive: false });
@@ -197,13 +205,27 @@
   // Отладочный доступ для автотестов (scripts/qa.js)
   // Отладочный API только для автотестов (Playwright выставляет navigator.webdriver) и по ?debug
   if (navigator.webdriver || new URLSearchParams(location.search).has('debug')) window.NP_DEBUG = {
-    get state() { return { mode, player: { ...player }, boss: { ...boss, path: boss.path.length }, reprimands, weekReprimands, misses: day.misses, planTarget, usefulness, fun, clockMinutes, stats: { ...stats, chatted: stats.chatted.size }, todo, coverTokens, waterCups: day.waterCups, waterRecharge: day.waterRecharge, coffeeCups: day.coffeeCups, coffeeJammed: !!day.coffeeJammed, overtimeWork: day.overtimeWork || 0, excelWorkAcc: day.excelWorkAcc || 0, excelPoolTasks: day.excelPoolTasks || 0, adhocDone: !!day.adhocDone }; },
+    get state() { return { mode, dayIndex, player: { ...player }, boss: { ...boss, path: boss.path.length }, reprimands, weekReprimands, misses: day.misses, planTarget, usefulness, fun, phoneSafe, clockMinutes, rulesetId: shiftRulesetId, stats: { ...stats, chatted: stats.chatted.size }, todo, coverTokens, waterCups: day.waterCups, waterRecharge: day.waterRecharge, coffeeCups: day.coffeeCups, coffeeJammed: !!day.coffeeJammed, overtimeWork: day.overtimeWork || 0, excelWorkAcc: day.excelWorkAcc || 0, excelPoolTasks: day.excelPoolTasks || 0, adhocDone: !!day.adhocDone }; },
+    get phonePanel() { return { open: phonePanelOpen, page: phonePage, anim: phoneAnim, pinnedTaskId, scale: phoneHitScale, hitboxes: phoneHitboxes.map(box => ({ ...box })) }; },
+    get selectedObjective() { return selectedObjectiveTodo(); },
+    get loadResult() { return { ...lastLoadResult }; },
+    get persistence() { return { shiftId, rngSeed, eventQueue: eventQueue.slice(), nextEvent, requiredEvent: requiredEvent && { ...requiredEvent }, autoUsed, recoveryGraceUsed, extensionErrors: { ...saveExtensionErrors } }; },
+    get moments() { return JSON.parse(JSON.stringify(ensureMomentsExtension())); },
+    get relationships() { return JSON.parse(JSON.stringify(ensureRelationshipsExtension())); },
+    get relationshipSnapshots() { return Object.fromEntries(['weekStart', 'dayStart', 'current'].map(key => [key, store.get(`relationships.${key}`, null)])); },
+    get shiftResult() { return calculateCurrentShiftResult(); },
+    setMomentsState(state) { saveExtensions.moments = state; },
+    get safeSpots() { return { seat: { ...SEAT }, toilet: { ...WD.toiletDoor } }; },
     teleport(x, y) { player.x = x; player.y = y; player.action = 'none'; player.actionTimer = 0; player.hideSpot = null; nudge = null; },
+    setAction(action, timer = 0) { player.action = action; player.actionTimer = timer; player.actionTotal = timer; },
     setBoss(x, y, state = 'look', facing) { boss.snus = 0; boss.snusCd = 999; boss.x = x; boss.y = y; boss.state = state; boss.stateTimer = 99; boss.path = []; if (facing !== undefined) { boss.facing = facing; boss.lookTimer = 0; } },
     skip(seconds) { for (let i = 0; i < seconds * 20 && mode === 'playing'; i++) update(0.05); },
     setDay(d) { dayIndex = clampDay(d); },
-    set(v) { if ('usefulness' in v) usefulness = v.usefulness; if ('reprimands' in v) reprimands = v.reprimands; if ('weekReprimands' in v) { weekReprimands = v.weekReprimands; store.set('weekReprimands', weekReprimands); } if ('misses' in v) day.misses = v.misses; if ('fun' in v) fun = Math.min(100, Math.max(0, v.fun)); if ('waterCups' in v) day.waterCups = v.waterCups; if ('waterRecharge' in v) day.waterRecharge = v.waterRecharge; if ('coffeeJammed' in v) day.coffeeJammed = !!v.coffeeJammed; if ('coffeeQueueTimer' in v && day) day.coffeeQueueTimer = v.coffeeQueueTimer; if ('overtimeWork' in v) day.overtimeWork = v.overtimeWork; if ('adhocDone' in v) day.adhocDone = !!v.adhocDone; if ('fed' in v) day.fed = !!v.fed; if ('noPee' in v) { day.peeActive = false; day.pee = 0; day.peeLeft = 0; } },
-    interact, quickHide, togglePhone, startInspection, blocked, findPath, nav, startEvent,
+    set(v) { if ('usefulness' in v) usefulness = v.usefulness; if ('reprimands' in v) reprimands = v.reprimands; if ('weekReprimands' in v) { weekReprimands = v.weekReprimands; store.set('weekReprimands', weekReprimands); } if ('misses' in v) day.misses = v.misses; if ('fun' in v) fun = Math.min(100, Math.max(0, v.fun)); if ('phoneSafe' in v) phoneSafe = Math.max(0, v.phoneSafe); if ('waterCups' in v) day.waterCups = v.waterCups; if ('waterRecharge' in v) day.waterRecharge = v.waterRecharge; if ('coffeeJammed' in v) day.coffeeJammed = !!v.coffeeJammed; if ('coffeeQueueTimer' in v && day) day.coffeeQueueTimer = v.coffeeQueueTimer; if ('overtimeWork' in v) day.overtimeWork = v.overtimeWork; if ('adhocDone' in v) day.adhocDone = !!v.adhocDone; if ('fed' in v) day.fed = !!v.fed; if ('lunchCalled' in v) day.lunchCalled = !!v.lunchCalled; if ('lunchOpen' in v) day.lunchOpen = !!v.lunchOpen; if ('lunchAway' in v) day.lunchAway = !!v.lunchAway; if ('noPee' in v) { day.peeActive = false; day.pee = 0; day.peeLeft = 0; } },
+    interact, quickHide, togglePhone, togglePhonePanel, openPhonePanel, closePhonePanel, selectPhonePage, pinTodoTask, refreshPinnedObjective, startPhoneScrolling, finishPhoneScrolling, endAction, goMunichBeer, startInspection, autoArrivePhoneForTest() { auto.goal = { kind: 'phone', pt: { x: player.x, y: player.y } }; autoArrive(); }, blocked, findPath, nav, startEvent, answerStandup,
+    requestFavor,
+    recordRelationshipEvent,
+    setNudge(seconds = 6) { nudge = { t: seconds }; },
     triggerAljazira(mood = 'neutral') {
       const c = coworkerById('aljazira');
       if (!c) return false;
@@ -212,7 +234,7 @@
       day.aljaziraForceMood = mood === false ? 'neutral' : mood;
       return true;
     },
-    saveProgress, clearSavedProgress,
+    saveProgress, clearSavedProgress, clearSaveExtensionError,
     say(owner, text, dur = 4) { say(owner, text, dur); },
     banterNow() { banterT = 0; updateBanter(0); updateBanter(2.1); return bubbles.map(b => b.owner); },
     get zones() { return WD.zones.map(z => z.id); },
@@ -223,11 +245,18 @@
     get flags() { return { ...day }; },
     get coins() { return coins; },
     get owned() { return { ...owned }; },
-    get coworkers() { return coworkers.map(c => ({ id: c.id, away: c.away, slack: c.slack })); },
+    get coworkers() { return coworkers.map(c => ({ id: c.id, away: c.away, remote: !!c.remote, slack: c.slack, cooldown: c.cooldown })); },
     setClock(mins) { shiftTime = (mins - CFG.shiftStart) / (CFG.shiftEnd - CFG.shiftStart) * CFG.shiftSeconds; clockMinutes = mins; if (mins < CFG.lunchOpen && day.lunchAway) { day.lunchAway = false; coworkers.forEach(c => { c.away = !!c.remote; }); } },
     setCoins(v) { coins = v; store.set('coins', v); },
     buyUpgrade, startAutopilot, stopAutopilot,
     get choice() { return choice && { ...choice }; },
+    get actionChoice() { return actionChoiceState && { ...actionChoiceState, options: actionChoiceState.options.slice() }; },
+    get actionChoiceView() { return getActionChoiceView(); },
+    get actionChoiceHitboxes() { return actionChoiceHitboxDebug(); },
+    get actionChoiceResult() { return { optionId: actionChoiceDebugResult, calls: actionChoiceDebugCalls, closeReason: actionChoiceLastCloseReason }; },
+    openActionChoice, openDebugActionChoice, closeActionChoice, selectActionChoice,
+    setActionChoiceDebugBlocked(value) { actionChoiceDebugBlocked = !!value; },
+    setStandupChoice(value) { choice = value && { ...value }; },
     setUpgrades(o) { owned = { ...o }; },
     deskCheck() { finishDeskInspection(); },
     restart(seed) { resetGame(seed); },

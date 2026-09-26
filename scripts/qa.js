@@ -168,16 +168,16 @@ const { loadPlaywright } = require('./pw');
   st = await page.evaluate(() => NP_DEBUG.state);
   check('проверка пройдена в Excel', st.stats.inspectPass >= 1 || st.boss.mode === 'raid', `pass=${st.stats.inspectPass} mode=${st.boss.mode}`);
 
-  // 12b. Телефон (Tab) — открывается и считается прокрастинацией
+  // 12b. Tab открывает безопасный список; прокрастинацией остаются только рилсы
   await page.evaluate(() => { NP_DEBUG.teleport(520, 260); NP_DEBUG.setBoss(706, 446, 'office'); });
   await page.keyboard.press('Tab');
   await page.waitForTimeout(400);
-  st = await page.evaluate(() => NP_DEBUG.state);
-  check('телефон по Tab', st.player.action === 'phone', st.player.action);
+  st = await page.evaluate(() => ({ state: NP_DEBUG.state, panel: NP_DEBUG.phonePanel }));
+  check('дела по Tab без смены действия', st.panel.open && st.panel.page === 'todos' && st.state.player.action === 'none', `${st.panel.page}/${st.state.player.action}`);
   await page.screenshot({ path: path.join(outDir, '08-phone.png') });
   await page.keyboard.press('KeyQ');
-  st = await page.evaluate(() => NP_DEBUG.state);
-  check('телефон закрывается Q', st.player.action === 'none', st.player.action);
+  st = await page.evaluate(() => ({ state: NP_DEBUG.state, panel: NP_DEBUG.phonePanel }));
+  check('панель дел скрывается Q', !st.panel.open && st.state.player.action === 'none', `${st.panel.open}/${st.state.player.action}`);
 
   // 13. Офисные события: угощение, ксерокс, созвон
   await page.evaluate(() => { NP_DEBUG.setBoss(706, 446, 'office'); NP_DEBUG.startEvent('food'); NP_DEBUG.teleport(120, 244); });
@@ -268,14 +268,16 @@ const { loadPlaywright } = require('./pw');
     window.dispatchEvent(new KeyboardEvent('keyup', { key: 'у', code: '' }));
     NP_DEBUG.teleport(870, 436);
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'у', code: 'KeyE' }));
+    const choiceId = NP_DEBUG.actionChoice && NP_DEBUG.actionChoice.id;
+    NP_DEBUG.selectActionChoice(0);
     const a2 = NP_DEBUG.state.player.action;
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'щ', code: '' }));
     const a3 = NP_DEBUG.auto.on && !NP_DEBUG.auto.demo;
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'щ', code: '' }));
     const a4 = NP_DEBUG.auto.on;
-    return { a1, a2, a3, a4, noBossKey: !('bossKey' in NP_DEBUG) };
+    return { a1, a2, choiceId, a3, a4, noBossKey: !('bossKey' in NP_DEBUG) };
   });
-  check('русская раскладка: У — Excel, У — YouTube, Щ — автопилот вкл/выкл посреди смены; альт-таба нет', rus.a1 === 'work' && rus.a2 === 'youtube' && rus.a3 && !rus.a4 && rus.noBossKey, JSON.stringify(rus));
+  check('русская раскладка: У — Excel и выбор YouTube, Щ — автопилот вкл/выкл посреди смены; альт-таба нет', rus.a1 === 'work' && rus.a2 === 'youtube' && rus.choiceId === 'youtube-risk' && rus.a3 && !rus.a4 && rus.noBossKey, JSON.stringify(rus));
 
   // Летучка: выбор ответа клавишей 2
   const su = await page.evaluate(() => {
@@ -313,7 +315,7 @@ const { loadPlaywright } = require('./pw');
     const noisy = noiseRate();
     NP_DEBUG.setUpgrades({ headphones: true });
     const quiet = noiseRate();
-    const funRate = () => { NP_DEBUG.clearEvents(); NP_DEBUG.startEvent('heat'); NP_DEBUG.setBoss(706, 446, 'office'); NP_DEBUG.set({ fun: 0 }); NP_DEBUG.teleport(870, 436); NP_DEBUG.interact(); NP_DEBUG.skip(3); return NP_DEBUG.state.fun; };
+    const funRate = () => { NP_DEBUG.clearEvents(); NP_DEBUG.startEvent('heat'); NP_DEBUG.setBoss(706, 446, 'office'); NP_DEBUG.set({ fun: 0 }); NP_DEBUG.teleport(870, 436); NP_DEBUG.interact(); NP_DEBUG.selectActionChoice(0); NP_DEBUG.skip(3); return NP_DEBUG.state.fun; };
     NP_DEBUG.startEvent('heat'); NP_DEBUG.setUpgrades({});
     const hot = funRate();
     NP_DEBUG.skip(6); NP_DEBUG.setUpgrades({ fan: true });
@@ -623,7 +625,7 @@ const { loadPlaywright } = require('./pw');
   });
   check('сверхурочные: 30 с после плана снимают выговор, раз в смену', otThreshold.midRep === 1 && otThreshold.midWork > 5 && otThreshold.endRep === 0 && otThreshold.endWRep === 0 && otThreshold.secondRep === 1, JSON.stringify(otThreshold));
 
-  // Приспичило: шкала растёт, туалет снимает, не дотерпел — минус кайф
+  // Приспичило: критическое состояние остаётся активным до завершённого туалета
   const pee = await page.evaluate(() => {
     NP_DEBUG.setDay(2); NP_DEBUG.clearSavedProgress(); NP_DEBUG.restart(); NP_DEBUG.clearEvents(); NP_DEBUG.hideBanner();
     NP_DEBUG.setBoss(706, 446, 'office');
@@ -631,11 +633,11 @@ const { loadPlaywright } = require('./pw');
     NP_DEBUG.forcePee(10); NP_DEBUG.teleport(470, 260); NP_DEBUG.skip(5);
     const rose = NP_DEBUG.pee.pee;
     NP_DEBUG.set({ fun: 50 }); NP_DEBUG.forcePee(99); NP_DEBUG.skip(1);
-    const failFun = NP_DEBUG.state.fun, afterFail = NP_DEBUG.pee.active;
+    const criticalFun = NP_DEBUG.state.fun, criticalPee = NP_DEBUG.pee.pee, criticalActive = NP_DEBUG.pee.active;
     NP_DEBUG.forcePee(40); NP_DEBUG.teleport(267, 518); NP_DEBUG.interact(); NP_DEBUG.skip(20);
-    return { plan, rose, failFun, afterFail, relieved: !NP_DEBUG.pee.active };
+    return { plan, rose, criticalFun, criticalPee, criticalActive, relieved: !NP_DEBUG.pee.active };
   });
-  check('приспичило: 2–3 раза, шкала растёт, туалет снимает, конфуз −15 кайфа', pee.plan >= 2 && pee.plan <= 3 && pee.rose > 15 && pee.failFun === 35 && !pee.afterFail && pee.relieved, JSON.stringify(pee));
+  check('приспичило: 2–3 раза, шкала растёт, 100% держится до завершённого туалета', pee.plan >= 2 && pee.plan <= 3 && pee.rose > 15 && Math.abs(pee.criticalFun - 49.73) < 0.01 && pee.criticalPee === 100 && pee.criticalActive && pee.relieved, JSON.stringify(pee));
 
   // Сохранение: флаги дня, список дел и счётчики восстанавливаются
   const sv = await page.evaluate(() => {
