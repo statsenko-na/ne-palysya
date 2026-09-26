@@ -252,6 +252,7 @@
           floater(player.x, player.y - 64, 'МАДЖИКИСТАН ПОДНЯТ +10 К ПЛАНУ', '#57d08a');
           addLog('Быкентий поднял Маджикистан. Там снова работает. Пока.', 'good');
           majikArc++; store.set('majikArc', majikArc); stats.majikFixed = (stats.majikFixed || 0) + 1;
+          recordRelationshipEvent('aimashyn', 'help', `${shiftId}:relationships:aimashyn:majik-fixed`);
           if (boss.seesPlayer || boss.watchingWork) { say('boss', 'Вот! Ответственный человек!', 2.6); stats.praise++; }
           playSound('success');
         }
@@ -383,6 +384,7 @@
       fun += 6;
       const c = coworkerById('sirgey');
       if (c) { c.cooldown = 120; scheduleShiftCallback(() => say('sirgey', 'Я?! У меня автошка лежит, я вообще ни при чём!', 3, '#ffd4c8'), 1400); }
+      recordRelationshipEvent('sirgey', 'betrayal', `${shiftId}:relationships:sirgey:standup-blame`);
       floater(player.x, player.y - 70, '+6 КАЙФ · СИРГЕЙ ОБИДЕЛСЯ', '#e0a0f0');
     }
     playSound('click');

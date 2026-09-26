@@ -154,6 +154,70 @@
     }
   }
 
+  function createRelationshipStateAtDay(targetDay) {
+    return advanceRelationshipsDay(createRelationships(), targetDay).state;
+  }
+  function readRelationshipSnapshot(key) {
+    const raw = store.get(key, null);
+    if (!raw || typeof raw !== 'object' || Array.isArray(raw)) return null;
+    const sourceDay = raw.dayIndex === null ? 0 : raw.dayIndex;
+    if (!Number.isInteger(sourceDay) || sourceDay < 0 || sourceDay > 4) return null;
+    const checked = advanceRelationshipsDay(raw, sourceDay);
+    return checked.ok ? checked.state : null;
+  }
+  function relationshipSnapshotAtDay(state, targetDay) {
+    if (!state || (state.dayIndex !== null && state.dayIndex > targetDay)) return null;
+    const result = relationshipStateForDay(state, targetDay);
+    return result.ok ? result.state : null;
+  }
+  function prepareRelationshipsForShift(loadResult) {
+    const rawExtension = saveExtensions.relationships;
+    let loadedState = null;
+    if (rawExtension) {
+      const check = relationshipStateForDay(rawExtension, dayIndex);
+      if (check.ok && (rawExtension.dayIndex === null || rawExtension.dayIndex === dayIndex)) loadedState = check.state;
+      else if (!saveExtensionErrors.relationships) saveExtensionErrors.relationships = check.reason || 'day_mismatch';
+    }
+
+    const savedDayStart = readRelationshipSnapshot('relationships.dayStart');
+    const savedWeekStart = readRelationshipSnapshot('relationships.weekStart');
+    const savedCurrent = readRelationshipSnapshot('relationships.current');
+    const dayStart = savedDayStart && savedDayStart.dayIndex === dayIndex ? savedDayStart : null;
+    const currentAtDay = relationshipSnapshotAtDay(savedCurrent, dayIndex);
+    const weekAtDay = savedWeekStart && savedWeekStart.dayIndex === 0
+      ? relationshipSnapshotAtDay(savedWeekStart, dayIndex)
+      : null;
+
+    if (loadResult.status === 'resumed' && loadedState) saveExtensions.relationships = loadedState;
+    else saveExtensions.relationships = dayStart || currentAtDay || weekAtDay || createRelationshipStateAtDay(dayIndex);
+
+    if (auto.on && auto.demo) return;
+    if (!savedWeekStart || savedWeekStart.dayIndex !== 0) store.set('relationships.weekStart', createRelationshipStateAtDay(0));
+    const resolvedDayStart = dayStart || currentAtDay || weekAtDay || createRelationshipStateAtDay(dayIndex);
+    if (!dayStart) store.set('relationships.dayStart', resolvedDayStart);
+    if (!savedCurrent) store.set('relationships.current', resolvedDayStart);
+  }
+
+  function resetRelationshipsForNewWeek() {
+    if (auto.on && auto.demo) return;
+    const start = createRelationshipStateAtDay(0);
+    store.set('relationships.weekStart', start);
+    store.set('relationships.dayStart', start);
+    store.set('relationships.current', start);
+  }
+
+  function commitRelationshipProgress(completedDay, nextDay, newWeek = false) {
+    if (auto.on && auto.demo) return;
+    if (newWeek) { resetRelationshipsForNewWeek(); return; }
+    const current = ensureRelationshipsExtension();
+    const completed = relationshipStateForDay(current, completedDay);
+    if (!completed.ok) return;
+    const next = relationshipStateForDay(completed.state, nextDay);
+    if (!next.ok) return;
+    store.set('relationships.current', completed.state);
+    store.set('relationships.dayStart', next.state);
+  }
+
   function resetGame(seed) {
     rngSeed = Number.isInteger(seed) ? seed : Math.floor(Date.now() % 100000); // seed — только для автотестов
     shiftId = createShiftId();
@@ -215,6 +279,7 @@
     }
     const loadResult = loadSavedProgress();
     lastLoadResult = { ...loadResult };
+    prepareRelationshipsForShift(loadResult);
     const hasSavedShift = loadResult.status !== 'new';
     if (!hasSavedShift && has('lava')) addFun(3);
     addLog(`${today().name}: ${today().mod}.`);

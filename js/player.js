@@ -373,7 +373,13 @@
     coins += earned;
     store.set('coins', coins);
     if (win && dayName === 'ПЯТНИЦА') { store.set('weekDone', true); weekReprimands = 0; store.set('weekReprimands', 0); }
-    if (win) { dayIndex = dayIndex < DAYS.length - 1 ? dayIndex + 1 : 0; store.set('day', dayIndex); }
+    if (win) {
+      const completedDay = dayIndex;
+      const nextDay = completedDay < DAYS.length - 1 ? completedDay + 1 : 0;
+      commitRelationshipProgress(completedDay, nextDay, dayName === 'ПЯТНИЦА');
+      dayIndex = nextDay;
+      store.set('day', dayIndex);
+    }
     ui.grade.innerHTML = win ? `<b>${grade.rank}</b><span>${grade.title} · ${score} очков${record ? ' · НОВЫЙ РЕКОРД!' : ` · рекорд ${Math.max(best, score)}`}${legacyBest > 0 ? ` · Старый рекорд, правила 0.24.1: ${legacyBest}` : ''}</span>` : '';
     ui.endResult.innerHTML = [
       ['Кайф', formatShiftResultValue(breakdown.fun)],
@@ -415,6 +421,7 @@
     if (!win && weekReprimands >= wMax) {
       weekReprimands = 0; store.set('weekReprimands', 0);
       dayIndex = 0; store.set('day', 0);
+      resetRelationshipsForNewWeek();
       addLog('Новая неделя: с понедельника с чистого листа.', 'info');
     }
   }

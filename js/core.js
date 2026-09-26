@@ -83,6 +83,11 @@
     if ((mode !== 'playing' && mode !== 'paused') || (auto.on && auto.demo)) return { ok: false, reason: 'save_unavailable' };
     const extensionErrors = { ...saveExtensionErrors };
     if (extensionErrors.moments && saveExtensions.moments && typeof saveExtensions.moments === 'object' && !Array.isArray(saveExtensions.moments)) delete extensionErrors.moments;
+    const relationshipState = saveExtensions.relationships;
+    const relationshipCheck = relationshipState && relationshipState.dayIndex === dayIndex
+      ? advanceRelationshipsDay(relationshipState, dayIndex)
+      : null;
+    if (extensionErrors.relationships && relationshipCheck && relationshipCheck.ok) delete extensionErrors.relationships;
     const result = makeSaveSnapshot({
       shiftId, rulesetId: shiftRulesetId, dayIndex, diffKey, clockMinutes, usefulness, fun, reprimands, weekReprimands, planTarget, majikArc, rngSeed,
       day, player, boss, coworkers, nextBossCheck, intelTimer, coverTokens, phoneSafe, nextDrill, todo,
@@ -108,6 +113,33 @@
       saveExtensions.moments = createMoments();
     }
     return saveExtensions.moments;
+  }
+
+  function relationshipStateForDay(state, targetDay = dayIndex) {
+    if (!state || typeof state !== 'object' || Array.isArray(state)) return { ok: false, state, effects: [], reason: 'invalid_state' };
+    if (state.dayIndex !== null && Number.isInteger(state.dayIndex) && state.dayIndex > targetDay) {
+      return { ok: false, state, effects: [], reason: 'day_mismatch' };
+    }
+    return advanceRelationshipsDay(state, targetDay);
+  }
+
+  function ensureRelationshipsExtension() {
+    const hasState = Object.prototype.hasOwnProperty.call(saveExtensions, 'relationships');
+    const current = saveExtensions.relationships;
+    const result = current ? relationshipStateForDay(current, dayIndex) : null;
+    if (!result || !result.ok) {
+      if (hasState && !saveExtensionErrors.relationships) saveExtensionErrors.relationships = result?.reason || 'invalid_state';
+      saveExtensions.relationships = relationshipStateForDay(createRelationships(), dayIndex).state;
+    } else {
+      saveExtensions.relationships = result.state;
+    }
+    return saveExtensions.relationships;
+  }
+
+  function recordRelationshipEvent(npcId, kind, eventId) {
+    const result = applyRelationshipEvent(ensureRelationshipsExtension(), { npcId, kind, eventId, dayIndex });
+    if (result.ok) saveExtensions.relationships = result.state;
+    return result;
   }
 
   function restoreSavedTodos(saved, useCurrentWhenEmpty = false) {

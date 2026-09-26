@@ -74,6 +74,22 @@
   }
   function coworkerById(id) { return coworkers.find(c => c.id === id); }
 
+  function requestFavor(npcId, kind) {
+    if (!RELATIONSHIP_NPC_IDS.includes(npcId)) return { ok: false, reason: 'unknown_npc' };
+    if (typeof kind !== 'string' || !kind.trim()) return { ok: false, reason: 'invalid_favor_kind' };
+    const coworker = coworkerById(npcId);
+    if (!coworker || coworker.away || coworker.remote) return { ok: false, reason: 'npc_unavailable' };
+    if (!unlocked('coworkers')) return { ok: false, reason: 'mechanic_locked' };
+    if (player.action !== 'none' || actionChoiceState || (choice && choice.asked && !choice.done)
+      || coworker.cooldown > 0 || (coworker.slack && coworker.slackTimer > 0)) {
+      return { ok: false, reason: 'busy' };
+    }
+    const eligibility = canRequestFavor(ensureRelationshipsExtension(), npcId, dayIndex);
+    if (!eligibility.ok) return { ok: false, reason: eligibility.reason };
+    if (!eligibility.canRequest) return { ok: false, reason: eligibility.reason || 'favor_unavailable' };
+    return { ok: false, reason: 'unavailable' };
+  }
+
   function getActionInfo() {
     if (nudge && player.action === 'work') return { prompt: 'Блеб зовёт посмотреть мем: E — глянуть (кайф, палево) · не отвечать — обидится', target: 'desk' };
     if (player.action === 'plant_hide') return { prompt: 'E / H — вылезти из листвы', target: player.hideSpot };
@@ -227,6 +243,10 @@
       addLog('Быкентий починил ксерокс. Герой отдела.', 'good');
       if (boss.seesPlayer || dist(boss, player) < 150) { say('boss', 'О! Технарь! Вот это я понимаю!', 2.8); stats.praise++; }
       else say('shurik', 'Спасибо! Он снова жуёт только иногда.', 2.6);
+      recordRelationshipEvent('shurik', 'help', `${shiftId}:relationships:shurik:fixjam`);
+    }
+    if (a === 'meme' && reason === 'done') {
+      recordRelationshipEvent('bleb', 'help', `${shiftId}:relationships:bleb:meme`);
     }
     if (a === 'fix_coffee' && reason === 'done') {
       day.coffeeJammed = false;
