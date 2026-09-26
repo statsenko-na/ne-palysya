@@ -204,9 +204,12 @@
   // Отладочный доступ для автотестов (scripts/qa.js)
   // Отладочный API только для автотестов (Playwright выставляет navigator.webdriver) и по ?debug
   if (navigator.webdriver || new URLSearchParams(location.search).has('debug')) window.NP_DEBUG = {
-    get state() { return { mode, player: { ...player }, boss: { ...boss, path: boss.path.length }, reprimands, weekReprimands, misses: day.misses, planTarget, usefulness, fun, clockMinutes, stats: { ...stats, chatted: stats.chatted.size }, todo, coverTokens, waterCups: day.waterCups, waterRecharge: day.waterRecharge, coffeeCups: day.coffeeCups, coffeeJammed: !!day.coffeeJammed, overtimeWork: day.overtimeWork || 0, excelWorkAcc: day.excelWorkAcc || 0, excelPoolTasks: day.excelPoolTasks || 0, adhocDone: !!day.adhocDone }; },
+    get state() { return { mode, player: { ...player }, boss: { ...boss, path: boss.path.length }, reprimands, weekReprimands, misses: day.misses, planTarget, usefulness, fun, clockMinutes, rulesetId: shiftRulesetId, stats: { ...stats, chatted: stats.chatted.size }, todo, coverTokens, waterCups: day.waterCups, waterRecharge: day.waterRecharge, coffeeCups: day.coffeeCups, coffeeJammed: !!day.coffeeJammed, overtimeWork: day.overtimeWork || 0, excelWorkAcc: day.excelWorkAcc || 0, excelPoolTasks: day.excelPoolTasks || 0, adhocDone: !!day.adhocDone }; },
     get loadResult() { return { ...lastLoadResult }; },
     get persistence() { return { shiftId, rngSeed, eventQueue: eventQueue.slice(), nextEvent, requiredEvent: requiredEvent && { ...requiredEvent }, autoUsed, recoveryGraceUsed, extensionErrors: { ...saveExtensionErrors } }; },
+    get moments() { return JSON.parse(JSON.stringify(ensureMomentsExtension())); },
+    get shiftResult() { return calculateCurrentShiftResult(); },
+    setMomentsState(state) { saveExtensions.moments = state; },
     get safeSpots() { return { seat: { ...SEAT }, toilet: { ...WD.toiletDoor } }; },
     teleport(x, y) { player.x = x; player.y = y; player.action = 'none'; player.actionTimer = 0; player.hideSpot = null; nudge = null; },
     setAction(action, timer = 0) { player.action = action; player.actionTimer = timer; player.actionTotal = timer; },
@@ -214,7 +217,7 @@
     skip(seconds) { for (let i = 0; i < seconds * 20 && mode === 'playing'; i++) update(0.05); },
     setDay(d) { dayIndex = clampDay(d); },
     set(v) { if ('usefulness' in v) usefulness = v.usefulness; if ('reprimands' in v) reprimands = v.reprimands; if ('weekReprimands' in v) { weekReprimands = v.weekReprimands; store.set('weekReprimands', weekReprimands); } if ('misses' in v) day.misses = v.misses; if ('fun' in v) fun = Math.min(100, Math.max(0, v.fun)); if ('waterCups' in v) day.waterCups = v.waterCups; if ('waterRecharge' in v) day.waterRecharge = v.waterRecharge; if ('coffeeJammed' in v) day.coffeeJammed = !!v.coffeeJammed; if ('coffeeQueueTimer' in v && day) day.coffeeQueueTimer = v.coffeeQueueTimer; if ('overtimeWork' in v) day.overtimeWork = v.overtimeWork; if ('adhocDone' in v) day.adhocDone = !!v.adhocDone; if ('fed' in v) day.fed = !!v.fed; if ('lunchCalled' in v) day.lunchCalled = !!v.lunchCalled; if ('lunchOpen' in v) day.lunchOpen = !!v.lunchOpen; if ('lunchAway' in v) day.lunchAway = !!v.lunchAway; if ('noPee' in v) { day.peeActive = false; day.pee = 0; day.peeLeft = 0; } },
-    interact, quickHide, togglePhone, startInspection, blocked, findPath, nav, startEvent,
+    interact, quickHide, togglePhone, endAction, goMunichBeer, startInspection, blocked, findPath, nav, startEvent,
     triggerAljazira(mood = 'neutral') {
       const c = coworkerById('aljazira');
       if (!c) return false;

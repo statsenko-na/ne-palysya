@@ -250,8 +250,9 @@ function saveSchemaExtensionErrors(errors) {
 
 function saveSchemaProject(source) {
   if (!saveSchemaIsRecord(source)) return { ok: false, reason: 'invalid_source' };
+  if (source.rulesetId !== undefined && (typeof source.rulesetId !== 'string' || !/^[a-z0-9][a-z0-9._-]{0,63}$/i.test(source.rulesetId))) return { ok: false, reason: 'invalid_ruleset_id' };
   const out = { v: SAVE_SCHEMA_VERSION };
-  const direct = ['shiftId', 'dayIndex', 'diffKey', 'clockMinutes', 'usefulness', 'fun', 'reprimands', 'weekReprimands', 'planTarget', 'majikArc', 'rngSeed', 'nextBossCheck', 'intelTimer', 'coverTokens', 'phoneSafe', 'nextDrill', 'eventQueue', 'nextEvent', 'choice', 'banner', 'tutorial', 'nudge', 'banterT', 'autoUsed', 'recoveryGraceUsed', 'migratedFromV2', 'demo'];
+  const direct = ['shiftId', 'rulesetId', 'dayIndex', 'diffKey', 'clockMinutes', 'usefulness', 'fun', 'reprimands', 'weekReprimands', 'planTarget', 'majikArc', 'rngSeed', 'nextBossCheck', 'intelTimer', 'coverTokens', 'phoneSafe', 'nextDrill', 'eventQueue', 'nextEvent', 'choice', 'banner', 'tutorial', 'nudge', 'banterT', 'autoUsed', 'recoveryGraceUsed', 'migratedFromV2', 'demo'];
   const fields = {
     day: saveSchemaDay,
     player: saveSchemaPlayer,

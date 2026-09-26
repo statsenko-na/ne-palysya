@@ -157,11 +157,12 @@
   function resetGame(seed) {
     rngSeed = Number.isInteger(seed) ? seed : Math.floor(Date.now() % 100000); // seed — только для автотестов
     shiftId = createShiftId();
+    shiftRulesetId = OFFICE_STORIES_RULESET_ID;
     autoUsed = false;
     recoveryGraceUsed = false;
     requiredEvent = null;
     actionChoiceState = null;
-    saveExtensions = {};
+    saveExtensions = { moments: createMoments() };
     saveExtensionErrors = {};
     clockMinutes = CFG.shiftStart;
     shiftTime = 0;

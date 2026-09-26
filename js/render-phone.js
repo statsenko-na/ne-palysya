@@ -6,11 +6,16 @@
   // ---------- ТЕЛЕФОН ----------
   function perkLines() {
     const out = [];
-    const doneN = todo.filter(t => t.done).length;
+    const liveResult = calculateCurrentShiftResult();
     out.push(['📋', planDone() ? `План ${Math.floor(usefulness)}/${planTarget} ✓ — дальше работа почти не нужна` : `План ${Math.floor(usefulness)}/${planTarget} к 19:30 (меньше ${Math.ceil(planTarget * CFG.planMinShare)} — выговор)`, planDone() ? '#9fe0b0' : '#f2bb38']);
     const dMax = diff().dayReprimandsMax, wMax = diff().weekReprimandsMax;
     out.push(['⚠️', `Выговоры: ${reprimands}/${dMax} за день · ${weekReprimands}/${wMax} за неделю`, (reprimands >= dMax - 1 || weekReprimands >= wMax - 1) ? '#ff9a8a' : '#f2bb38']);
-    out.push(['⭐', `Очки сейчас: ${Math.max(0, Math.round(fun + (planDone() ? 20 : 0) + doneN * 12 - reprimands * 15))} (кайф + план + дела − выговоры)`, '#e0a0f0']);
+    if (liveResult.ok) {
+      const b = liveResult.breakdown;
+      out.push(['⭐', `Очки сейчас: ${liveResult.score}`, '#e0a0f0']);
+      out.push(['', `Кайф ${formatShiftResultValue(b.fun)} · план ${formatShiftResultValue(b.fullPlan)} · дела ${formatShiftResultValue(b.todos)}`, '#e0a0f0']);
+      out.push(['', `Истории и хитрости ${formatShiftResultValue(b.moments)} · выговоры ${formatShiftResultValue(b.reprimands)}`, '#e0a0f0']);
+    }
     if (coverTokens) out.push(['🛡', 'Прикрытие: Аймашын отмажет от следующего выговора', '#9fe0b0']);
     if (intelTimer > 0) out.push(['📅', `Инсайд Хлада: проверка через ${Math.max(0, Math.ceil(nextBossCheck))} с`, '#f2bb38']);
     if (player.coffeeBoost > 0) out.push(['☕', `Кофеин: ещё ${Math.ceil(player.coffeeBoost)} с`, '#e8b070']);

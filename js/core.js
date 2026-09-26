@@ -36,6 +36,8 @@
 
   // Баланс, сложность, апгрейды и неделя — js/config.js
   const { CFG, DIFFICULTY, UPGRADES, DAYS, UNLOCK, EVENT_TIER } = window.NP_CONFIG;
+  const OFFICE_STORIES_RULESET_ID = 'office-stories-v1';
+  const OFFICE_STORIES_LEGACY_RULESET_ID = 'office-stories-legacy-0.24.1';
 
   const store = {
     get(k, d) { try { const v = localStorage.getItem(`nepalsya.${k}`); return v === null ? d : JSON.parse(v); } catch (_) { return d; } },
@@ -56,6 +58,7 @@
 
   // Идентификатор живёт одну смену; отложенные callbacks сверяются с ним перед изменением игры.
   let shiftId = '';
+  let shiftRulesetId = OFFICE_STORIES_RULESET_ID;
   let shiftSequence = 0;
   let autoUsed = false;
   let recoveryGraceUsed = false;
@@ -78,12 +81,14 @@
 
   function saveProgress() {
     if ((mode !== 'playing' && mode !== 'paused') || (auto.on && auto.demo)) return { ok: false, reason: 'save_unavailable' };
+    const extensionErrors = { ...saveExtensionErrors };
+    if (extensionErrors.moments && saveExtensions.moments && typeof saveExtensions.moments === 'object' && !Array.isArray(saveExtensions.moments)) delete extensionErrors.moments;
     const result = makeSaveSnapshot({
-      shiftId, dayIndex, diffKey, clockMinutes, usefulness, fun, reprimands, weekReprimands, planTarget, majikArc, rngSeed,
+      shiftId, rulesetId: shiftRulesetId, dayIndex, diffKey, clockMinutes, usefulness, fun, reprimands, weekReprimands, planTarget, majikArc, rngSeed,
       day, player, boss, coworkers, nextBossCheck, intelTimer, coverTokens, phoneSafe, nextDrill, todo,
       stats: { ...stats, chatted: Array.from(stats.chatted || []) }, officeEvent, eventQueue, nextEvent, requiredEvent,
       choice, actionChoice: actionChoiceState, banner, tutorial, nudge, banterT, autoUsed, demo: !!auto.demo,
-      recoveryGraceUsed, extensions: saveExtensions, extensionErrors: saveExtensionErrors,
+      recoveryGraceUsed, extensions: saveExtensions, extensionErrors,
     });
     if (!result.ok) return result;
     saveExtensionErrors = { ...result.snapshot.extensionErrors };
@@ -95,6 +100,14 @@
     if (!Object.prototype.hasOwnProperty.call(saveExtensionErrors, key)) return false;
     delete saveExtensionErrors[key];
     return true;
+  }
+
+  function ensureMomentsExtension() {
+    const state = saveExtensions.moments;
+    if (!state || typeof state !== 'object' || Array.isArray(state)) {
+      saveExtensions.moments = createMoments();
+    }
+    return saveExtensions.moments;
   }
 
   function restoreSavedTodos(saved, useCurrentWhenEmpty = false) {
@@ -137,6 +150,8 @@
 
     if (migrated) {
       shiftId = createShiftId();
+      shiftRulesetId = OFFICE_STORIES_LEGACY_RULESET_ID;
+      ensureMomentsExtension();
       recoveryGraceUsed = true;
       nextBossCheck = Math.max(nextBossCheck, 20);
       player.x = SEAT.x; player.y = SEAT.y; player.action = 'none'; player.actionTimer = 0; player.actionTotal = 0;
@@ -147,6 +162,7 @@
     }
 
     shiftId = s.shiftId;
+    shiftRulesetId = s.rulesetId || OFFICE_STORIES_LEGACY_RULESET_ID;
     rngSeed = s.rngSeed;
     autoUsed = !!s.autoUsed;
     recoveryGraceUsed = !!s.recoveryGraceUsed;
@@ -167,6 +183,7 @@
     banterT = s.banterT || 0;
     saveExtensions = s.extensions || {};
     saveExtensionErrors = s.extensionErrors || {};
+    ensureMomentsExtension();
     Object.assign(player, s.player);
     Object.assign(boss, s.boss);
     coworkers.forEach(c => {
@@ -290,7 +307,7 @@
   const ui = {
     overlay: $('screen-overlay'), pause: $('pause-overlay'), end: $('end-overlay'), endCard: $('end-card'),
     start: $('start-btn'), resume: $('resume-btn'), restart: $('restart-btn'),
-    toast: $('toast'), endKicker: $('end-kicker'), endTitle: $('end-title'), endCopy: $('end-copy'), endStats: $('end-stats'),
+    toast: $('toast'), endKicker: $('end-kicker'), endTitle: $('end-title'), endCopy: $('end-copy'), endResult: $('end-result'), endStats: $('end-stats'),
     grade: $('end-grade'),
     shop: $('shop-overlay'), shopList: $('shop-list'), shopCoins: $('shop-coins'), shopClose: $('shop-close'),
     shopBtns: document.querySelectorAll('.shop-open'), endCoins: $('end-coins'),

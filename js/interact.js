@@ -130,6 +130,41 @@
     if (clockMinutes < CFG.lunchOpen) return 'Выход на лестницу. Обед — с 12:30 до 14:00, раньше ни шагу.';
     return 'Выход на лестницу. Уйти на обед можно было до 14:00, теперь до 19:30 ни шагу.';
   }
+  function recordVarietyCompletion(activityId) {
+    if (shiftRulesetId !== OFFICE_STORIES_RULESET_ID) return null;
+    const sourceId = `${shiftId}:${activityId}:${Math.round(shiftTime * 1000)}`;
+    const result = awardMoment(ensureMomentsExtension(), 'variety', sourceId, {
+      activityId, active: false, completed: true, paused: false,
+    });
+    if (result.ok) saveExtensions.moments = result.state;
+    return result;
+  }
+  function tickPhoneMoment(dt) {
+    if (shiftRulesetId !== OFFICE_STORIES_RULESET_ID) return;
+    const state = ensureMomentsExtension();
+    const episode = state.variety && state.variety.phoneEpisode;
+    const sourceId = episode && typeof episode.sourceId === 'string'
+      ? episode.sourceId
+      : `${shiftId}:phone:${Math.floor(shiftTime * 1000)}`;
+    const result = awardMoment(state, 'variety', sourceId, {
+      activityId: 'phone', active: true, completed: false, paused: false, dt,
+    });
+    if (result.ok) saveExtensions.moments = result.state;
+  }
+  function finishPhoneMoment(allowCompletion = true) {
+    if (shiftRulesetId !== OFFICE_STORIES_RULESET_ID) return null;
+    const state = ensureMomentsExtension();
+    const episode = state.variety && state.variety.phoneEpisode;
+    const sourceId = episode && typeof episode.sourceId === 'string'
+      ? episode.sourceId
+      : `${shiftId}:phone:${Math.floor(shiftTime * 1000)}`;
+    const completed = !!allowCompletion && !!episode && Number.isFinite(episode.seconds) && episode.seconds >= 6;
+    const result = awardMoment(state, 'variety', sourceId, {
+      activityId: 'phone', active: false, completed, paused: false,
+    });
+    if (result.ok) saveExtensions.moments = result.state;
+    return result;
+  }
   function startAction(action, seconds) {
     // Бесконечно сидеть в кустах нельзя: после «хвостик торчит» укрытия недоступны на время
     if (COVER.has(action) && day.hideCd > 0) { say('player', `Фикус ещё помнит мой хвостик… (${Math.ceil(day.hideCd)} с)`, 2); player.hideSpot = null; return; }
@@ -142,9 +177,10 @@
   }
   function endAction(reason) {
     const a = player.action;
+    let completedChat = false;
     if (a === 'chat') {
       const c = coworkerById(player.chatWith);
-      if (reason === 'done' && c) grantPerk(c);
+      if (reason === 'done' && c) { grantPerk(c); completedChat = true; }
       player.chatWith = null;
     }
     if (a === 'fridge' && reason === 'done') stats.fridge++;
@@ -200,6 +236,9 @@
       toast('Вытряхнул жмых, промыл поддон! Кофемашина снова варит.', 2.8);
       floater(player.x, player.y - 64, 'КОФЕМАШИНА ЧИСТА +3 KPI', '#57d08a');
       addLog('Быкентий почистил кофемашину. Офис спасён.', 'good');
+    }
+    if (reason === 'done' && (a === 'smoke' || a === 'youtube' || a === 'fridge' || completedChat)) {
+      recordVarietyCompletion(a);
     }
     player.action = 'none';
     player.actionTimer = 0;
@@ -448,7 +487,7 @@
   }
 
   function togglePhone() {
-    if (player.action === 'phone') { endAction('cancel'); playSound('click'); return; }
+    if (player.action === 'phone') { finishPhoneMoment(true); endAction('cancel'); playSound('click'); return; }
     if (AWAY.has(player.action)) return;
     if (player.action === 'work' || HIDDEN.has(player.action) || player.action === 'chat') {
       // в Excel и в укрытии телефон тоже можно достать — но это палево
