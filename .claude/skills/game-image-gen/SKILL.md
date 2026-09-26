@@ -27,7 +27,7 @@ agy -p "<промпт>. Only generate one image and save it as <name>.png in the
 
 ## 2. Встраивание
 1. Посмотри картинку (Read). Проверь, что фон пурпурный и персонаж целиком.
-2. Скопируй исходник в `assets/<name>-src.png`.
+2. Скопируй исходник в `assets/<name>-src.png` (файл игнорируется git и не публикуется — не добавляй его принудительно).
 3. `python scripts/replace_sprite.py assets/<name>-src.png <sheet> <index> [cell_w] [cell_h]` — убирает хромакей, вписывает с nearest-neighbor, заменяет ячейку. Листы: `assets/extras-v1.png` 80×112 (0 Асель, 1 Альджазира, 2 Сиргей, 3 Тигран, 4 Штази).
 4. Удали папку `gen` после переноса.
 

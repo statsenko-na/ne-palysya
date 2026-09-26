@@ -1,0 +1,5 @@
+# Единые окончания строк: в репозитории и в рабочей копии — LF
+* text=auto eol=lf
+*.png binary
+*.jpg binary
+*.pyc binary

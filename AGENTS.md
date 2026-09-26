@@ -44,7 +44,7 @@
 - `style.css` — оболочка, HUD и адаптивная компоновка.
 - `game.js` — цикл игры, баланс (`CFG`, `DAYS`), ИИ начальника, события, HUD, телефон, отрисовка персонажей.
 - `js/world.js` — геометрия: стены, коллайдеры, зоны, навигация. `js/art.js` — процедурный арт офиса. `js/lines.js` — все реплики.
-- `assets/` — листы спрайтов, которые грузит игра (`bykentiy-walk-v4`, `boss-walk-v3`, `coworkers-v3`, `extras-v1`), вид на Алматы, SVG-эмблема; `*-src.png`, `boss-walk-v2.png` и `office-background-pixel-v1.png` — исходники для `scripts/replace_sprite.py`, `make_boss_walk.py` и `make_panorama.py`.
+- `assets/` — листы спрайтов, которые грузит игра (`bykentiy-walk-v4`, `boss-walk-v3`, `coworkers-v3`, `extras-v1`), вид на Алматы, SVG-эмблема; `*-src.png` (только локально, в git не хранятся), `boss-walk-v2.png` и `office-background-pixel-v1.png` — исходники для `scripts/replace_sprite.py`, `make_boss_walk.py` и `make_panorama.py`.
 - `docs/` — механики, визуальные правила, агентская документация и handoff.
 
 ## OpenAI / Codex / Antigravity
