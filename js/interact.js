@@ -7,7 +7,7 @@
   const COVER = new Set(['plant_hide', 'cabinet_hide', 'printer_hide']);
   const HIDDEN = new Set(['plant_hide', 'cabinet_hide', 'printer_hide', 'toilet', 'lunch', 'evac']);
   const AWAY = new Set(['toilet', 'lunch', 'evac']); // Быкентия нет в опенспейсе — не рисуем
-  const SLACK_BASE = new Set(['smoke', 'youtube', 'fridge', 'chat', 'phone', 'meme', 'yogurt-coffee-gift']);
+  const SLACK_BASE = new Set(['smoke', 'youtube', 'fridge', 'chat', 'phone', 'meme', 'yogurt-coffee-gift', 'autoshka-repair']);
   const SLACK = { has: a => SLACK_BASE.has(a) && !(a === 'phone' && phoneSafe > 0) };
   // Склонения имён: родительный, дательный, творительный
   const NAME_CASES = { 'Асель': ['Асель', 'Асель', 'Асель'], 'Сиргей': ['Сиргея', 'Сиргею', 'Сиргеем'] };
@@ -410,6 +410,7 @@
     if (player.action === 'cabinet_hide') return { prompt: 'E / H — выйти из-за шкафов', target: 'archive' };
     if (player.action === 'printer_hide') return { prompt: 'E / H — вылезти из-за ксерокса', target: 'printer' };
     if (player.action === 'chat') return { prompt: 'Болтаете… (шаг — прервать)', target: `chat_${player.chatWith}` };
+    if (player.action === 'autoshka-repair') return { prompt: 'Чинишь автошку у Сиргея… (шаг — прервать)', target: 'chat_sirgey' };
     if (player.action === 'printer-distraction-prep') return { prompt: 'Готовишь приманку у ксерокса…', target: 'printer' };
     if (player.action === 'takeFolder') return { prompt: 'Берёшь папку…', target: 'printer' };
     if (player.action === 'yogurt-coffee-gift') return { prompt: 'Отдаёшь Хладу свежий кофе…', target: 'chat_hlad' };
@@ -451,6 +452,16 @@
       const c = coworkerById(z.coworker);
       if (c.away) return { prompt: c.remote ? `${c.name}: на удалёнке до четверга` : `${c.name}: место пустое — ушёл(ла)`, target: z.id, zone: z };
       if (!unlocked('coworkers')) return { prompt: `${c.name}: «Понедельник, не до болтовни». Коллеги — со вторника`, target: z.id, zone: z };
+      if (c.id === 'sirgey' && eventIs('autoshka') && autoshkaModuleAvailable()) {
+        if (c.remote) return { prompt: 'Сиргей на удалёнке — помочь с автошкой некому', target: z.id, zone: z };
+        const story = autoshkaStateForActiveEvent();
+        const prompt = story && story.status === 'completed'
+          ? 'Автошка уже получила помощь'
+          : story && story.status === 'repairing'
+            ? 'Помогаешь Сиргею чинить автошку…'
+            : 'E — помочь Сиргею с автошкой или оставить Д.Н. разбираться';
+        return { prompt, target: z.id, zone: z };
+      }
       if (c.id === 'hlad' && yogurt && yogurt.status === 'discovered') {
         const prompt = yogurt.resolution === 'admit'
           ? (yogurt.coffeeCompletedAfterDiscovery ? 'E — отдать Хладу свежий кофе (2 с)' : 'Хлад ждёт кофе, сваренный после пропажи')
@@ -731,6 +742,206 @@
     saveExtensions.yogurt = next;
     return true;
   }
+  function autoshkaModuleAvailable() {
+    return typeof createAutoshkaChoice === 'function' && typeof isAutoshkaState === 'function'
+      && typeof startAutoshkaRepair === 'function' && typeof tickAutoshkaRepair === 'function'
+      && typeof cancelAutoshkaRepair === 'function';
+  }
+  function autoshkaEventIdentity() { return `${shiftId}:autoshka:1`; }
+  function autoshkaStateForActiveEvent() {
+    const current = saveExtensions.autoshka;
+    return eventIs('autoshka') && autoshkaModuleAvailable() && current
+      && isAutoshkaState(current) && current.eventId === autoshkaEventIdentity() ? current : null;
+  }
+  function autoshkaLegalAway() {
+    return AWAY.has(player.action) || player.action === 'daily' || !!eventIs('drill');
+  }
+  function autoshkaContext(dt = 0, state = null, forceShiftEnd = false) {
+    const sirgey = coworkerById('sirgey');
+    const zone = currentZone();
+    const eventActive = !!eventIs('autoshka');
+    return {
+      dt,
+      paused: mode !== 'playing',
+      shiftEnded: forceShiftEnd || mode === 'ended' || clockMinutes >= CFG.shiftEnd,
+      clockMinutes,
+      eventActive,
+      eventId: state && state.eventId || autoshkaEventIdentity(),
+      eventRemaining: eventActive ? Math.max(0, officeEvent.t) : 0,
+      sirgeyAvailable: !!sirgey && !sirgey.away && !sirgey.remote && unlocked('coworkers'),
+      playerAtDesk: !!zone && zone.type === 'chat' && zone.coworker === 'sirgey',
+      legalAway: autoshkaLegalAway(),
+    };
+  }
+  function autoshkaReliableRelationshipReason() {
+    if (typeof applyRelationshipEvent !== 'function') return 'Механика помощи Сиргею недоступна';
+    const eventId = `${autoshkaEventIdentity()}:autoshka:reliable:relationship:sirgey`;
+    const result = applyRelationshipEvent(ensureRelationshipsExtension(), {
+      eventId,
+      npcId: 'sirgey',
+      kind: 'help',
+      dayIndex,
+    });
+    if (result.ok) return '';
+    if (result.reason === 'relationship_angry') return 'Сиргей ещё обижен и не примет помощь';
+    if (result.reason === 'help_already_used_today') return 'Сиргею уже помогали сегодня';
+    return 'Сейчас нельзя получить кредит помощи Сиргея';
+  }
+  function ensureAutoshkaChoiceState() {
+    if (!autoshkaModuleAvailable() || !eventIs('autoshka')) return null;
+    const current = saveExtensions.autoshka;
+    if (current && isAutoshkaState(current) && current.eventId === autoshkaEventIdentity()
+      && current.status !== 'cancelled') return current;
+    const result = createAutoshkaChoice(autoshkaContext(0));
+    if (!result.ok) {
+      if (current && !isAutoshkaState(current)) saveExtensionErrors.autoshka = 'state_invalid';
+      return null;
+    }
+    saveExtensions.autoshka = result.state;
+    delete saveExtensionErrors.autoshka;
+    return result.state;
+  }
+  function autoshkaChoiceDisabledReason(branch) {
+    const state = autoshkaStateForActiveEvent();
+    if (!eventIs('autoshka')) return 'Событие автошки закончилось';
+    const context = autoshkaContext(0, state);
+    if (!context.sirgeyAvailable) return 'Сиргея сейчас нет в офисе';
+    if (!context.playerAtDesk) return 'Нужно быть у стола Сиргея';
+    if (!state || state.status === 'cancelled') return 'Выбор помощи уже закрыт';
+    if (state.status !== 'choice') return 'Решение по этой автошке уже выбрано';
+    if (branch === 'reliable') {
+      const relationshipReason = autoshkaReliableRelationshipReason();
+      if (relationshipReason) return relationshipReason;
+    }
+    const duration = branch === 'reliable' ? 6 : 3;
+    if (!state.options[branch] || context.eventRemaining < duration) return `Нужно ещё ${duration} с события`;
+    return '';
+  }
+  function openAutoshkaChoice() {
+    const state = ensureAutoshkaChoiceState();
+    if (!state) {
+      toast(!eventIs('autoshka') ? 'Событие автошки закончилось.' : 'Сиргей недоступен или времени на помощь не осталось.', 2.2);
+      return false;
+    }
+    if (state.status !== 'choice') {
+      toast(state.status === 'repairing' ? 'Ты уже помогаешь Сиргею.' : 'Эта автошка уже получила решение.', 2.2);
+      return false;
+    }
+    return openActionChoice({ id: 'autoshka-help', owner: 'sirgey', options: ['reliable', 'quick', 'leave'], expiresIn: 10 });
+  }
+  function startAutoshkaHelp(branch) {
+    const current = ensureAutoshkaChoiceState();
+    if (!current || current.status !== 'choice') {
+      toast('Сиргей или событие уже недоступны.', 2.2);
+      return false;
+    }
+    if (branch === 'reliable') {
+      const relationshipReason = autoshkaReliableRelationshipReason();
+      if (relationshipReason) {
+        toast(relationshipReason, 2.2);
+        return false;
+      }
+    }
+    const result = startAutoshkaRepair(current, branch, autoshkaContext(0, current));
+    if (!result.ok) {
+      toast(result.reason === 'event_too_short' ? 'Автошка скоро поднимется сама — времени на ремонт не осталось.' : 'Сейчас нельзя помочь Сиргею.', 2.2);
+      return false;
+    }
+    saveExtensions.autoshka = result.state;
+    delete saveExtensionErrors.autoshka;
+    startAction('autoshka-repair', result.state.remaining);
+    say('player', branch === 'reliable' ? 'Сейчас разберусь нормально, без лишнего шума.' : 'Сделаю быстрый костыль. Надеюсь, продержится.', 2.6);
+    addLog(branch === 'reliable' ? 'Быкентий чинит автошку у стола Сиргея.' : 'Быкентий ставит быстрый костыль для автошки.', 'info');
+    playSound('click');
+    return true;
+  }
+  function leaveAutoshkaToBoss() {
+    if (!eventIs('autoshka') || !autoshkaStateForActiveEvent()) {
+      toast('Событие автошки уже закончилось.', 2.2);
+      return false;
+    }
+    say('player', 'Пусть Д.Н. сам объяснит Сиргею, как её перезапустить.', 2.8);
+    addLog('Быкентий оставил Сиргея разбираться с Д.Н.; отвлечение продолжается.', 'info');
+    return true;
+  }
+  function applyAutoshkaTransition(result, previous = saveExtensions.autoshka) {
+    if (!result || !result.ok) return false;
+    let relationships = null;
+    let moments = null;
+    let relationshipsChanged = false;
+    let momentsChanged = false;
+    const effects = [];
+    for (const effect of result.effects || []) {
+      if (effect.type === 'relationship') {
+        relationships = relationships || ensureRelationshipsExtension();
+        const applied = applyRelationshipEvent(relationships, {
+          eventId: effect.eventId,
+          npcId: effect.npcId,
+          kind: effect.kind,
+          dayIndex,
+        });
+        if (!applied.ok) return false;
+        relationships = applied.state;
+        relationshipsChanged = true;
+      } else if (effect.type === 'awardMoment') {
+        moments = moments || ensureMomentsExtension();
+        const awarded = awardMoment(moments, effect.momentId, effect.sourceId);
+        if (!awarded.ok) {
+          if (['moment_cap_reached', 'moment_already_awarded', 'duplicate_source'].includes(awarded.reason)) continue;
+          return false;
+        }
+        moments = awarded.state;
+        momentsChanged = true;
+      } else if (effect.type === 'addWork' || effect.type === 'subtractWork' || effect.type === 'message') {
+        effects.push(effect);
+      } else return false;
+    }
+    saveExtensions.autoshka = result.state;
+    delete saveExtensionErrors.autoshka;
+    if (relationshipsChanged) saveExtensions.relationships = relationships;
+    if (momentsChanged) saveExtensions.moments = moments;
+    for (const effect of effects) {
+      if (effect.type === 'addWork') {
+        addWork(effect.amount);
+        floater(player.x, player.y - 64, `+${effect.amount} К ПЛАНУ`, '#57d08a');
+        addLog(`Помог Сиргею с автошкой: +${effect.amount} к плану.`, 'good');
+      } else if (effect.type === 'subtractWork') {
+        usefulness = Math.max(0, usefulness - Math.min(Math.max(0, usefulness), effect.amount));
+      } else if (effect.type === 'message') {
+        const key = typeof effect.lineId === 'string' ? effect.lineId.replace(/^autoshka\./, '') : '';
+        const message = LINES.autoshka && LINES.autoshka[key];
+        const owner = coworkerById(effect.ownerId);
+        if (message && owner && !owner.away && !owner.remote) say(owner.id, message, 3.2);
+        if (message) addLog(message, 'bad');
+      }
+    }
+    if (effects.some(effect => effect.type === 'addWork' || effect.type === 'subtractWork')) checkTodo();
+    return true;
+  }
+  function tickAutoshkaAdapter(dt, forceShiftEnd = false) {
+    if (!autoshkaModuleAvailable()) return false;
+    const current = saveExtensions.autoshka;
+    if (!current || !isAutoshkaState(current) || current.status === 'cancelled') return false;
+    const context = autoshkaContext(dt, current, forceShiftEnd);
+    if (actionChoiceState && actionChoiceState.id === 'autoshka-help' && (forceShiftEnd || !context.eventActive)) closeActionChoice('event_ended');
+    let result;
+    if (current.status === 'choice') {
+      if (!forceShiftEnd && context.eventActive) return false;
+      result = cancelAutoshkaRepair(current, forceShiftEnd ? 'shift_ended' : 'event_ended');
+    } else result = tickAutoshkaRepair(current, context);
+    if (!result.ok || (result.state === current && !result.effects.length)) return false;
+    const committed = applyAutoshkaTransition(result, current);
+    if (committed && result.state.status === 'cancelled' && player.action === 'autoshka-repair') {
+      endAction('cancel');
+    }
+    return committed;
+  }
+  function cancelAutoshkaHelp(reason) {
+    const current = saveExtensions.autoshka;
+    if (!current || !isAutoshkaState(current) || current.status !== 'repairing') return false;
+    const canceled = cancelAutoshkaRepair(current, reason === 'shift_ended' ? 'shift_ended' : 'interrupted');
+    return applyAutoshkaTransition(canceled, current);
+  }
   function activityContext(overrides) {
     return Object.assign({
       shiftId,
@@ -865,6 +1076,9 @@
   function endAction(reason, finishedActivity = null) {
     const a = player.action;
     const startPrinterDistraction = a === 'printer-distraction-prep' && reason === 'done';
+    if (a === 'autoshka-repair' && reason !== 'done') {
+      cancelAutoshkaHelp(reason);
+    }
     if (a === 'takeFolder') {
       if (reason === 'done') disguisePreparationCompletedPending = true;
       else {
@@ -1008,6 +1222,11 @@
     if (player.action === 'yogurt-coffee-gift') {
       endAction('cancel');
       toast('Кофе пока останется у Быкентия.', 1.6);
+      return;
+    }
+    if (player.action === 'autoshka-repair') {
+      endAction('cancel');
+      toast('Помощь Сиргею прервана.', 1.6);
       return;
     }
     const info = getActionInfo();
@@ -1225,6 +1444,11 @@
         const c = coworkerById(z.coworker);
         if (c.away) { toast(`${c.name} ушёл(ла). Стул ещё тёплый.`, 1.6); return; }
         if (!unlocked('coworkers')) { say(c.id, 'Понедельник же, не до разговоров!', 2); return; }
+        if (c.id === 'sirgey' && eventIs('autoshka') && autoshkaModuleAvailable()) {
+          if (c.remote) { toast('Сиргей на удалёнке — помочь некому.', 2); return; }
+          openAutoshkaChoice();
+          return;
+        }
         if (c.id === 'hlad' && yogurtStoryModuleAvailable()) {
           const story = ensureYogurtExtension();
           if (story && story.status === 'discovered') {
@@ -1255,7 +1479,7 @@
     if (mode !== 'playing') return false;
     if (player.action === 'phone') { phonePage = 'reels'; phonePanelOpen = true; return true; }
     if (AWAY.has(player.action)) return false;
-    if (player.action === 'work' || HIDDEN.has(player.action) || player.action === 'chat') {
+    if (player.action === 'work' || HIDDEN.has(player.action) || player.action === 'chat' || player.action === 'autoshka-repair') {
       // в Excel и в укрытии телефон тоже можно достать — но это палево
       if (player.action === 'work') player.y = SEAT.y;
       if (player.action === 'plant_hide' && player.hideSpot) player.y = player.hideSpot.y + 14;
@@ -1354,6 +1578,19 @@
     handlers: {
       own: () => startFridgeVariant('fridge-own'),
       yogurt: () => startFridgeVariant('fridge-yogurt'),
+    },
+  });
+  registerActionChoiceHandler('autoshka-help', {
+    title: 'Автошка Сиргея: помочь или нет?',
+    options: [
+      { id: 'reliable', label: 'Починить надёжно', detail: '6 с · +6 к плану · помощь Сиргею · без кайфа', disabledReason: () => autoshkaChoiceDisabledReason('reliable') },
+      { id: 'quick', label: 'Быстрый костыль', detail: '3 с · +3 к плану · через 12 с может −6', disabledReason: () => autoshkaChoiceDisabledReason('quick') },
+      { id: 'leave', label: 'Оставить разбираться', detail: 'Без помощи · Д.Н. продолжит отчитывать' },
+    ],
+    handlers: {
+      reliable: () => startAutoshkaHelp('reliable'),
+      quick: () => startAutoshkaHelp('quick'),
+      leave: () => leaveAutoshkaToBoss(),
     },
   });
   registerActionChoiceHandler('smoke-listening', {

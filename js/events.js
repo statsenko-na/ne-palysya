@@ -272,6 +272,7 @@
       }
     }
     updateSchedule(dt);
+    tickAutoshkaAdapter(dt);
     tickYogurtStoryAdapter(dt);
     if (banner) { banner.t += dt; if (banner.t > (banner.dur || 4.4)) banner = null; }
   }

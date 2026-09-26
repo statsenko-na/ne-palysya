@@ -4,7 +4,7 @@
 const SAVE_SCHEMA_VERSION = 3;
 const SAVE_SCHEMA_EVENTS = new Set(['food', 'call', 'internet', 'jam', 'bday', 'heat', 'noise', 'drill', 'standup', 'majik', 'arrfr', 'sb', 'autoshka']);
 const SAVE_SCHEMA_NPCS = new Set(['aimashyn', 'hlad', 'shurik', 'bleb', 'sirgey', 'asel', 'aljazira', 'stazy', 'tigran']);
-const SAVE_SCHEMA_EXTENSIONS = new Set(['moments', 'relationships', 'activities', 'distractions', 'disguise', 'equipment', 'bossMemory', 'yogurt', 'weekScenario', 'weekOutcomes', 'phone', 'daily', 'groupSmoke']);
+const SAVE_SCHEMA_EXTENSIONS = new Set(['moments', 'relationships', 'activities', 'distractions', 'disguise', 'equipment', 'bossMemory', 'yogurt', 'autoshka', 'weekScenario', 'weekOutcomes', 'phone', 'daily', 'groupSmoke']);
 const SAVE_SCHEMA_EXTENSION_ERROR_KEYS = new Set([...SAVE_SCHEMA_EXTENSIONS, '$root']);
 const SAVE_SCHEMA_DAY_FIELDS = [
   'misses', 'lunchCalled', 'lunchOpen', 'fed', 'hungry', 'bossLunch', 'beer', 'toiletCd', 'queue', 'queueTotal',

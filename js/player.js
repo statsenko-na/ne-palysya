@@ -351,6 +351,8 @@
     closePhonePanel(true, true);
     interruptBossDistraction('interrupted');
     tickYogurtStoryAdapter(0, true);
+    tickAutoshkaAdapter(0, true);
+    if (player.action === 'autoshka-repair') endAction('shift_ended');
     cancelActiveActivitiesAtShiftEnd();
     // Конец смены: меньше половины плана — выговор (на лимите — увольнение); от половины — без выговора, но и без бонуса
     let planFailed = false;

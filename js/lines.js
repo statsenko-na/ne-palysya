@@ -383,8 +383,9 @@
     down: ['Маджикистан лёг! Опять!', 'В Маджикистане отключили свет. Опять. Сервер тоже.', 'Маджикистан: база данных — это Excel на флешке у сторожа.'],
     boss: ['Быкентий! Маджикистан лежит! Ты же ответственный!', 'Маджикистан! Почему там опять всё красное?!'],
     fixed: ['Маджикистан поднят! Перезагрузил роутер в чайхане.', 'Работает! Сторож вставил флешку обратно.'],
-    autoshka: ['АВТОШКА УПАЛА! Опять!', 'Автошка лежит, очередь за Кобальтами до Аль-Фараби!', 'Кто-нибудь, перезапустите автошку!'],
+    autoshka: ['Быкентий, помоги! Автошка упала опять!', 'Быкентий, автошка лежит — очередь за Кобальтами до Аль-Фараби!', 'Кто-нибудь, перезапустите автошку! Быкентий, подхвати!'],
   };
+  const autoshka = { quick_failure: 'Костыль отвалился. Уже починили?' };
   // Блеб отвлекает через перегородку, регулятор
   const nudge = {
     ask: ['Быкентий, глянь мем! Про Маджикистан!', 'Пс! Смотри, что нейросеть нарисовала!', 'Быкентий, тут видос про Кобальт на Аль-Фараби!'],
@@ -531,5 +532,5 @@
   // Д.Н. проходит мимо стола Тиграна — духа он не видит, только чувствует
   const tigranDraft = ['Бр-р… Откуда сквозняк у пустого стола?', 'Кто тут рычит?.. Показалось.', 'Почему тут пахнет космосом?'];
 
-  window.NP_LINES = { banter, tigranDraft, boss, chat, perks, coworkerIdle, coworkerWarn, thoughts, distraction, disguise, yogurt, dayTasks, excuses, majik, sb, nudge, arrfr, slack, whine, complaints, lunch, munich, toilet, pee, hideOut, bday, aljazira, adhoc, excelTasks, coffeeQueue };
+  window.NP_LINES = { banter, tigranDraft, boss, chat, perks, coworkerIdle, coworkerWarn, thoughts, distraction, disguise, yogurt, autoshka, dayTasks, excuses, majik, sb, nudge, arrfr, slack, whine, complaints, lunch, munich, toilet, pee, hideOut, bday, aljazira, adhoc, excelTasks, coffeeQueue };
 })();
