@@ -122,6 +122,14 @@
   function pickTodo() {
     return (today().tasks || []).map(id => LINES.dayTasks.find(t => t.id === id)).filter(Boolean).map(t => ({ ...t, done: false, day: true }));
   }
+  function requiredEventForTodo(tasks) {
+    const prerequisites = window.NP_CONFIG.TASK_EVENT_PREREQUISITES || {};
+    const task = (tasks || []).find(t => !t.done && prerequisites[t.id]);
+    if (!task) return null;
+    const id = prerequisites[task.id];
+    if (!EVENT_TIER[id] || !unlocked(EVENT_TIER[id])) return null;
+    return { id, deadlineStart: 15 * 60, dispatched: false };
+  }
   function todoProgress(t) {
     if (t.stat) return Math.floor(stats[t.stat] || 0);
     switch (t.id) {
@@ -167,6 +175,7 @@
     coverTokens = 0;
     particles = []; floaters = []; bubbles = []; logEntries = [];
     todo = pickTodo();
+    requiredEvent = requiredEventForTodo(todo);
     officeEvent = null;
     banner = null;
     tutorial = { step: store.get('tutorialDone', false) ? 99 : 0, t: 0 };

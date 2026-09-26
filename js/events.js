@@ -32,14 +32,26 @@
     const pool = ['call', 'internet', 'jam', 'bday', 'heat', 'noise', 'drill', 'standup', 'majik', 'autoshka', 'arrfr'].filter(open);
     if (!open('food')) return []; // понедельник: только ядро, без событий
     for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
-    const ids = pool.slice(0, 5);
-    ids.splice(Math.floor(rand() * 2), 0, 'food');
+    let ids = pool.slice(0, 5);
+    const requiredId = requiredEvent && !requiredEvent.dispatched && pool.includes(requiredEvent.id) ? requiredEvent.id : null;
+    if (requiredId) {
+      ids = [requiredId, ...ids.filter(id => id !== requiredId).slice(0, 4)];
+      rand(); // Сохраняем прежнее потребление RNG при выборе позиции угощения.
+      ids.splice(1, 0, 'food');
+    } else {
+      ids.splice(Math.floor(rand() * 2), 0, 'food');
+    }
     if (open('sb') && rand() < 0.3) ids.splice(Math.min(ids.length, 2 + Math.floor(rand() * 3)), 0, 'sb'); // редкое: служба безопасности включает камеры
     return ids;
   }
   const bossBusy = () => ['inspect', 'waitDesk', 'lecture', 'leaving', 'gone', 'goout', 'out', 'scold'].includes(boss.state);
   function startEvent(id) {
     const def = EVENTS[id];
+    if (!def) return false;
+    if (requiredEvent && id === requiredEvent.id) {
+      requiredEvent.dispatched = true;
+      eventQueue = eventQueue.filter(eventId => eventId !== id);
+    }
     officeEvent = { id, t: def.dur, used: false };
     let text = def.title;
     if (id === 'food') { officeEvent.food = pick(FOODS); text = officeEvent.food.text; }
@@ -108,6 +120,7 @@
     banner = { text: officeEvent.toy ? 'СБОР НА ТОЙ' : def.title, sub: text, t: 0 };
     playSound('success');
     addLog(`Событие: ${text}`, 'info');
+    return true;
   }
   function complainWave(kind) {
     const pool = coworkers.filter(c => !c.away);
@@ -187,6 +200,37 @@
     }
     if (day.beerAwayIndex >= coworkers.length) day.beerAwayTimer = 0;
   }
+  function isEventWindowDeferred() {
+    return onLunch() || player.action === 'daily';
+  }
+  function canStartEventBeforeDeadline(eventId) {
+    if (!requiredEvent || requiredEvent.dispatched || eventId === requiredEvent.id) return true;
+    const def = EVENTS[eventId];
+    if (!def) return false;
+    const minutesPerSimulationSecond = (CFG.shiftEnd - CFG.shiftStart) / CFG.shiftSeconds;
+    const secondsUntilDeadline = Math.max(0, (requiredEvent.deadlineStart - clockMinutes) / minutesPerSimulationSecond);
+    return def.dur <= secondsUntilDeadline;
+  }
+  function dispatchRequiredEvent() {
+    if (!requiredEvent || requiredEvent.dispatched || clockMinutes < requiredEvent.deadlineStart || isEventWindowDeferred()) return false;
+    eventQueue = eventQueue.filter(id => id !== requiredEvent.id);
+    nextEvent = 30 + rand() * 14;
+    return startEvent(requiredEvent.id);
+  }
+  function ensureRequiredEventQueue() {
+    if (!requiredEvent || !EVENTS[requiredEvent.id] || !unlocked(EVENT_TIER[requiredEvent.id])) return;
+    const includesRequired = eventQueue.includes(requiredEvent.id);
+    let queue = eventQueue.filter(id => id !== requiredEvent.id);
+    if (requiredEvent.dispatched) { eventQueue = queue; return; }
+    if (!includesRequired && queue.length) {
+      let replace = -1;
+      for (let i = queue.length - 1; i >= 0; i--) {
+        if (queue[i] !== 'food' && queue[i] !== 'sb') { replace = i; break; }
+      }
+      if (replace >= 0) queue.splice(replace, 1);
+    }
+    eventQueue = [requiredEvent.id, ...queue];
+  }
   function updateEvents(dt) {
     updateDrillAway(dt);
     if (officeEvent) {
@@ -214,9 +258,15 @@
       }
       if (officeEvent.id === 'heat' && rand() < dt * 0.12) { const c = pick(coworkers.filter(k => !k.away)); if (c) say(c.id, pick(LINES.complaints.heat), 2.4, '#ffe6c8'); }
       if (officeEvent.t <= 0) endEvent();
-    } else if (!['inspect', 'goout', 'out'].includes(boss.state) && !lunchTime() && !onLunch()) {
+    } else if (dispatchRequiredEvent()) {
+      // Гарантированное событие не ждёт свободного начальника.
+    } else if (!['inspect', 'goout', 'out'].includes(boss.state) && !lunchTime() && !onLunch() && !isEventWindowDeferred()) {
       nextEvent -= dt;
-      if (nextEvent <= 0 && eventQueue.length) { startEvent(eventQueue.shift()); nextEvent = 30 + rand() * 14; }
+      if (nextEvent <= 0 && eventQueue.length) {
+        const nextId = eventQueue[0];
+        if (!canStartEventBeforeDeadline(nextId)) nextEvent = 0.5;
+        else { eventQueue.shift(); startEvent(nextId); nextEvent = 30 + rand() * 14; }
+      }
     }
     updateSchedule(dt);
     if (banner) { banner.t += dt; if (banner.t > (banner.dur || 4.4)) banner = null; }

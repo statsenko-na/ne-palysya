@@ -132,7 +132,8 @@
     restoreSavedTodos(s.todo, migrated);
     if (s.stats) { Object.assign(stats, s.stats); stats.chatted = new Set(s.stats.chatted || []); }
     officeEvent = s.officeEvent && EVENTS[s.officeEvent.id] ? { ...EVENTS[s.officeEvent.id], ...s.officeEvent } : null;
-    requiredEvent = s.requiredEvent || null;
+    requiredEvent = s.requiredEvent || requiredEventForTodo(todo);
+    if (requiredEvent && (officeEvent?.id === requiredEvent.id || day.majikFail || stats.majikFixed > 0)) requiredEvent.dispatched = true;
 
     if (migrated) {
       shiftId = createShiftId();
@@ -141,6 +142,7 @@
       player.x = SEAT.x; player.y = SEAT.y; player.action = 'none'; player.actionTimer = 0; player.actionTotal = 0;
       player.queueTarget = null; player.chatWith = null; player.hideSpot = null;
       if (day.lunchAway) coworkers.forEach(c => { if (!c.ghost) c.away = true; });
+      ensureRequiredEventQueue();
       return { status: 'migrated', reason: null };
     }
 
@@ -155,6 +157,7 @@
     phoneSafe = s.phoneSafe || 0;
     nextDrill = s.nextDrill || 0;
     eventQueue = s.eventQueue.slice();
+    ensureRequiredEventQueue();
     nextEvent = s.nextEvent;
     choice = s.choice || null;
     actionChoiceState = s.actionChoice || null;

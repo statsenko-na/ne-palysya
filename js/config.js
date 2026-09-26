@@ -103,6 +103,7 @@
   // С какого дня (индекс) открывается механика
   const UNLOCK = { coworkers: 1, events1: 1, lunch: 0, events2: 2, almaty: 2, row2: 3, standup: 3, events3: 3 };
   const EVENT_TIER = { food: 'events1', call: 'events1', internet: 'events1', jam: 'events1', bday: 'events2', heat: 'events2', noise: 'events2', drill: 'events2', standup: 'events3', majik: 'events3', autoshka: 'events3', arrfr: 'events3', sb: 'events3' };
+  const TASK_EVENT_PREREQUISITES = { majik: 'majik' };
 
-  window.NP_CONFIG = { CFG, DIFFICULTY, UPGRADES, DAYS, UNLOCK, EVENT_TIER };
+  window.NP_CONFIG = { CFG, DIFFICULTY, UPGRADES, DAYS, UNLOCK, EVENT_TIER, TASK_EVENT_PREREQUISITES };
 })();

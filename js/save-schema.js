@@ -219,7 +219,7 @@ function saveSchemaRequiredEvent(event) {
   if (event == null) return { ok: true, value: null };
   const picked = saveSchemaPick(event, ['id', 'deadlineStart', 'dispatched']);
   if (!picked.ok) return picked;
-  if (!SAVE_SCHEMA_EVENTS.has(picked.value.id) || typeof picked.value.dispatched !== 'boolean') return { ok: false, reason: 'invalid_required_event' };
+  if (!SAVE_SCHEMA_EVENTS.has(picked.value.id) || typeof picked.value.dispatched !== 'boolean' || typeof picked.value.deadlineStart !== 'number' || !Number.isFinite(picked.value.deadlineStart) || picked.value.deadlineStart < 0 || picked.value.deadlineStart > 1440) return { ok: false, reason: 'invalid_required_event' };
   return { ok: true, value: picked.value };
 }
 

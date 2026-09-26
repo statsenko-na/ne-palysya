@@ -199,9 +199,10 @@
   if (navigator.webdriver || new URLSearchParams(location.search).has('debug')) window.NP_DEBUG = {
     get state() { return { mode, player: { ...player }, boss: { ...boss, path: boss.path.length }, reprimands, weekReprimands, misses: day.misses, planTarget, usefulness, fun, clockMinutes, stats: { ...stats, chatted: stats.chatted.size }, todo, coverTokens, waterCups: day.waterCups, waterRecharge: day.waterRecharge, coffeeCups: day.coffeeCups, coffeeJammed: !!day.coffeeJammed, overtimeWork: day.overtimeWork || 0, excelWorkAcc: day.excelWorkAcc || 0, excelPoolTasks: day.excelPoolTasks || 0, adhocDone: !!day.adhocDone }; },
     get loadResult() { return { ...lastLoadResult }; },
-    get persistence() { return { shiftId, rngSeed, eventQueue: eventQueue.slice(), nextEvent, autoUsed, recoveryGraceUsed, extensionErrors: { ...saveExtensionErrors } }; },
+    get persistence() { return { shiftId, rngSeed, eventQueue: eventQueue.slice(), nextEvent, requiredEvent: requiredEvent && { ...requiredEvent }, autoUsed, recoveryGraceUsed, extensionErrors: { ...saveExtensionErrors } }; },
     get safeSpots() { return { seat: { ...SEAT }, toilet: { ...WD.toiletDoor } }; },
     teleport(x, y) { player.x = x; player.y = y; player.action = 'none'; player.actionTimer = 0; player.hideSpot = null; nudge = null; },
+    setAction(action, timer = 0) { player.action = action; player.actionTimer = timer; player.actionTotal = timer; },
     setBoss(x, y, state = 'look', facing) { boss.snus = 0; boss.snusCd = 999; boss.x = x; boss.y = y; boss.state = state; boss.stateTimer = 99; boss.path = []; if (facing !== undefined) { boss.facing = facing; boss.lookTimer = 0; } },
     skip(seconds) { for (let i = 0; i < seconds * 20 && mode === 'playing'; i++) update(0.05); },
     setDay(d) { dayIndex = clampDay(d); },
