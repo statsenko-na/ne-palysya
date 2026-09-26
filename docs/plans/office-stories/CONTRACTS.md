@@ -1,0 +1,97 @@
+# Общие контракты и точки интеграции
+
+Параллельная подготовка моделей дополнительно следует [parallel/API.md](parallel/API.md). В этом режиме state/context передаются явно, побочные эффекты применяет адаптер A. Исходные игровые правила ниже сохраняются.
+
+Все новые имена ниже проектируемые. Они становятся обязательным контрактом после реализации карточки-владельца. Изменение контракта требует обновить зависимые карточки до их запуска.
+
+## Проверенная архитектура 0.24.1
+
+| Область | Реальная точка |
+| --- | --- |
+| Начало смены | js/meta.js: resetGame |
+| Главный шаг | js/player.js: update, updatePlayer |
+| Действия | js/interact.js: startAction, endAction, interact, togglePhone |
+| События | js/events.js: shuffleEvents, startEvent, endEvent, updateEvents, updateSchedule |
+| Начальник | js/boss.js: bossGoTo, updateBoss, caught, reprimand, missAtDesk |
+| Итог | js/player.js: finishGame |
+| Сохранение | js/core.js: saveProgress, loadSavedProgress, SAVE_VERSION=2 |
+| Старый выбор | js/events.js: answerStandup; js/render-guide.js: drawChoice, choiceRects и pointer handler |
+| Ввод клавиш | game.js |
+| Список дел | js/meta.js: pickTodo, todoProgress, checkTodo |
+| Телефон | js/render-phone.js: drawPhone/perkLines |
+| Персонажи | js/render-actors.js: drawCoworker/drawPlayer/drawStranger |
+| Сборка кадра | js/render.js: draw/loop |
+
+Не ставить новый pointer listener поверх старого без приоритета: один тап должен выбрать одно действие.
+
+## Сохранение и жизненный цикл
+
+Карточки 01/02 владеют форматом snapshot, shiftId/runId, восстановлением RNG и extensions.
+Один shiftId используется как runId рекорда. Новая попытка создаёт новый id; reload сохраняет его.
+extensions: moments, relationships, activities, distractions, disguise, equipment, bossMemory, yogurt, weekScenario, weekOutcomes, phone, daily, groupSmoke. Каждое поле подключает владелец фичи, до этого default отсутствует.
+Локальные records, ownedEquipment, loadout, playerName и настройки — отдельные постоянные ключи store, не вложенные в day.
+Вложенные структуры нельзя молча добавить в day: текущий DAY_SKIP/сбор dayFlags сохраняет только примитивы.
+
+Правила переходов:
+- new shift: очистить дневные заряды/таймеры, сохранить неделю и покупки;
+- resume: не сбрасывать дневные поля и не повторять стартовые бонусы;
+- retry day: новый shiftId, отношения/истории недели восстановить из dayStart; старые постоянные монеты по текущим правилам не отнимать;
+- successful next day: зафиксировать week state, создать следующий dayStart;
+- new week после ПТ/недельного увольнения: сбросить отношения, истории и следы Д.Н.; номер темы увеличить только после победной ПТ;
+- pause: не продвигать таймеры;
+- finish: один окончательный результат и запись рекорда;
+- demo: новые week state/moments могут жить в памяти для показа, но не портят личный прогресс.
+
+## Подключение скриптов
+
+Новые файлы с декларациями функций/const данных подключать после core и до первого фактического вызова. Они не должны обращаться к ещё не инициализированным global let/const при загрузке.
+
+Каждый адаптер новой фичи обязан добавить её init/reset/save/load в существующий жизненный цикл 02. Если для этого нужны core/meta/player сверх основной области карточки, это разрешённая точечная интеграция: перечислить её заранее в handoff и занять последовательный слот. Это не разрешение рефакторить весь resetGame. Модель без адаптера не требует этих правок.
+Чистые модели не подключаются автоматически: их адаптер добавляет явный script в index.html.
+Файлы render подключать вместе с остальными render-* перед game.js. Проверить все функции к моменту первого draw.
+Порядок окончательно фиксировать в handoff, не копировать полный index.html из старой ветки.
+
+## Модели без побочных эффектов
+
+| Модуль | Владелец | Контракт |
+| --- | --- | --- |
+| save-schema | 01 | makeSaveSnapshot / validateSaveSnapshot / migrateSaveV2 |
+| moments | 05, затем 06 | createMoments / awardMoment / summarizeMoments / calculateShiftResult |
+| relationships | 07 | createRelationships / applyRelationshipEvent / canRequestFavor / consumeFavor / advanceRelationshipsDay |
+| distractions | 13 | createDistractions / canDistract / beginDistraction / tickDistraction / finishDistraction |
+| records | 25 | normalizePlayerName / makeRecord / addLocalRecord / listLocalRecords |
+| group-smoke | 31 | сериализуемая машина состояний, методы задокументировать в handoff |
+
+Модели получают context аргументом. Адаптер проверяет мир и применяет addFun/addWork/reprimand. Не смешивать прямые записи в globals с «чистой» моделью.
+Объект результата должен явно сообщать ok/reason; отсутствие эффекта не считается успехом для расхода credit/charge.
+
+## Участники и отношения
+
+Основные id: aimashyn, hlad, shurik, bleb, sirgey.
+Статисты asel/aljazira/stazy не получают услуги в первой версии. tigran — ghost, вне групповых походов и обид.
+away/remote, unlock, текущая активность проверяются при выборе и повторно при применении эффекта.
+Существующие перки и cooldown остаются; новые услуги требуют отдельного credit.
+События отношений содержат eventId со shiftId и стабильным номером исхода; reload не создаёт новый id уже применённого события.
+
+## Владение действием и маршрутом
+
+У игрока одно основное player.action. Разбор списка дел — UI, не действие; рилсы — действие phone, а внутри daily — его подрежим.
+Обычные виды отдыха сохраняют action smoke/youtube/fridge с дополнительным сериализуемым variant. Подвариант не должен случайно вызвать два endAction.
+Приоритет маршрутов Д.Н.: уход/эвакуация > действующая проверка/нотация > daily/летучка > принятое отвлечение > обычный обход. Не вытеснять старшую активность младшей.
+У коллег ровно один владелец движения: groupSmoke, aljaziraVisit или обычное состояние; Альджазира не входит в groupSmoke.
+Дым, диалоги и отрисовка не управляют координатами.
+
+## Единый выбор
+
+action-choice — максимум три варианта, один активный контекст. id и owner стабильные строки, options — идентификаторы, обработчики не сериализуются.
+Проверки цены/доступности выполняются повторно при выборе, а не только при открытии.
+Исчезнувший owner закрывает выбор без списания. Не открывать новый выбор поверх неотвеченного вопроса старой летучки/daily.
+Приоритет ввода: текстовое поле/модальное меню -> активный выбор -> обычные действия. Один обработанный event не падает дальше по цепочке.
+
+## Очки, наказания и новые режимы
+
+Один calculateShiftResult для телефона, итогов и records. rulesetId фиксирован на смену; новое несовместимое правило получает новый id в релизном PR.
+autoUsed липкий и сохраняется. maxTimeScale сохраняется для прозрачности результата; ускорение пока не создаёт отдельную категорию.
+Альджазира обнуляет текущие fun/usefulness; earned moments остаются как уже совершённые поступки. Полный план для +20 проверяется заново в финале.
+Групповой залёт всегда даёт обиду/−12, а formal reprimand может быть прикрыт Аймашыном. Один incidentId дедуплицирует камеру и Д.Н.
+Дейлик заменяет random standup только после включения 28/29; до этого старый интерфейс и ответы действуют.
