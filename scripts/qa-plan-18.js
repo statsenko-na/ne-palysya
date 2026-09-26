@@ -185,6 +185,30 @@ const { loadPlaywright } = require('./pw');
     assert.strictEqual(canceled.relationships.entries.sirgey.favorCredit, 0);
     assert.strictEqual(canceled.moments.awards.some(item => item.id === 'colleagueHelp'), false);
 
+    await reset(1811);
+    await startAtSirgey();
+    await openHelp();
+    const phoneInterrupt = await page.evaluate(() => {
+      NP_DEBUG.selectActionChoice(0);
+      NP_DEBUG.startPhoneScrolling();
+      return { action: NP_DEBUG.state.player.action, autoshka: saveExtensions.autoshka, state: NP_DEBUG.state };
+    });
+    assert.strictEqual(phoneInterrupt.action, 'phone');
+    assert.strictEqual(phoneInterrupt.autoshka.status, 'cancelled');
+    assert.strictEqual(phoneInterrupt.state.usefulness, 0);
+
+    await reset(1812);
+    await startAtSirgey();
+    await openHelp();
+    await page.evaluate(() => { NP_DEBUG.selectActionChoice(0); NP_DEBUG.setBoss(40, 500, 'gone'); });
+    await page.keyboard.down('d');
+    await page.evaluate(() => NP_DEBUG.skip(0.05));
+    await page.keyboard.up('d');
+    const walkInterrupt = await page.evaluate(() => ({ action: NP_DEBUG.state.player.action, autoshka: saveExtensions.autoshka, state: NP_DEBUG.state }));
+    assert.strictEqual(walkInterrupt.action, 'none');
+    assert.strictEqual(walkInterrupt.autoshka.status, 'cancelled');
+    assert.strictEqual(walkInterrupt.state.usefulness, 0);
+
     // При коротком окне остаётся костыль, а ремонт отменяется, если событие закончится раньше.
     await reset(1804);
     await startAtSirgey(5);
