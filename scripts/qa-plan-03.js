@@ -64,6 +64,20 @@ const { loadPlaywright } = require('./pw');
     assert.ok(noRequiredEvent[1].todo.includes('reportTurlo'));
     assert.strictEqual(noRequiredEvent[1].required, null, 'слово «отчёт» само по себе не требует события');
 
+    const repeatedWeek = await page.evaluate(() => {
+      localStorage.setItem('nepalsya.weekDone', 'true');
+      NP_DEBUG.setDay(3);
+      localStorage.setItem('nepalsya.day', '3');
+      NP_DEBUG.clearSavedProgress();
+      NP_DEBUG.restart(3033);
+      const result = { todo: NP_DEBUG.state.todo.map(task => task.id), required: NP_DEBUG.persistence.requiredEvent, queue: NP_DEBUG.eventQueue };
+      localStorage.setItem('nepalsya.weekDone', 'false');
+      return result;
+    });
+    assert.ok(repeatedWeek.todo.includes('majik'), 'в повторной неделе задача Маджикистана доступна');
+    assert.strictEqual(repeatedWeek.required?.id, 'majik', 'в повторной неделе сохраняется обязательное событие');
+    assert.strictEqual(repeatedWeek.queue[0], 'majik');
+
     // Старый v3 с пустым requiredEvent восстанавливает цель из сохранённой задачи.
     await newThursday(2033);
     const legacySnapshot = await page.evaluate(() => {
