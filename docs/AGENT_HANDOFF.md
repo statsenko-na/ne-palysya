@@ -2,7 +2,7 @@
 
 ## Текущий статус
 
-Версия и её состав — в [`VERSION.md`](../VERSION.md) и [`CHANGELOG.md`](../CHANGELOG.md). `index.html` открывается без сборки и сервера; деплой на GitHub Pages идёт через `.github/workflows/pages.yml` при пуше в `main` (репозиторий [`statsenko-na/ne-palysya`](https://github.com/statsenko-na/ne-palysya), Pages: [statsenko-na.github.io/ne-palysya](https://statsenko-na.github.io/ne-palysya/)).
+Версия и её состав — в [`VERSION.md`](../VERSION.md) и [`CHANGELOG.md`](../CHANGELOG.md). `index.html` открывается без сборки и сервера; деплой на GitHub Pages идёт через `.github/workflows/pages.yml` при пуше в `main`; на сайт попадают только `index.html`, `style.css`, `game.js`, `js/` и ассеты, на которые ссылается код (репозиторий [`statsenko-na/ne-palysya`](https://github.com/statsenko-na/ne-palysya), Pages: [statsenko-na.github.io/ne-palysya](https://statsenko-na.github.io/ne-palysya/)).
 
 ## Архитектура
 

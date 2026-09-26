@@ -28,10 +28,21 @@ jobs:
       - name: Setup Pages
         uses: actions/configure-pages@v5
 
+      # Публикуем только то, что нужно игре: без docs/, scripts/, исходников спрайтов и агентских файлов
+      - name: Assemble site
+        run: |
+          mkdir -p _site/js _site/assets
+          cp index.html style.css game.js _site/
+          cp js/*.js _site/js/
+          for f in $(grep -ohE "assets/[A-Za-z0-9._-]+\.(png|svg)" index.html style.css game.js js/*.js | sort -u); do
+            cp "$f" "_site/$f"
+          done
+          ls -R _site
+
       - name: Upload Pages artifact
         uses: actions/upload-pages-artifact@v3
         with:
-          path: '.'
+          path: '_site'
 
       - name: Deploy to GitHub Pages
         id: deployment

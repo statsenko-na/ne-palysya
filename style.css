@@ -138,6 +138,7 @@ h2 { color: #fff5d0; font-size: clamp(1.2rem, 3vw, 1.7rem); }
 .pixel-btn:hover { transform: translate(2px, 2px); box-shadow: 2px 2px 0 var(--red); }
 .pixel-btn span { margin-left: .7rem; font-size: .9375rem; }
 .controls-mini { margin-top: 1rem; color: #83a19c; font-size: .75rem; line-height: 1.5; }
+.disclaimer { margin-top: .7rem; color: #6f8a86; font-size: .75rem; line-height: 1.4; }
 @media (pointer: coarse) { .controls-mini, .pixel-btn span { display: none; } }
 .end-card.good h2 { color: var(--green); }
 .end-card.bad h2 { color: var(--red); }
