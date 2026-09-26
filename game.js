@@ -5,7 +5,7 @@
 
   // ---------- ОБРАБОТЧИКИ ----------
   // Переназначение клавиш: свои клавиши (KeyboardEvent.code → действие) работают вместе со стандартными
-  const BIND_ACTIONS = [['w', 'Вверх', 'W'], ['s', 'Вниз', 'S'], ['a', 'Влево', 'A'], ['d', 'Вправо', 'D'], ['e', 'Действие', 'E'], ['h', 'Спрятаться', 'H'], ['q', 'Телефон', 'Q / Tab'], ['p', 'Пауза', 'P / Esc'], ['o', 'Автопилот', 'O']];
+  const BIND_ACTIONS = [['w', 'Вверх', 'W'], ['s', 'Вниз', 'S'], ['a', 'Влево', 'A'], ['d', 'Вправо', 'D'], ['e', 'Действие', 'E'], ['h', 'Спрятаться', 'H'], ['q', 'Дела / телефон', 'Q / Tab'], ['p', 'Пауза', 'P / Esc'], ['o', 'Автопилот', 'O']];
   let customKeys = store.get('bindings', {}) || {};
   let bindWait = null;
   let keysOpen = false;
@@ -52,7 +52,7 @@
     if (key === 'u' && (mode === 'menu' || mode === 'ended')) { openShop(); return; }
     if (key === 'm') { muted = !muted; store.set('muted', muted); toast(muted ? 'Звук выключен (M)' : 'Звук включён (M)', 1.4); syncAudioButtons(); return; }
     if (key === 'n') { toggleMusic(); return; }
-    if (key === 'escape' && player.action === 'phone' && mode === 'playing') { togglePhone(); return; }
+    if (key === 'escape' && phonePanelOpen && mode === 'playing') { closePhonePanel(); return; }
     if (key === 'p' || key === 'escape') { if (mode === 'playing' || mode === 'paused') pauseGame(); return; }
     if (key === 'o' && mode === 'paused') { resumeOnAuto(); return; }
     if (key === 'enter') {
@@ -65,7 +65,7 @@
     if (key === 'o') { if (!e.repeat) toggleAutopilot(); return; }
     if (key === '1' || key === '2' || key === '3') { answerStandup(Number(key) - 1); return; }
     if (key === 'h') { quickHide(); return; }
-    if (key === 'q') { if (!e.repeat) togglePhone(); return; }
+    if (key === 'q') { if (!e.repeat) togglePhonePanel(); return; }
     if (MOVE_KEYS.includes(key)) keys.add(key);
   });
   window.addEventListener('keyup', e => { releaseActionChoiceKey(e); keys.delete(getControlKey(e)); });
@@ -97,6 +97,7 @@
         const choiceIndex = actionChoiceIndexAtClient(t.clientX, t.clientY);
         if (choiceIndex >= 0) { selectActionChoice(choiceIndex); e.preventDefault(); return; }
       }
+      if (handlePhonePanelPointer(t.clientX, t.clientY)) { e.preventDefault(); return; }
       sid = t.identifier;
       getAudio();
 
@@ -154,7 +155,7 @@
         if (mode !== 'playing') return;
         if (act === 'e') interact();
         else if (act === 'h') quickHide();
-        else if (act === 'q') togglePhone();
+        else if (act === 'q') togglePhonePanel();
 
       };
       b.addEventListener('touchstart', trigger, { passive: false });
@@ -204,7 +205,9 @@
   // Отладочный доступ для автотестов (scripts/qa.js)
   // Отладочный API только для автотестов (Playwright выставляет navigator.webdriver) и по ?debug
   if (navigator.webdriver || new URLSearchParams(location.search).has('debug')) window.NP_DEBUG = {
-    get state() { return { mode, dayIndex, player: { ...player }, boss: { ...boss, path: boss.path.length }, reprimands, weekReprimands, misses: day.misses, planTarget, usefulness, fun, clockMinutes, rulesetId: shiftRulesetId, stats: { ...stats, chatted: stats.chatted.size }, todo, coverTokens, waterCups: day.waterCups, waterRecharge: day.waterRecharge, coffeeCups: day.coffeeCups, coffeeJammed: !!day.coffeeJammed, overtimeWork: day.overtimeWork || 0, excelWorkAcc: day.excelWorkAcc || 0, excelPoolTasks: day.excelPoolTasks || 0, adhocDone: !!day.adhocDone }; },
+    get state() { return { mode, dayIndex, player: { ...player }, boss: { ...boss, path: boss.path.length }, reprimands, weekReprimands, misses: day.misses, planTarget, usefulness, fun, phoneSafe, clockMinutes, rulesetId: shiftRulesetId, stats: { ...stats, chatted: stats.chatted.size }, todo, coverTokens, waterCups: day.waterCups, waterRecharge: day.waterRecharge, coffeeCups: day.coffeeCups, coffeeJammed: !!day.coffeeJammed, overtimeWork: day.overtimeWork || 0, excelWorkAcc: day.excelWorkAcc || 0, excelPoolTasks: day.excelPoolTasks || 0, adhocDone: !!day.adhocDone }; },
+    get phonePanel() { return { open: phonePanelOpen, page: phonePage, anim: phoneAnim, pinnedTaskId, scale: phoneHitScale, hitboxes: phoneHitboxes.map(box => ({ ...box })) }; },
+    get selectedObjective() { return selectedObjectiveTodo(); },
     get loadResult() { return { ...lastLoadResult }; },
     get persistence() { return { shiftId, rngSeed, eventQueue: eventQueue.slice(), nextEvent, requiredEvent: requiredEvent && { ...requiredEvent }, autoUsed, recoveryGraceUsed, extensionErrors: { ...saveExtensionErrors } }; },
     get moments() { return JSON.parse(JSON.stringify(ensureMomentsExtension())); },
@@ -218,8 +221,8 @@
     setBoss(x, y, state = 'look', facing) { boss.snus = 0; boss.snusCd = 999; boss.x = x; boss.y = y; boss.state = state; boss.stateTimer = 99; boss.path = []; if (facing !== undefined) { boss.facing = facing; boss.lookTimer = 0; } },
     skip(seconds) { for (let i = 0; i < seconds * 20 && mode === 'playing'; i++) update(0.05); },
     setDay(d) { dayIndex = clampDay(d); },
-    set(v) { if ('usefulness' in v) usefulness = v.usefulness; if ('reprimands' in v) reprimands = v.reprimands; if ('weekReprimands' in v) { weekReprimands = v.weekReprimands; store.set('weekReprimands', weekReprimands); } if ('misses' in v) day.misses = v.misses; if ('fun' in v) fun = Math.min(100, Math.max(0, v.fun)); if ('waterCups' in v) day.waterCups = v.waterCups; if ('waterRecharge' in v) day.waterRecharge = v.waterRecharge; if ('coffeeJammed' in v) day.coffeeJammed = !!v.coffeeJammed; if ('coffeeQueueTimer' in v && day) day.coffeeQueueTimer = v.coffeeQueueTimer; if ('overtimeWork' in v) day.overtimeWork = v.overtimeWork; if ('adhocDone' in v) day.adhocDone = !!v.adhocDone; if ('fed' in v) day.fed = !!v.fed; if ('lunchCalled' in v) day.lunchCalled = !!v.lunchCalled; if ('lunchOpen' in v) day.lunchOpen = !!v.lunchOpen; if ('lunchAway' in v) day.lunchAway = !!v.lunchAway; if ('noPee' in v) { day.peeActive = false; day.pee = 0; day.peeLeft = 0; } },
-    interact, quickHide, togglePhone, endAction, goMunichBeer, startInspection, blocked, findPath, nav, startEvent, answerStandup,
+    set(v) { if ('usefulness' in v) usefulness = v.usefulness; if ('reprimands' in v) reprimands = v.reprimands; if ('weekReprimands' in v) { weekReprimands = v.weekReprimands; store.set('weekReprimands', weekReprimands); } if ('misses' in v) day.misses = v.misses; if ('fun' in v) fun = Math.min(100, Math.max(0, v.fun)); if ('phoneSafe' in v) phoneSafe = Math.max(0, v.phoneSafe); if ('waterCups' in v) day.waterCups = v.waterCups; if ('waterRecharge' in v) day.waterRecharge = v.waterRecharge; if ('coffeeJammed' in v) day.coffeeJammed = !!v.coffeeJammed; if ('coffeeQueueTimer' in v && day) day.coffeeQueueTimer = v.coffeeQueueTimer; if ('overtimeWork' in v) day.overtimeWork = v.overtimeWork; if ('adhocDone' in v) day.adhocDone = !!v.adhocDone; if ('fed' in v) day.fed = !!v.fed; if ('lunchCalled' in v) day.lunchCalled = !!v.lunchCalled; if ('lunchOpen' in v) day.lunchOpen = !!v.lunchOpen; if ('lunchAway' in v) day.lunchAway = !!v.lunchAway; if ('noPee' in v) { day.peeActive = false; day.pee = 0; day.peeLeft = 0; } },
+    interact, quickHide, togglePhone, togglePhonePanel, openPhonePanel, closePhonePanel, selectPhonePage, pinTodoTask, refreshPinnedObjective, startPhoneScrolling, finishPhoneScrolling, endAction, goMunichBeer, startInspection, autoArrivePhoneForTest() { auto.goal = { kind: 'phone', pt: { x: player.x, y: player.y } }; autoArrive(); }, blocked, findPath, nav, startEvent, answerStandup,
     requestFavor,
     recordRelationshipEvent,
     setNudge(seconds = 6) { nudge = { t: seconds }; },

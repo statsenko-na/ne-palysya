@@ -284,7 +284,7 @@
 
     if (toastTimer > 0) { toastTimer -= dt; if (toastTimer <= 0) ui.toast.classList.remove('show'); }
     shake = Math.max(0, shake - dt);
-    phoneAnim = clamp(phoneAnim + (player.action === 'phone' ? dt : -dt) * 6, 0, 1);
+    phoneAnim = clamp(phoneAnim + (phonePanelOpen ? dt : -dt) * 6, 0, 1);
     phoneBuzz = Math.max(0, phoneBuzz - dt * 0.2);
     flash = Math.max(0, flash - dt);
 
@@ -324,6 +324,7 @@
   function finishGame(result) {
     if (mode !== 'playing') return;
     closeActionChoice('shift_ended');
+    closePhonePanel(true, true);
     // Конец смены: меньше половины плана — выговор (на лимите — увольнение); от половины — без выговора, но и без бонуса
     let planFailed = false;
     const dMax = diff().dayReprimandsMax;

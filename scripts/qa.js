@@ -168,16 +168,16 @@ const { loadPlaywright } = require('./pw');
   st = await page.evaluate(() => NP_DEBUG.state);
   check('проверка пройдена в Excel', st.stats.inspectPass >= 1 || st.boss.mode === 'raid', `pass=${st.stats.inspectPass} mode=${st.boss.mode}`);
 
-  // 12b. Телефон (Tab) — открывается и считается прокрастинацией
+  // 12b. Tab открывает безопасный список; прокрастинацией остаются только рилсы
   await page.evaluate(() => { NP_DEBUG.teleport(520, 260); NP_DEBUG.setBoss(706, 446, 'office'); });
   await page.keyboard.press('Tab');
   await page.waitForTimeout(400);
-  st = await page.evaluate(() => NP_DEBUG.state);
-  check('телефон по Tab', st.player.action === 'phone', st.player.action);
+  st = await page.evaluate(() => ({ state: NP_DEBUG.state, panel: NP_DEBUG.phonePanel }));
+  check('дела по Tab без смены действия', st.panel.open && st.panel.page === 'todos' && st.state.player.action === 'none', `${st.panel.page}/${st.state.player.action}`);
   await page.screenshot({ path: path.join(outDir, '08-phone.png') });
   await page.keyboard.press('KeyQ');
-  st = await page.evaluate(() => NP_DEBUG.state);
-  check('телефон закрывается Q', st.player.action === 'none', st.player.action);
+  st = await page.evaluate(() => ({ state: NP_DEBUG.state, panel: NP_DEBUG.phonePanel }));
+  check('панель дел скрывается Q', !st.panel.open && st.state.player.action === 'none', `${st.panel.open}/${st.state.player.action}`);
 
   // 13. Офисные события: угощение, ксерокс, созвон
   await page.evaluate(() => { NP_DEBUG.setBoss(706, 446, 'office'); NP_DEBUG.startEvent('food'); NP_DEBUG.teleport(120, 244); });

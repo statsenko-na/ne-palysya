@@ -141,9 +141,11 @@
     }
   }
   function checkTodo() {
+    let completed = false;
     for (const t of todo) {
       if (t.done) continue;
       if (todoProgress(t) >= t.goal) {
+        completed = true;
         t.done = true;
         addFun(8);
         playSound('success');
@@ -152,6 +154,7 @@
         floater(player.x, player.y - 70, '✔ ДЕЛО СДЕЛАНО', '#f2bb38');
       }
     }
+    if (completed) refreshPinnedObjective();
   }
 
   function createRelationshipStateAtDay(targetDay) {
@@ -219,6 +222,7 @@
   }
 
   function resetGame(seed) {
+    closePhonePanel(true, true);
     rngSeed = Number.isInteger(seed) ? seed : Math.floor(Date.now() % 100000); // seed — только для автотестов
     shiftId = createShiftId();
     shiftRulesetId = OFFICE_STORIES_RULESET_ID;
@@ -278,6 +282,7 @@
       weekReprimands = 0; store.set('weekReprimands', 0);
     }
     const loadResult = loadSavedProgress();
+    refreshPinnedObjective();
     lastLoadResult = { ...loadResult };
     prepareRelationshipsForShift(loadResult);
     const hasSavedShift = loadResult.status !== 'new';
@@ -332,6 +337,6 @@
   }
   function pauseGame() {
     playSound('click');
-    if (mode === 'playing') { setMode('paused'); saveProgress(); }
+    if (mode === 'playing') { closePhonePanel(true, true); setMode('paused'); saveProgress(); }
     else if (mode === 'paused') setMode('playing');
   }

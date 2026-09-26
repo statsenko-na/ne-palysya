@@ -506,19 +506,33 @@
     }
   }
 
-  function togglePhone() {
-    if (player.action === 'phone') { finishPhoneMoment(true); endAction('cancel'); playSound('click'); return; }
-    if (AWAY.has(player.action)) return;
+  function startPhoneScrolling() {
+    if (mode !== 'playing') return false;
+    if (player.action === 'phone') { phonePage = 'reels'; phonePanelOpen = true; return true; }
+    if (AWAY.has(player.action)) return false;
     if (player.action === 'work' || HIDDEN.has(player.action) || player.action === 'chat') {
       // в Excel и в укрытии телефон тоже можно достать — но это палево
       if (player.action === 'work') player.y = SEAT.y;
       if (player.action === 'plant_hide' && player.hideSpot) player.y = player.hideSpot.y + 14;
-      if (player.action === 'chat') return;
+      if (player.action === 'chat') return false;
       endAction('cancel');
     }
     startAction('phone', 0);
     phoneBuzz = 0;
     playSound('blip');
+    phonePage = 'reels';
+    phonePanelOpen = true;
+    return true;
+  }
+  function finishPhoneScrolling() {
+    if (player.action !== 'phone') return false;
+    finishPhoneMoment(true);
+    endAction('cancel');
+    return true;
+  }
+  function togglePhone() {
+    if (player.action === 'phone') { finishPhoneScrolling(); playSound('click'); return; }
+    startPhoneScrolling();
   }
 
   function quickHide() {

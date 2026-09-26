@@ -83,7 +83,7 @@
   function autoArrive() {
     const g = auto.goal;
     auto.goal = null;
-    if (g.kind === 'phone') { togglePhone(); auto.phoneT = 4 + rand() * 4; return; }
+    if (g.kind === 'phone') { startPhoneScrolling(); auto.phoneT = 4 + rand() * 4; return; }
     if (g.kind === 'hide') { quickHide(); if (!HIDDEN.has(player.action)) autoGoal('desk', zoneCenter('desk')); return; }
     if (g.kind === 'desk') auto.workT = g.work || 6;
     if (g.kind === 'desk' && player.action === 'work') return;
@@ -102,7 +102,8 @@
     } else if (a === 'phone') {
       auto.phoneT -= dt;
       if (auto.phoneT > 0 && !danger) return [0, 0];
-      togglePhone();
+      finishPhoneScrolling();
+      closePhonePanel();
     } else if (HIDDEN.has(a) && !AWAY.has(a)) {
       if (danger || boss.suspicion > 0 || (boss.state !== 'gone' && dist(boss, player) < 180)) return [0, 0];
       interact(); return [0, 0];
