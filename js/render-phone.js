@@ -75,6 +75,10 @@
     if (!hit) return false;
     if (hit.type === 'page') selectPhonePage(hit.page);
     else if (hit.type === 'task') pinTodoTask(hit.id);
+    else if (hit.type === 'favor') {
+      const result = requestFavor(hit.id, 'distraction');
+      if (!result.ok) toast(distractionReasonText(result.reason, 'colleague'), 2.2);
+    }
     else if (hit.type === 'close') closePhonePanel();
     return true;
   }
@@ -88,7 +92,7 @@
     if (entry.favorUsedDay === dayIndex) return 'Помощь сегодня уже использована';
     if (coworker.cooldown > 0 || (coworker.slack && coworker.slackTimer > 0)) return 'Занят — попробуй позже';
     const eligibility = canRequestFavor(ensureRelationshipsExtension(), id, dayIndex);
-    if (eligibility.canRequest) return 'Помощь есть · особая услуга пока не подключена';
+    if (eligibility.canRequest) return id === 'bleb' ? 'Кредит помощи: можно отвлечь Д.Н.' : 'Помощь есть · особая услуга пока не подключена';
     return entry.mood === 'friendly' ? 'Дружелюбен · пока без новой помощи' : 'Нужно заслужить помощь';
   }
 
@@ -197,7 +201,18 @@
           ? 'ОБИЖЕН' : entry.mood === 'friendly' ? 'ДРУЖЕЛЮБЕН' : 'НЕЙТРАЛЕН';
         const moodColor = mood === 'ОБИЖЕН' ? '#ff9a8a' : mood === 'ДРУЖЕЛЮБЕН' ? '#9fe0b0' : '#aabbb5';
         TE(`${name} · ${mood}`, cx, cy + 4, 7.3, pw - 34, moodColor, 'left', 800);
-        TE(phoneRelationshipLine(id, entry), cx + 2, cy + 15, 6.8, pw - 38, '#d5e0dc', 'left', 700);
+        const blebCredit = id === 'bleb' && entry.favorCredit === 1 && entry.favorUsedDay !== dayIndex &&
+          coworker && !coworker.away && !coworker.remote && unlocked('coworkers');
+        const relationshipWidth = blebCredit ? pw - 112 : pw - 38;
+        TE(phoneRelationshipLine(id, entry), cx + 2, cy + 15, 6.4, relationshipWidth, '#d5e0dc', 'left', 700);
+        if (blebCredit) {
+          const bx = x + pw - 75, by = cy + 8, bw = 59, bh = 15;
+          const available = canStartBossDistraction('colleague').ok;
+          roundRect(bx, by, bw, bh, 3);
+          ctx.fillStyle = available ? '#356046' : '#334044'; ctx.fill();
+          T('ОТВЛЕЧЬ Д.Н.', bx + bw / 2, by + 7.5, 5.7, available ? '#f2bb38' : '#8c9b97', 'center', 900, FONT_SANS);
+          if (phonePanelOpen && phoneAnim >= 0.75) phoneHitboxes.push({ type: 'favor', id: 'bleb', x: bx, y: by, w: bw, h: bh });
+        }
         cy += 27;
       }
       const statusLines = perkLines().filter(line => ['🛡', '📅', '📱', '☕', '⏳'].includes(line[0]));

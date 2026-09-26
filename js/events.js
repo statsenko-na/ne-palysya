@@ -44,7 +44,7 @@
     if (open('sb') && rand() < 0.3) ids.splice(Math.min(ids.length, 2 + Math.floor(rand() * 3)), 0, 'sb'); // редкое: служба безопасности включает камеры
     return ids;
   }
-  const bossBusy = () => ['inspect', 'waitDesk', 'lecture', 'leaving', 'gone', 'goout', 'out', 'scold'].includes(boss.state);
+  const bossBusy = () => ['inspect', 'waitDesk', 'lecture', 'leaving', 'gone', 'goout', 'out', 'scold', 'distractionWalk', 'distractionWait'].includes(boss.state);
   function startEvent(id) {
     const def = EVENTS[id];
     if (!def) return false;
@@ -80,7 +80,9 @@
     if (id === 'drill') {
       text = 'Алматы же! Все к выходу слева — жми E у двери «ВЫХОД», пока идут учения.';
       playSound('siren');
-      if (!bossBusy() || boss.state === 'scold') bossGoOut(def.dur + 2, 'drill');
+      const diversion = isBossDistractionState();
+      if (diversion) interruptBossDistraction('interrupted');
+      if (!bossBusy() || boss.state === 'scold' || diversion) bossGoOut(def.dur + 2, 'drill');
       say('boss', pick(LINES.boss.drill), 3);
       day.drillAwayTimer = 0.6;
       day.drillAwayIndex = 0;
@@ -261,7 +263,7 @@
       if (officeEvent.t <= 0) endEvent();
     } else if (dispatchRequiredEvent()) {
       // Гарантированное событие не ждёт свободного начальника.
-    } else if (!['inspect', 'goout', 'out'].includes(boss.state) && !lunchTime() && !onLunch() && !isEventWindowDeferred()) {
+    } else if (!['inspect', 'goout', 'out', 'distractionWalk', 'distractionWait'].includes(boss.state) && !lunchTime() && !onLunch() && !isEventWindowDeferred()) {
       nextEvent -= dt;
       if (nextEvent <= 0 && eventQueue.length) {
         const nextId = eventQueue[0];
@@ -547,8 +549,10 @@
       day.lunchAwayTimer = 1.2;
       day.lunchAwayIndex = 0;
     }
-    // Д.Н. тоже уходит на обед — если не занят проверкой
-    if (!day.bossLunch && m >= CFG.lunchOpen + 12 && !bossBusy() && boss.state !== 'standup') {
+    // Д.Н. тоже уходит на обед — отвлечение уступает месту расписанию.
+    const diversion = isBossDistractionState();
+    if (!day.bossLunch && m >= CFG.lunchOpen + 12 && (!bossBusy() || diversion) && boss.state !== 'standup') {
+      if (diversion) interruptBossDistraction('interrupted');
       day.bossLunch = true;
       bossGoOut(22 + rand() * 6, 'lunch');
       say('boss', pick(LINES.boss.lunchOut), 3);

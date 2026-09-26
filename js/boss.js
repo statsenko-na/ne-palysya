@@ -28,6 +28,8 @@
       goout: `Д.Н. уходит ${boss.spotDesc || 'из офиса'}`,
       out: boss.outWhy === 'lunch' ? 'Д.Н. на обеде' : 'Д.Н. на улице',
       scold: 'Д.Н. отчитывает коллегу',
+      distractionWalk: `Д.Н. идёт ${boss.spotDesc || 'к приманке'}`,
+      distractionWait: `Д.Н. отвлёкся ${boss.spotDesc || 'у приманки'}`,
     }[boss.state];
     return status || 'Д.Н. занят';
   }
@@ -85,7 +87,8 @@
   function playerVisibleToBoss() {
     if (HIDDEN.has(player.action)) return false;
     const d = dist(boss, player);
-    if (boss.state === 'gone' || boss.state === 'out') return false;
+    const distractionKeepsSight = isBossDistractionState(boss.state);
+    if ((boss.state === 'gone' || boss.state === 'out') && !distractionKeepsSight) return false;
     const range = (boss.state === 'inspect' ? CFG.visionRangeInspect : CFG.visionRange) * (today().visionMul || 1) * diff().vision * (eventIs('arrfr') ? 1.2 : 1);
     if (d > range) return false;
     const eye = { x: boss.x, y: boss.y - 4 };
@@ -245,7 +248,7 @@
     boss.quoteTimer -= dt;
     boss.praiseTimer = Math.max(0, boss.praiseTimer - dt);
 
-    if (mode === 'playing' && !onLunch() && !['inspect', 'waitDesk', 'lecture', 'leaving', 'gone', 'goout', 'out', 'scold', 'standup'].includes(boss.state) && !eventIs('call') && !eventIs('drill')) {
+    if (mode === 'playing' && !onLunch() && !['inspect', 'waitDesk', 'lecture', 'leaving', 'gone', 'goout', 'out', 'scold', 'standup', 'distractionWalk', 'distractionWait'].includes(boss.state) && !eventIs('call') && !eventIs('drill')) {
       nextBossCheck -= dt;
       // Иногда проверка внезапная — без «Кхм-кхм» (зависит от сложности)
       if (nextBossCheck < diff().warn && !boss.warned && !boss.silentCheck && rand() < CFG.strollChance) startStroll();
@@ -258,6 +261,7 @@
     }
     // Пятница: после 17:00 Директор уезжает «на встречу»
     if (mode === 'playing' && today().bossLeaves && clockMinutes >= today().bossLeaves && boss.state !== 'gone') {
+      if (isBossDistractionState()) interruptBossDistraction('interrupted');
       if (boss.state === 'out' || boss.state === 'goout') { boss.state = 'gone'; boss.x = -100; addLog('Д.Н. так и не вернулся: «встреча». Пятница, детка!', 'good'); }
       else if (boss.state !== 'leaving') {
         boss.state = 'leaving';
@@ -287,6 +291,12 @@
         break;
       case 'return':
         if (followPath(dt, CFG.bossSpeed)) { boss.state = 'office'; boss.stateTimer = 7 + rand() * 6; boss.x = WD.bossHome.x; boss.y = WD.bossHome.y; }
+        break;
+      case 'distractionWalk':
+        if (followPath(dt, CFG.bossSpeed)) { boss.state = 'distractionWait'; boss.moving = false; }
+        break;
+      case 'distractionWait':
+        boss.moving = false;
         break;
       case 'inspect':
         // Страховка: проверка не тянется дольше 30 с (застрял в пути)

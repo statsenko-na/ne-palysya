@@ -277,6 +277,7 @@
     updatePlayer(dt);
     updateActionChoice(dt);
     updateBoss(dt);
+    updateBossDistraction(dt);
     updateCoworkers(dt);
     updateAmbient(dt);
     updateEvents(dt);
@@ -348,6 +349,7 @@
     if (mode !== 'playing') return;
     closeActionChoice('shift_ended');
     closePhonePanel(true, true);
+    interruptBossDistraction('interrupted');
     cancelActiveActivitiesAtShiftEnd();
     // Конец смены: меньше половины плана — выговор (на лимите — увольнение); от половины — без выговора, но и без бонуса
     let planFailed = false;

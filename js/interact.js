@@ -74,6 +74,204 @@
   }
   function coworkerById(id) { return coworkers.find(c => c.id === id); }
 
+  const BOSS_DISTRACTION_STATES = new Set(['distractionWalk', 'distractionWait']);
+  function ensureDistractionsExtension() {
+    const current = saveExtensions.distractions;
+    if (!distractionStateIsValid(current) || (current.shiftId && current.shiftId !== shiftId)) {
+      saveExtensions.distractions = createDistractions();
+    } else if (current.shiftId === null) {
+      saveExtensions.distractions = { ...current, shiftId };
+    }
+    return saveExtensions.distractions;
+  }
+  function commitDistractionsTransition(result) {
+    if (!result || !result.ok) return false;
+    saveExtensions.distractions = result.state;
+    delete saveExtensionErrors.distractions;
+    return true;
+  }
+  function isBossDistractionState(state = boss.state) { return BOSS_DISTRACTION_STATES.has(state); }
+  function bossDistractionTarget(kind) {
+    if (kind === 'printer') return { id: 'printer', x: 470, y: 452, desc: 'к ксероксу' };
+    if (kind === 'colleague') {
+      const bleb = coworkerById('bleb');
+      if (!bleb || bleb.away || bleb.remote || !unlocked('coworkers')) return null;
+      return { id: 'bleb', x: bleb.desk.seatX, y: bleb.desk.y + WD.DESK_DEPTH + 16, desc: 'к Блебу' };
+    }
+    return null;
+  }
+  function bossDistractionPath(target) {
+    if (!target || blocked(target.x, target.y, 6)) return null;
+    const path = findPath(boss, target);
+    if (!Array.isArray(path) || (!path.length && dist(boss, target) > 3)) return null;
+    return path;
+  }
+  function bossDistractionContext(routeAvailable) {
+    return {
+      shiftId,
+      bossState: boss.state,
+      paused: mode === 'paused',
+      legalAway: AWAY.has(player.action) || !!eventIs('drill'),
+      shiftEnded: mode === 'ended' || clockMinutes >= CFG.shiftEnd,
+      routeAvailable,
+    };
+  }
+  function canStartBossDistraction(kind) {
+    const state = ensureDistractionsExtension();
+    if (mode !== 'playing') return { ok: false, reason: mode === 'paused' ? 'paused' : 'shift_ended' };
+    if (player.action !== 'none' || (choice && choice.asked && !choice.done) || auto.on) return { ok: false, reason: 'busy' };
+    const target = bossDistractionTarget(kind);
+    const path = bossDistractionPath(target);
+    const priorityBlocksRoute = eventIs('call') || eventIs('drill') || eventIs('standup') || day.bossLunch ||
+      clockMinutes >= CFG.lunchOpen + 12 || (today().bossLeaves && clockMinutes >= today().bossLeaves);
+    const routeAvailable = !!path && !priorityBlocksRoute;
+    const context = bossDistractionContext(routeAvailable);
+    const result = canDistract(state, context, kind);
+    if (!result.ok) return { ok: false, reason: result.reason, state, context, target, path };
+    return { ok: true, reason: null, state, context, target, path };
+  }
+  function distractionReasonText(reason, kind) {
+    const state = saveExtensions.distractions;
+    const seconds = state && Number.isFinite(state.cooldownRemaining) ? Math.ceil(state.cooldownRemaining) : 0;
+    const messages = {
+      busy: 'Сначала закончи текущее действие',
+      paused: 'Игра на паузе',
+      shift_ended: 'Смена уже закончилась',
+      legal_away: 'Во время обеда и эвакуации нельзя отвлекать Д.Н.',
+      boss_unavailable: 'Д.Н. занят и не может пойти',
+      route_unavailable: 'Сейчас нет безопасного маршрута',
+      limit_reached: 'В этой смене уже было два отвлечения',
+      kind_used: kind === 'printer' ? 'К ксероксу уже отвлекали сегодня' : 'Блеб уже помогал сегодня',
+      cooldown: `Д.Н. нужно подождать ещё ${seconds} с`,
+      npc_unavailable: 'Блеба сейчас нет в офисе',
+      favor_unavailable: 'Нужен неиспользованный кредит помощи Блеба',
+    };
+    return messages[reason] || 'Сейчас отвлечь Д.Н. нельзя';
+  }
+  function finishDistractionMoment() {
+    const current = ensureDistractionsExtension();
+    if (!current.active || current.active.phase !== 'occupied') return false;
+    const result = finishDistraction(current, 'rest_completed');
+    if (!commitDistractionsTransition(result)) return false;
+    for (const effect of result.effects || []) {
+      if (effect.type !== 'awardMoment' || effect.momentId !== 'distraction') continue;
+      const moments = awardMoment(ensureMomentsExtension(), effect.momentId, effect.sourceId);
+      if (moments.ok) saveExtensions.moments = moments.state;
+    }
+    return true;
+  }
+  function beginBossDistraction(kind) {
+    const access = canStartBossDistraction(kind);
+    if (!access.ok) return { ok: false, reason: access.reason };
+    const target = { id: access.target.id, x: access.target.x, y: access.target.y };
+    const result = beginDistraction(access.state, access.context, kind, target);
+    if (!result.ok) return { ok: false, reason: result.reason };
+    let favor = null;
+    if (kind === 'colleague') {
+      favor = consumeFavor(ensureRelationshipsExtension(), 'bleb', dayIndex);
+      if (!favor.ok) return { ok: false, reason: favor.reason || 'favor_unavailable' };
+    }
+    if (!commitDistractionsTransition(result)) return { ok: false, reason: 'state_invalid' };
+    if (favor) saveExtensions.relationships = favor.state;
+    boss.state = 'distractionWalk';
+    boss.path = access.path.slice();
+    boss.spotDesc = access.target.desc;
+    boss.warned = false;
+    boss.silentCheck = false;
+    say('player', pick(kind === 'printer' ? LINES.distraction.printer : LINES.distraction.bleb), 2.6);
+    addLog(kind === 'printer' ? 'Быкентий готовит приманку у ксерокса. Д.Н. может её заметить.' : 'Блеб отвлечёт Д.Н. на короткое время.', 'info');
+    playSound('click');
+    return { ok: true, reason: null };
+  }
+  function interruptBossDistraction(reason = 'interrupted', returnBoss = false) {
+    const current = ensureDistractionsExtension();
+    if (!current.active) return false;
+    const wasInDiversion = isBossDistractionState();
+    const result = finishDistraction(current, reason === 'cancel' ? 'cancel' : 'interrupted');
+    if (!commitDistractionsTransition(result)) return false;
+    if (wasInDiversion) {
+      nextBossCheck = Math.max(nextBossCheck, 4);
+      if (returnBoss && mode === 'playing') bossGoTo(WD.bossHome, 'return', 'кабинет');
+    }
+    return true;
+  }
+  function updateBossDistraction(dt) {
+    const current = ensureDistractionsExtension();
+    if (!current.active) {
+      if (isBossDistractionState()) {
+        bossGoTo(WD.bossHome, 'return', 'кабинет');
+        nextBossCheck = Math.max(nextBossCheck, 4);
+      }
+      const cooled = tickDistraction(current, dt, { paused: mode !== 'playing' });
+      commitDistractionsTransition(cooled);
+      return;
+    }
+    if (mode === 'paused') {
+      const paused = tickDistraction(current, dt, { paused: true, arrived: boss.state === 'distractionWait' });
+      commitDistractionsTransition(paused);
+      return;
+    }
+    if (mode !== 'playing' || clockMinutes >= CFG.shiftEnd) {
+      interruptBossDistraction('interrupted');
+      return;
+    }
+    const active = current.active;
+    if (active.phase === 'walking') {
+      if (!['distractionWalk', 'distractionWait'].includes(boss.state)) {
+        interruptBossDistraction('interrupted');
+        return;
+      }
+      const target = active.target;
+      const closeEnough = dist(boss, target) <= 3;
+      if (boss.state === 'distractionWalk' && (!Array.isArray(boss.path) || !boss.path.length) && !closeEnough) {
+        const path = bossDistractionPath(target);
+        if (!path || !path.length) {
+          interruptBossDistraction('interrupted', true);
+          return;
+        }
+        boss.path = path;
+      }
+      const arrived = boss.state === 'distractionWait' || closeEnough;
+      if (arrived) { boss.state = 'distractionWait'; boss.moving = false; }
+      const result = tickDistraction(current, dt, { paused: false, arrived });
+      if (!commitDistractionsTransition(result)) return;
+      if (result.state.active && result.state.active.phase === 'occupied') {
+        say('boss', pick(LINES.distraction.occupied), 2.4);
+      } else if (!result.state.active && result.state.lastOutcome === 'walking_timeout') {
+        bossGoTo(WD.bossHome, 'return', 'кабинет');
+        nextBossCheck = Math.max(nextBossCheck, 4);
+        say('boss', pick(LINES.distraction.failed), 2.4);
+      }
+      return;
+    }
+    if (boss.state !== 'distractionWait') {
+      interruptBossDistraction('interrupted');
+      return;
+    }
+    const result = tickDistraction(current, dt, { paused: false });
+    if (!commitDistractionsTransition(result)) return;
+    if (!result.state.active && result.state.lastOutcome === 'done') {
+      bossGoTo(WD.bossHome, 'return', 'кабинет');
+      nextBossCheck = Math.max(nextBossCheck, 4);
+      say('boss', pick(LINES.distraction.finished), 2.4);
+    }
+  }
+  function startPrinterMeme() {
+    startAction('printer', 3.5);
+    playSound('click');
+    say('player', pick(LINES.thoughts.printer), 3);
+    fun += 3;
+    addWork(2);
+  }
+  function startPrinterDistractionPrep() {
+    const access = canStartBossDistraction('printer');
+    if (!access.ok) { toast(distractionReasonText(access.reason, 'printer'), 2.2); return false; }
+    startAction('printer-distraction-prep', 2);
+    playSound('click');
+    say('player', pick(LINES.distraction.prep), 2.4);
+    return true;
+  }
+
   function requestFavor(npcId, kind) {
     if (!RELATIONSHIP_NPC_IDS.includes(npcId)) return { ok: false, reason: 'unknown_npc' };
     if (typeof kind !== 'string' || !kind.trim()) return { ok: false, reason: 'invalid_favor_kind' };
@@ -87,6 +285,13 @@
     const eligibility = canRequestFavor(ensureRelationshipsExtension(), npcId, dayIndex);
     if (!eligibility.ok) return { ok: false, reason: eligibility.reason };
     if (!eligibility.canRequest) return { ok: false, reason: eligibility.reason || 'favor_unavailable' };
+    if (npcId === 'bleb' && kind === 'distraction') {
+      const begin = beginBossDistraction('colleague');
+      if (!begin.ok) return begin;
+      say('bleb', pick(LINES.distraction.blebStarted), 2.8, '#9fe0b0');
+      playSound('success');
+      return begin;
+    }
     return { ok: false, reason: 'unavailable' };
   }
 
@@ -96,6 +301,7 @@
     if (player.action === 'cabinet_hide') return { prompt: 'E / H — выйти из-за шкафов', target: 'archive' };
     if (player.action === 'printer_hide') return { prompt: 'E / H — вылезти из-за ксерокса', target: 'printer' };
     if (player.action === 'chat') return { prompt: 'Болтаете… (шаг — прервать)', target: `chat_${player.chatWith}` };
+    if (player.action === 'printer-distraction-prep') return { prompt: 'Готовишь приманку у ксерокса…', target: 'printer' };
     if (player.action === 'queue') return { prompt: `Очередь в биотуалет: впереди ${day.queue} чел. (шаг — потерять место)`, target: 'toilet' };
     if (player.action === 'toilet') return { prompt: 'В синей кабинке. Единственное место без Д.Н.', target: 'toilet' };
     if (player.action === 'lunch') return { prompt: day.vilka ? 'Обед в «Вилке»: стейк, медиум, счастье…' : 'Обед в «Мюнхене»: жуёшь хрючево дня…', target: 'exit' };
@@ -118,7 +324,7 @@
         : `E — налить воды из кулера (${day.waterCups || 4}/4)`,
       smoke: player.action === 'smoke' ? 'E — потушить сигарету' : 'E — перекур с видом на горы',
       archive: 'E / H — затаиться за шкафами',
-      printer: eventIs('jam') && !officeEvent.used ? 'E — вытащить зажёванную бумагу (+9 к плану) · H — спрятаться' : 'E — распечатать мем · H — спрятаться за ксероксом',
+      printer: eventIs('jam') && !officeEvent.used ? 'E — вытащить зажёванную бумагу (+9 к плану) · H — спрятаться' : 'E — мем или приманка для Д.Н. · H — спрятаться за ксероксом',
       server: player.action === 'youtube' ? 'E — закрыть вкладку' : (eventIs('internet') ? 'Интернета нет. Только Excel, только хардкор.' : 'E — YouTube на гигабитном канале'),
       exit: exitPrompt(),
       toilet: day.peeActive ? 'E — СРОЧНО в синюю кабинку! 🚽' : day.toiletCd > 0 ? `Биотуалет: пока не хочется (${Math.ceil(day.toiletCd)} с)` : 'E — встать в очередь в синюю кабинку',
@@ -179,6 +385,7 @@
       activityId: 'phone', active: false, completed, paused: false,
     });
     if (result.ok) saveExtensions.moments = result.state;
+    if (completed) finishDistractionMoment();
     return result;
   }
   function startAction(action, seconds) {
@@ -293,6 +500,7 @@
   }
   function endAction(reason, finishedActivity = null) {
     const a = player.action;
+    const startPrinterDistraction = a === 'printer-distraction-prep' && reason === 'done';
     let activityVariant = finishedActivity && finishedActivity.variant;
     if (!finishedActivity) {
       const currentActivity = saveExtensions.activities;
@@ -371,12 +579,17 @@
     if (reason === 'done' && (a === 'smoke' || a === 'youtube' || a === 'fridge' || completedChat) &&
         !(finishedActivity && finishedActivity.countAsBaseActivity === false)) {
       recordVarietyCompletion(a);
+      finishDistractionMoment();
     }
     player.action = 'none';
     player.actionTimer = 0;
     player.hideSpot = null;
     checkTodo();
     if (reason === 'done' && a === 'smoke' && activityVariant !== 'smoke-listening') offerSmokeListeningChoice();
+    if (startPrinterDistraction) {
+      const result = beginBossDistraction('printer');
+      if (!result.ok) toast(distractionReasonText(result.reason, 'printer'), 2.4);
+    }
   }
 
   function grantPerk(c) {
@@ -526,10 +739,8 @@
           say('player', 'Так, где тут у него зажевалось...', 2.6);
           break;
         }
-        startAction('printer', 3.5);
-        playSound('click');
-        say('player', pick(LINES.thoughts.printer), 3);
-        fun += 3; addWork(2);
+        if (auto.on) { startPrinterMeme(); break; }
+        openActionChoice({ id: 'printer-approach', owner: 'player', options: ['meme', 'distraction'], expiresIn: 10 });
         break;
       case 'server':
         if (player.action === 'youtube') { endAction('cancel'); toast('Вкладка закрыта.', 1.4); return; }
@@ -549,6 +760,7 @@
         }
         if (canLunch()) {
           day.dish = pick(day.vilka ? LINES.lunch.vilka : LINES.lunch.dishes);
+          interruptBossDistraction('interrupted', true);
           startAction('lunch', CFG.lunchSeconds);
           // Час спокойствия: проверка, если шла, сворачивается, подозрение гаснет
           boss.suspicion = 0;
@@ -718,5 +930,19 @@
     handlers: {
       quiet: () => startYoutubeVariant('youtube-quiet'),
       loud: () => startYoutubeVariant('youtube-loud'),
+    },
+  });
+  registerActionChoiceHandler('printer-approach', {
+    title: 'Ксерокс: выбрать действие',
+    options: [
+      { id: 'meme', label: 'Распечатать мем', detail: '3.5 с · +3 кайфа · +2 к плану' },
+      { id: 'distraction', label: 'Отвлечь Д.Н.', detail: '2 с подготовки · без награды · затем маршрут к ксероксу', disabledReason: () => {
+        const access = canStartBossDistraction('printer');
+        return access.ok ? '' : distractionReasonText(access.reason, 'printer');
+      } },
+    ],
+    handlers: {
+      meme: () => startPrinterMeme(),
+      distraction: () => startPrinterDistractionPrep(),
     },
   });

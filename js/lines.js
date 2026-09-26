@@ -352,6 +352,16 @@
     ],
   };
 
+  const distraction = {
+    prep: ['Соберу приманку у ксерокса. Без премии, зато начальник отвлечётся.'],
+    printer: ['Пойду к ксероксу — вдруг Д.Н. решит проверить, что я там печатаю.'],
+    bleb: ['Попрошу Блеба увести Д.Н. от стола.'],
+    blebStarted: ['Ладно, Быкентий. Подманю его к своему столу.'],
+    occupied: ['Так, проверю, что у Блеба… потом вернусь к обходу.'],
+    finished: ['Ладно, хватит ксерокса. Вернусь к делам.'],
+    failed: ['Не дошёл до приманки. Время проверять столы.'],
+  };
+
   // Маджикистан (проект Быкентия, где всё плохо) и автошка Сиргея
   const majik = {
     down: ['Маджикистан лёг! Опять!', 'В Маджикистане отключили свет. Опять. Сервер тоже.', 'Маджикистан: база данных — это Excel на флешке у сторожа.'],
@@ -505,5 +515,5 @@
   // Д.Н. проходит мимо стола Тиграна — духа он не видит, только чувствует
   const tigranDraft = ['Бр-р… Откуда сквозняк у пустого стола?', 'Кто тут рычит?.. Показалось.', 'Почему тут пахнет космосом?'];
 
-  window.NP_LINES = { banter, tigranDraft, boss, chat, perks, coworkerIdle, coworkerWarn, thoughts, dayTasks, excuses, majik, sb, nudge, arrfr, slack, whine, complaints, lunch, munich, toilet, pee, hideOut, bday, aljazira, adhoc, excelTasks, coffeeQueue };
+  window.NP_LINES = { banter, tigranDraft, boss, chat, perks, coworkerIdle, coworkerWarn, thoughts, distraction, dayTasks, excuses, majik, sb, nudge, arrfr, slack, whine, complaints, lunch, munich, toilet, pee, hideOut, bday, aljazira, adhoc, excelTasks, coffeeQueue };
 })();
