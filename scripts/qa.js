@@ -128,9 +128,9 @@ const { loadPlaywright } = require('./pw');
   await page.keyboard.press('KeyE');
   st = await page.evaluate(() => NP_DEBUG.state);
   check('болтовня стартует', st.player.action === 'chat', st.player.action);
-  await page.waitForTimeout(3800);
+  await page.evaluate(() => { NP_DEBUG.set({ noPee: true }); NP_DEBUG.skip(3.3); });
   await page.screenshot({ path: path.join(outDir, '03-chat.png') });
-  await page.waitForTimeout(3200);
+  await page.evaluate(() => { NP_DEBUG.skip(3.5); });
   st = await page.evaluate(() => NP_DEBUG.state);
   check('болтовня даёт бонус', st.stats.chats === 1, JSON.stringify(st.stats));
 
@@ -817,6 +817,8 @@ const { loadPlaywright } = require('./pw');
   check('клавиши: F назначается на «Действие» и садит за Excel, сброс; громкость сохраняется', kb.open && kb.bound.KeyF === 'e' && kb.closed && kb.act === 'work' && kb.vol === 0.3 && Object.keys(kb.reset).length === 0, JSON.stringify(kb));
 
   // Неделя на автопилоте: все 5 смен доигрываются без ошибок, автопилот закрывает перекуры и кофе из задач дня
+  // Для ревью: перезагрузка сбрасывает состояние генератора случайных чисел после предыдущих проверок; localStorage сохраняется.
+  await page.reload();
   const weekErrs = [];
   page.on('pageerror', e => weekErrs.push(e.message));
   const wk = await page.evaluate(() => {
