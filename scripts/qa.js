@@ -128,9 +128,9 @@ const { loadPlaywright } = require('./pw');
   await page.keyboard.press('KeyE');
   st = await page.evaluate(() => NP_DEBUG.state);
   check('болтовня стартует', st.player.action === 'chat', st.player.action);
-  await page.waitForTimeout(3800);
+  await page.evaluate(() => { NP_DEBUG.set({ noPee: true }); NP_DEBUG.skip(3.3); });
   await page.screenshot({ path: path.join(outDir, '03-chat.png') });
-  await page.waitForTimeout(3200);
+  await page.evaluate(() => { NP_DEBUG.skip(3.5); });
   st = await page.evaluate(() => NP_DEBUG.state);
   check('болтовня даёт бонус', st.stats.chats === 1, JSON.stringify(st.stats));
 
@@ -294,6 +294,8 @@ const { loadPlaywright } = require('./pw');
   check('стукач вырезан', await page.evaluate(() => !window.NP_LINES.snitch));
 
   // Апгрейды реально работают: KPI в Excel с креслом и монитором, турка, лава, кактус, гитара
+  // Новая смена исключает бонус +8 за дела, накопленные предыдущими проверками, из сравнения жары и вентилятора.
+  await page.evaluate(() => { NP_DEBUG.clearSavedProgress(); NP_DEBUG.restart(); });
   const up = await page.evaluate(() => {
     NP_DEBUG.setClock(11 * 60); NP_DEBUG.set({ reprimands: 0, misses: 0, usefulness: 20 }); NP_DEBUG.clearEvents();
     const kpiRate = () => { NP_DEBUG.clearEvents(); NP_DEBUG.setBoss(706, 446, 'office'); NP_DEBUG.set({ usefulness: 20, reprimands: 0, fun: 20, noPee: true }); NP_DEBUG.teleport(728, 150); NP_DEBUG.interact(); NP_DEBUG.skip(5); const s = NP_DEBUG.state; return { k: s.usefulness - 20, fun: s.fun }; };
@@ -817,12 +819,15 @@ const { loadPlaywright } = require('./pw');
   check('клавиши: F назначается на «Действие» и садит за Excel, сброс; громкость сохраняется', kb.open && kb.bound.KeyF === 'e' && kb.closed && kb.act === 'work' && kb.vol === 0.3 && Object.keys(kb.reset).length === 0, JSON.stringify(kb));
 
   // Неделя на автопилоте: все 5 смен доигрываются без ошибок, автопилот закрывает перекуры и кофе из задач дня
+  // Перезагрузка изолирует состояние страницы после предыдущих проверок (localStorage сохраняется),
+  // фиксированное зерно на каждую смену делает прогон воспроизводимым.
+  await page.reload();
   const weekErrs = [];
   page.on('pageerror', e => weekErrs.push(e.message));
   const wk = await page.evaluate(() => {
     const out = [];
     for (let d = 0; d < 5; d++) {
-      NP_DEBUG.setDay(d); NP_DEBUG.restart(); NP_DEBUG.startAutopilot();
+      NP_DEBUG.setDay(d); NP_DEBUG.startAutopilot(1000 + d);
       for (let k = 0; k < 600 && NP_DEBUG.state.mode === 'playing'; k++) NP_DEBUG.skip(1);
       const s = NP_DEBUG.state;
       out.push({ d, mode: s.mode, cig: s.stats.cigarettes, coffees: s.stats.coffees, done: s.todo.filter(t => t.done).length, of: s.todo.length });

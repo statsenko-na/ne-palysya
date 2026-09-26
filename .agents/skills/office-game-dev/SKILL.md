@@ -1,6 +1,6 @@
 ---
 name: office-game-dev
-description: Development, verification, and asset generation runbook for the 'Не пались' (office_game) pixel-art browser game. Use when modifying game.js, adding sprites, adjusting balance, or running QA for the office game.
+description: Development, verification, and asset generation runbook for the 'Не пались' (office_game) pixel-art browser game. Use when modifying game code (game.js, js/*.js), adding sprites, adjusting balance, or running QA for the office game.
 ---
 
 # 'Не пались' (office_game) Development & QA Runbook
@@ -11,7 +11,7 @@ This skill defines the technical workflow and quality standards for developing t
 
 ## 1. Core Architecture Principles
 - **Zero-Build Static Web**: The game must run directly in the browser by opening `index.html`. No build tools, bundlers, or server-side dependencies.
-- **Canvas Rendering**: 960x540 game units rendered at 2x (1920x1080). Office is procedural (`js/art.js`), geometry in `js/world.js`, lines in `js/lines.js`, loop/AI in `game.js`.
+- **Canvas Rendering**: 960x540 game units rendered at 2x (1920x1080). Office is procedural (`js/art.js`), geometry in `js/world.js`, lines in `js/lines.js`, balance in `js/config.js`, logic split across `js/*.js` (see AGENTS.md "Источники истины"), input and startup in `game.js`.
 - **Audio**: Procedurally generated via the Web Audio API without external audio file dependencies.
 
 ---
@@ -28,7 +28,7 @@ Every action must support both physical key codes and keyboard character fallbac
 ---
 
 ## 3. Verification Protocol
-After making any code changes to `game.js` or styles:
+After making any code changes to `game.js`, `js/*.js` or styles:
 1. **Syntax Verification**:
    ```bash
    for f in game.js js/*.js; do node --check "$f"; done
