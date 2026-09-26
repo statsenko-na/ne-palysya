@@ -1,7 +1,6 @@
+'use strict';
 // «Не пались» — игровой цикл, механики, ИИ начальника и рендер персонажей.
 // Геометрия — js/world.js, баланс и неделя — js/config.js, арт офиса — js/art.js, реплики — js/lines.js.
-(() => {
-  'use strict';
 
   const WD = window.NP_WORLD;
   const ART = window.NP_ART;
@@ -3950,4 +3949,3 @@
   if (location.hash === '#play' || new URLSearchParams(location.search).has('play')) resetGame(); // быстрый старт для разработки, без онбординга
   else setMode('menu');
   requestAnimationFrame(loop);
-})();
