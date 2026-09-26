@@ -5,6 +5,7 @@
 
   // ---------- ИГРОК ----------
   function updatePlayer(dt) {
+    let activityTick = null;
     day.hideCd = Math.max(0, (day.hideCd || 0) - dt);
     if (COVER.has(player.action)) {
       player.hideT = (player.hideT || 0) + dt;
@@ -52,8 +53,25 @@
     }
 
     if (player.actionTimer > 0) {
-      player.actionTimer -= dt;
-      if (player.actionTimer <= 0) endAction('done');
+      const activities = saveExtensions.activities;
+      if (activities && activities.active && activitiesStateIsValid(activities) &&
+          activityVariantMatchesAction(activities.active.variant, player.action)) {
+        const consumedSeconds = Math.min(dt, activities.active.remainingSeconds);
+        const result = tickActivityVariant(activities, dt, activityContext({
+          bossState: boss.state,
+          bossDistance: dist(boss, player),
+          bossRouteAvailable: typeof bossCanRouteToServer === 'function' && bossCanRouteToServer(),
+        }));
+        if (commitActivitiesTransition(result, activities)) {
+          activityTick = Object.assign({}, result, { consumedSeconds });
+          player.actionTimer = result.remaining;
+          if (result.effects.length) applyActivityEffects(result.effects);
+          if (result.completed) endAction('done', result);
+        } else endAction('cancel');
+      } else {
+        player.actionTimer -= dt;
+        if (player.actionTimer <= 0) endAction('done');
+      }
     }
     if (player.action === 'phone') tickPhoneMoment(dt);
 
@@ -138,7 +156,9 @@
       kpiTick -= dt;
       if (boss.watchingWork && kpiTick <= 0) { floater(player.x + (rand() - 0.5) * 20, player.y - 58, planDone() ? 'ПРИКРЫТИЕ' : `+ПЛАН ×${CFG.watchedKpiMultiplier}`, '#57d08a'); playSound('kpi'); kpiTick = 0.5; }
     }
-    if (a === 'smoke') {
+    if (activityTick) {
+      if (activityTick.countAsBaseActivity) fun += activityTick.rate * activityTick.consumedSeconds;
+    } else if (a === 'smoke') {
       fun += (day.smog ? 2.4 : 4) * dt;
       if (rand() < 0.5) particles.push({ x: player.x + 10 * player.facingX, y: player.y - 40, vx: 12 + rand() * 10, vy: -8 - rand() * 8, size: 2 + rand() * 2, life: 1.5, maxLife: 1.5, color: 'rgba(230,230,230,0.6)' });
     } else if (a === 'youtube') { fun += 5 * dt; }
@@ -325,6 +345,7 @@
     if (mode !== 'playing') return;
     closeActionChoice('shift_ended');
     closePhonePanel(true, true);
+    cancelActiveActivitiesAtShiftEnd();
     // Конец смены: меньше половины плана — выговор (на лимите — увольнение); от половины — без выговора, но и без бонуса
     let planFailed = false;
     const dMax = diff().dayReprimandsMax;

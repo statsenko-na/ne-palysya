@@ -191,8 +191,92 @@
     player.actionTimer = seconds;
     player.actionTotal = seconds;
   }
-  function endAction(reason) {
+  function ensureActivitiesExtension() {
+    const current = saveExtensions.activities;
+    if (current && activitiesStateIsValid(current) && (!current.shiftId || current.shiftId === shiftId)) return current;
+    const next = createActivities();
+    next.smokePrompted = false;
+    saveExtensions.activities = next;
+    if (current) saveExtensionErrors.activities = 'state_invalid';
+    return next;
+  }
+  function commitActivitiesTransition(result, previous) {
+    if (!result || !result.ok) return false;
+    result.state.smokePrompted = !!(previous && previous.smokePrompted);
+    saveExtensions.activities = result.state;
+    delete saveExtensionErrors.activities;
+    return true;
+  }
+  function activityContext(overrides) {
+    return Object.assign({
+      shiftId,
+      paused: mode !== 'playing',
+      shiftEnded: mode === 'ended',
+    }, overrides || {});
+  }
+  function activityVariantMatchesAction(variant, action) {
+    return (variant === 'smoke-listening' && action === 'smoke') ||
+      ((variant === 'youtube-quiet' || variant === 'youtube-loud') && action === 'youtube');
+  }
+  function startSmokeListening() {
+    const current = ensureActivitiesExtension();
+    const result = startActivityVariant(current, activityContext({
+      dayIndex,
+      ordinarySmokeCompleted: true,
+    }), 'smoke-listening');
+    if (!commitActivitiesTransition(result, current)) return false;
+    startAction('smoke', result.remaining);
+    playSound('smoke');
+    say('player', pick(LINES.thoughts.smoke), 2.4);
+    addLog('Быкентий прислушивается после перекура. Ещё три секунды без кайфа.', 'info');
+    return true;
+  }
+  function offerSmokeListeningChoice() {
+    if (dayIndex < 1) return false;
+    const activities = ensureActivitiesExtension();
+    if (activities.smokePrompted || activities.listeningCompleted || activities.intelGranted) return false;
+    const opened = openActionChoice({
+      id: 'smoke-listening', owner: 'player', options: ['listen', 'later'], expiresIn: 10,
+    });
+    if (opened) {
+      activities.smokePrompted = true;
+      saveExtensions.activities = activities;
+    }
+    return opened;
+  }
+  function applyActivityEffects(effects) {
+    for (const effect of effects || []) {
+      if (effect.type === 'grantIntel') {
+        intelTimer = Math.max(intelTimer, effect.seconds);
+        say('player', bossIntelHasCountdown() ? LINES.thoughts.smokeIntel : bossIntelStatusText(), 3.2);
+        addLog('Быкентий запомнил расписание проверок Д.Н.', 'good');
+      }
+    }
+  }
+  function cancelActiveActivitiesAtShiftEnd() {
+    const current = saveExtensions.activities;
+    if (!current || !current.active || !activitiesStateIsValid(current)) return false;
+    const result = cancelActivityVariant(current, 'shift_ended');
+    if (!commitActivitiesTransition(result, current)) return false;
+    if (activityVariantMatchesAction(result.variant, player.action)) {
+      player.action = 'none';
+      player.actionTimer = 0;
+    }
+    return true;
+  }
+  function endAction(reason, finishedActivity = null) {
     const a = player.action;
+    let activityVariant = finishedActivity && finishedActivity.variant;
+    if (!finishedActivity) {
+      const currentActivity = saveExtensions.activities;
+      if (currentActivity && currentActivity.active && activityVariantMatchesAction(currentActivity.active.variant, a)) {
+        activityVariant = currentActivity.active.variant;
+        const canceled = cancelActivityVariant(currentActivity, reason === 'shift_ended' ? 'shift_ended' : 'cancel');
+        if (commitActivitiesTransition(canceled, currentActivity) && activityVariant === 'smoke-listening' && reason === 'cancel') {
+          saveExtensions.activities.smokePrompted = false;
+        }
+      }
+    }
     let completedChat = false;
     if (a === 'chat') {
       const c = coworkerById(player.chatWith);
@@ -234,8 +318,8 @@
       floater(player.x, player.y - 64, `СЫТ · +${lf} КАЙФА`, '#e8b070');
       addLog(day.vilka ? `Обед в «Вилке»: ${day.dish}. Вот это жизнь!` : `Обед в «Мюнхене»: ${day.dish}. Невкусно, но сытно.`, 'good');
     }
-    if (a === 'smoke' && reason === 'done') stats.cigarettes++;
-    if (a === 'youtube' && reason === 'done') stats.videos++;
+    if (a === 'smoke' && reason === 'done' && activityVariant !== 'smoke-listening') stats.cigarettes++;
+    if (a === 'youtube' && reason === 'done' && !activityVariant) stats.videos++;
     if (a === 'printer' && reason === 'done') { stats.printed++; floater(player.x, player.y - 64, 'МЕМ НАПЕЧАТАН', '#bfe3f0'); }
     if (a === 'fixjam' && reason === 'done') {
       addWork(9);
@@ -257,13 +341,15 @@
       floater(player.x, player.y - 64, 'КОФЕМАШИНА ЧИСТА +3 KPI', '#57d08a');
       addLog('Быкентий почистил кофемашину. Офис спасён.', 'good');
     }
-    if (reason === 'done' && (a === 'smoke' || a === 'youtube' || a === 'fridge' || completedChat)) {
+    if (reason === 'done' && (a === 'smoke' || a === 'youtube' || a === 'fridge' || completedChat) &&
+        !(finishedActivity && finishedActivity.countAsBaseActivity === false)) {
       recordVarietyCompletion(a);
     }
     player.action = 'none';
     player.actionTimer = 0;
     player.hideSpot = null;
     checkTodo();
+    if (reason === 'done' && a === 'smoke' && activityVariant !== 'smoke-listening') offerSmokeListeningChoice();
   }
 
   function grantPerk(c) {
@@ -586,3 +672,15 @@
     }
   }
   const achCount = () => ACHIEVEMENTS.filter(a => achieved[a.id]).length;
+
+  registerActionChoiceHandler('smoke-listening', {
+    title: 'Можно прислушаться: ещё 3 с',
+    options: [
+      { id: 'listen', label: 'Прислушаться', detail: 'Ещё 3 с на балконе · без кайфа' },
+      { id: 'later', label: 'Потом', detail: 'Закончить перекур' },
+    ],
+    handlers: {
+      listen: () => startSmokeListening(),
+      later: () => {},
+    },
+  });

@@ -9,6 +9,28 @@
     boss.path = findPath(boss, target);
     boss.spotDesc = desc || boss.spotDesc;
   }
+  function bossIntelHasCountdown() {
+    return !onLunch() && !eventIs('call') && !eventIs('drill') &&
+      ['office', 'patrol', 'look', 'return'].includes(boss.state);
+  }
+  function bossIntelStatusText() {
+    if (bossIntelHasCountdown()) return `проверка через ${Math.max(0, Math.ceil(nextBossCheck))} с`;
+    if (onLunch()) return 'проверка после обеда';
+    if (eventIs('call')) return 'Д.Н. на созвоне';
+    if (eventIs('drill')) return 'Д.Н. на учениях';
+    const status = {
+      inspect: 'Д.Н. уже проверяет',
+      waitDesk: 'Д.Н. ждёт у стола',
+      lecture: 'Д.Н. читает нотацию',
+      standup: 'Д.Н. ведёт летучку',
+      leaving: 'Д.Н. уезжает на встречу',
+      gone: 'Д.Н. уехал',
+      goout: `Д.Н. уходит ${boss.spotDesc || 'из офиса'}`,
+      out: boss.outWhy === 'lunch' ? 'Д.Н. на обеде' : 'Д.Н. на улице',
+      scold: 'Д.Н. отчитывает коллегу',
+    }[boss.state];
+    return status || 'Д.Н. занят';
+  }
   // Куда Д.Н. идёт гулять: общие точки или к столу случайного коллеги
   function strollSpot() {
     const people = coworkers.filter(c => !c.away && !c.ghost);
