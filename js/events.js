@@ -272,6 +272,7 @@
       }
     }
     updateSchedule(dt);
+    tickYogurtStoryAdapter(dt);
     if (banner) { banner.t += dt; if (banner.t > (banner.dur || 4.4)) banner = null; }
   }
   const eventIs = id => officeEvent && officeEvent.id === id;

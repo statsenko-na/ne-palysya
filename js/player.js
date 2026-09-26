@@ -350,6 +350,7 @@
     closeActionChoice('shift_ended');
     closePhonePanel(true, true);
     interruptBossDistraction('interrupted');
+    tickYogurtStoryAdapter(0, true);
     cancelActiveActivitiesAtShiftEnd();
     // Конец смены: меньше половины плана — выговор (на лимите — увольнение); от половины — без выговора, но и без бонуса
     let planFailed = false;

@@ -367,6 +367,16 @@
     ready: ['Папка при мне. Главное — не останавливаться и не подходить вплотную.'],
     bossQuestion: ['А в папке что?'],
   };
+  const yogurt = {
+    thought: 'На крышке написано «ХЛАД». Значит, охлаждённый?',
+    discovered: 'Мой йогурт из «Бирюсы» пропал. В отделе рисковых кредитов появился рискованный холодильник.',
+    question: 'Быкентий, ты случайно не видел клубничный йогурт? Он был размером с твою совесть.',
+    coffeeStart: 'Сварю Хладу новый кофе. Этот стакан — без кофеинового оправдания.',
+    coffeeOffer: 'Хлад, держи. Сварил после того, как ты заметил пропажу.',
+    coffee_resolved: 'Ладно, кофе принимается. Но крышечку я запомнил.',
+    bleb_resolved: 'Блеб, спасибо. Быкентий, холодильник теперь под наблюдением.',
+    timeout: 'Я всё понял. С понедельника холодильник будет с двухфакторной аутентификацией.',
+  };
 
   // Маджикистан (проект Быкентия, где всё плохо) и автошка Сиргея
   const majik = {
@@ -414,7 +424,7 @@
     { id: 'hideAudit', text: 'Пересидеть проверку в фикусе, как настоящий аудитор', goal: 1, stat: 'plantHideInspect' },
     { id: 'cleanFriday', text: 'Дожить до 17:00 без выговоров', goal: 1 },
     { id: 'planEarly', text: 'Сделать план до 16:00', goal: 1 },
-    { id: 'yogurt', text: 'Съесть чужой йогурт из «Бирюсы» (улики — в урну)', goal: 1, stat: 'fridge' },
+    { id: 'yogurt', text: 'Съесть йогурт Хлада из «Бирюсы» (улики — в урну)', goal: 1 },
     { id: 'praise2', text: 'Получить 2 похвалы Д.Н. — пусть расскажет Турло Тимурову', goal: 2, stat: 'praise' },
   ];
   // Отмазки у стола и реакция Д.Н., если не дождался
@@ -521,5 +531,5 @@
   // Д.Н. проходит мимо стола Тиграна — духа он не видит, только чувствует
   const tigranDraft = ['Бр-р… Откуда сквозняк у пустого стола?', 'Кто тут рычит?.. Показалось.', 'Почему тут пахнет космосом?'];
 
-  window.NP_LINES = { banter, tigranDraft, boss, chat, perks, coworkerIdle, coworkerWarn, thoughts, distraction, disguise, dayTasks, excuses, majik, sb, nudge, arrfr, slack, whine, complaints, lunch, munich, toilet, pee, hideOut, bday, aljazira, adhoc, excelTasks, coffeeQueue };
+  window.NP_LINES = { banter, tigranDraft, boss, chat, perks, coworkerIdle, coworkerWarn, thoughts, distraction, disguise, yogurt, dayTasks, excuses, majik, sb, nudge, arrfr, slack, whine, complaints, lunch, munich, toilet, pee, hideOut, bday, aljazira, adhoc, excelTasks, coffeeQueue };
 })();

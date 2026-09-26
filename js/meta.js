@@ -135,6 +135,7 @@
     switch (t.id) {
       case 'chatAimashyn': return stats.chatted.has('aimashyn') ? 1 : 0;
       case 'chatHlad': return stats.chatted.has('hlad') ? 1 : 0;
+      case 'yogurt': return saveExtensions.activities && saveExtensions.activities.yogurtStolen ? 1 : 0;
       case 'cleanFriday': return clockMinutes >= 17 * 60 && reprimands === 0 ? 1 : 0;
       case 'planEarly': return stats.planAt && stats.planAt < 16 * 60 ? 1 : 0;
       default: return 0;

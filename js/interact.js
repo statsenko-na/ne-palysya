@@ -7,7 +7,7 @@
   const COVER = new Set(['plant_hide', 'cabinet_hide', 'printer_hide']);
   const HIDDEN = new Set(['plant_hide', 'cabinet_hide', 'printer_hide', 'toilet', 'lunch', 'evac']);
   const AWAY = new Set(['toilet', 'lunch', 'evac']); // Быкентия нет в опенспейсе — не рисуем
-  const SLACK_BASE = new Set(['smoke', 'youtube', 'fridge', 'chat', 'phone', 'meme']);
+  const SLACK_BASE = new Set(['smoke', 'youtube', 'fridge', 'chat', 'phone', 'meme', 'yogurt-coffee-gift']);
   const SLACK = { has: a => SLACK_BASE.has(a) && !(a === 'phone' && phoneSafe > 0) };
   // Склонения имён: родительный, дательный, творительный
   const NAME_CASES = { 'Асель': ['Асель', 'Асель', 'Асель'], 'Сиргей': ['Сиргея', 'Сиргею', 'Сиргеем'] };
@@ -412,6 +412,7 @@
     if (player.action === 'chat') return { prompt: 'Болтаете… (шаг — прервать)', target: `chat_${player.chatWith}` };
     if (player.action === 'printer-distraction-prep') return { prompt: 'Готовишь приманку у ксерокса…', target: 'printer' };
     if (player.action === 'takeFolder') return { prompt: 'Берёшь папку…', target: 'printer' };
+    if (player.action === 'yogurt-coffee-gift') return { prompt: 'Отдаёшь Хладу свежий кофе…', target: 'chat_hlad' };
     if (player.action === 'queue') return { prompt: `Очередь в биотуалет: впереди ${day.queue} чел. (шаг — потерять место)`, target: 'toilet' };
     if (player.action === 'toilet') return { prompt: 'В синей кабинке. Единственное место без Д.Н.', target: 'toilet' };
     if (player.action === 'lunch') return { prompt: day.vilka ? 'Обед в «Вилке»: стейк, медиум, счастье…' : 'Обед в «Мюнхене»: жуёшь хрючево дня…', target: 'exit' };
@@ -424,12 +425,15 @@
     }
     const z = currentZone();
     if (!z) return null;
+    const yogurt = yogurtStoryModuleAvailable() ? ensureYogurtExtension() : null;
     const prompts = {
       desk: player.action === 'work' ? 'E — встать из-за стола' : 'E — сесть за стол и открыть Excel',
       coffee: day.coffeeJammed ? 'E — очистить кофемашину от жмыха (+3 KPI)'
         : ((day.coffeeQueueTimer || 0) > 0 ? `Очередь у кофемашины (~${Math.ceil(day.coffeeQueueTimer)} с)`
-        : (player.coffeeBoost > 0 ? 'E — ещё эспрессо (кофеин не кончился)' : 'E — сварить эспрессо (+35% к скорости)')),
-      fridge: 'E — пошарить в холодильнике (кайф, но палевно)',
+        : (yogurt && yogurt.pendingCoffee ? 'E — отменить варку кофе для Хлада'
+        : (yogurt && yogurt.status === 'discovered' ? 'E — сварить кофе для Хлада (без кайфа и ускорения)'
+        : (player.coffeeBoost > 0 ? 'E — ещё эспрессо (кофеин не кончился)' : 'E — сварить эспрессо (+35% к скорости)')))),
+      fridge: 'E — выбрать перекус в холодильнике',
       water: (day.waterCups || 0) <= 0 ? `Кулер пуст — ждём доставку (~${Math.ceil(day.waterRecharge || 30)} мин.)`
         : `E — налить воды из кулера (${day.waterCups || 4}/4)`,
       smoke: player.action === 'smoke' ? 'E — потушить сигарету' : 'E — перекур с видом на горы',
@@ -447,6 +451,12 @@
       const c = coworkerById(z.coworker);
       if (c.away) return { prompt: c.remote ? `${c.name}: на удалёнке до четверга` : `${c.name}: место пустое — ушёл(ла)`, target: z.id, zone: z };
       if (!unlocked('coworkers')) return { prompt: `${c.name}: «Понедельник, не до болтовни». Коллеги — со вторника`, target: z.id, zone: z };
+      if (c.id === 'hlad' && yogurt && yogurt.status === 'discovered') {
+        const prompt = yogurt.resolution === 'admit'
+          ? (yogurt.coffeeCompletedAfterDiscovery ? 'E — отдать Хладу свежий кофе (2 с)' : 'Хлад ждёт кофе, сваренный после пропажи')
+          : (yogurt.resolution === 'silent' ? 'Хлад ждёт до 17:00' : 'E — ответить Хладу о пропавшем йогурте');
+        return { prompt, target: z.id, zone: z };
+      }
       return { prompt: c.cooldown > 0 ? `${c.name} занят(а) · ещё ${Math.ceil(c.cooldown)} с` : `E — поболтать с ${withName(c.name)}`, target: z.id, zone: z };
     }
     return { prompt: prompts[z.type], target: z.id, zone: z };
@@ -499,6 +509,9 @@
     return result;
   }
   function startAction(action, seconds) {
+    if (player.action === 'coffee' && action !== 'coffee' && saveExtensions.yogurt && saveExtensions.yogurt.pendingCoffee) {
+      endAction('cancel');
+    }
     if (player.action === 'takeFolder' && action !== 'takeFolder') endAction('cancel');
     // Бесконечно сидеть в кустах нельзя: после «хвостик торчит» укрытия недоступны на время
     if (COVER.has(action) && day.hideCd > 0) { say('player', `Фикус ещё помнит мой хвостик… (${Math.ceil(day.hideCd)} с)`, 2); player.hideSpot = null; return; }
@@ -525,6 +538,199 @@
     delete saveExtensionErrors.activities;
     return true;
   }
+  function yogurtStoryModuleAvailable() {
+    return typeof createYogurtStory === 'function' && typeof isYogurtStoryState === 'function'
+      && typeof startYogurtStory === 'function' && typeof tickYogurtStory === 'function'
+      && typeof chooseYogurtResolution === 'function' && typeof completeYogurtCoffee === 'function';
+  }
+  function ensureYogurtExtension() {
+    if (!yogurtStoryModuleAvailable()) return null;
+    const current = saveExtensions.yogurt;
+    if (current && isYogurtStoryState(current) && (current.shiftId === null || current.shiftId === shiftId)) {
+      if (typeof current.coffeeCompletedAfterDiscovery !== 'boolean' || typeof current.pendingCoffee !== 'boolean') {
+        const normalized = { ...current,
+          coffeeCompletedAfterDiscovery: !!current.coffeeCompletedAfterDiscovery,
+          pendingCoffee: !!current.pendingCoffee,
+        };
+        saveExtensions.yogurt = normalized;
+        return normalized;
+      }
+      return current;
+    }
+    const next = createYogurtStory();
+    next.coffeeCompletedAfterDiscovery = false;
+    next.pendingCoffee = false;
+    saveExtensions.yogurt = next;
+    if (current) saveExtensionErrors.yogurt = 'state_invalid_or_shift_mismatch';
+    return next;
+  }
+  function commitYogurtTransition(result, previous = saveExtensions.yogurt) {
+    if (!result || !result.ok) return false;
+    result.state.coffeeCompletedAfterDiscovery = !!(previous && previous.coffeeCompletedAfterDiscovery);
+    result.state.pendingCoffee = !!(previous && previous.pendingCoffee);
+    saveExtensions.yogurt = result.state;
+    delete saveExtensionErrors.yogurt;
+    return true;
+  }
+  function yogurtOwnerAvailable() {
+    const hlad = coworkerById('hlad');
+    return !!hlad && !hlad.away && !hlad.remote && unlocked('coworkers');
+  }
+  function yogurtLegalAway() {
+    return AWAY.has(player.action) || player.action === 'daily' || !!eventIs('drill');
+  }
+  function yogurtStoryContext(dt = 0, forceShiftEnd = false) {
+    return {
+      dt,
+      paused: mode !== 'playing',
+      clockMinutes,
+      legalAway: yogurtLegalAway(),
+      shiftEnded: forceShiftEnd || mode === 'ended' || clockMinutes >= CFG.shiftEnd,
+      ownerAvailable: yogurtOwnerAvailable(),
+    };
+  }
+  function yogurtBlebFavorAvailable() {
+    const bleb = coworkerById('bleb');
+    if (!bleb || bleb.away || bleb.remote || !unlocked('coworkers')) return false;
+    const eligibility = canRequestFavor(ensureRelationshipsExtension(), 'bleb', dayIndex);
+    return !!eligibility.ok && !!eligibility.canRequest;
+  }
+  function yogurtBlebDisabledReason() {
+    const bleb = coworkerById('bleb');
+    if (!bleb || bleb.away || bleb.remote) return 'Блеба сейчас нет в офисе';
+    if (!unlocked('coworkers')) return 'Коллеги доступны со вторника';
+    return yogurtBlebFavorAvailable() ? '' : 'Нет свободного кредита Блеба';
+  }
+  function yogurtAtHladDesk() {
+    const zone = currentZone();
+    return !!zone && zone.type === 'chat' && zone.coworker === 'hlad' && yogurtOwnerAvailable();
+  }
+  function applyYogurtTransition(result, previous = saveExtensions.yogurt) {
+    if (!result || !result.ok) return false;
+    let relationships = null;
+    let moments = null;
+    let relationshipsChanged = false;
+    let momentsChanged = false;
+    const messages = [];
+    for (const effect of result.effects || []) {
+      if (effect.type === 'consumeFavor') {
+        if (!yogurtBlebFavorAvailable()) return false;
+        relationships = relationships || ensureRelationshipsExtension();
+        const consumed = consumeFavor(relationships, effect.npcId, dayIndex);
+        if (!consumed.ok) return false;
+        relationships = consumed.state;
+        relationshipsChanged = true;
+      } else if (effect.type === 'relationship') {
+        relationships = relationships || ensureRelationshipsExtension();
+        const applied = applyRelationshipEvent(relationships, {
+          eventId: effect.eventId,
+          npcId: effect.npcId,
+          kind: effect.kind,
+          dayIndex,
+        });
+        if (!applied.ok) return false;
+        relationships = applied.state;
+        relationshipsChanged = true;
+      } else if (effect.type === 'awardMoment') {
+        moments = moments || ensureMomentsExtension();
+        const awarded = awardMoment(moments, effect.momentId, effect.sourceId);
+        if (!awarded.ok) return false;
+        moments = awarded.state;
+        momentsChanged = true;
+      } else if (effect.type === 'message') {
+        messages.push(effect);
+      }
+    }
+    if (!commitYogurtTransition(result, previous)) return false;
+    if (relationshipsChanged) saveExtensions.relationships = relationships;
+    if (momentsChanged) saveExtensions.moments = moments;
+    for (const effect of messages) {
+      const key = typeof effect.lineId === 'string' ? effect.lineId.replace(/^yogurt\./, '') : '';
+      const message = LINES.yogurt && LINES.yogurt[key];
+      if (!message) continue;
+      const owner = coworkerById(effect.ownerId);
+      if (owner && !owner.away && !owner.remote) say(owner.id, message, 3.6);
+      addLog(message, key === 'discovered' || key === 'timeout' ? 'bad' : 'good');
+    }
+    return true;
+  }
+  function tickYogurtStoryAdapter(dt, forceShiftEnd = false) {
+    if (!yogurtStoryModuleAvailable()) return false;
+    const current = ensureYogurtExtension();
+    if (!current || current.status === 'dormant' || current.status === 'resolved') return false;
+    const result = tickYogurtStory(current, yogurtStoryContext(dt, forceShiftEnd));
+    if (!result.ok) return false;
+    return applyYogurtTransition(result, current);
+  }
+  function yogurtChoiceContext(story) {
+    const context = yogurtStoryContext(0);
+    return {
+      clockMinutes: context.clockMinutes,
+      shiftEnded: context.shiftEnded,
+      legalAway: context.legalAway,
+      ownerAvailable: context.ownerAvailable,
+      blebFavorAvailable: yogurtBlebFavorAvailable(),
+      coffeeCompletedAfterDiscovery: !!(story && story.coffeeCompletedAfterDiscovery),
+    };
+  }
+  function resolveYogurtChoice(choiceId) {
+    const current = ensureYogurtExtension();
+    if (!current || !yogurtAtHladDesk() || yogurtLegalAway()) return false;
+    const result = chooseYogurtResolution(current, choiceId, yogurtChoiceContext(current));
+    if (!result.ok) {
+      toast(result.reason === 'favor_unavailable' ? 'Нужен свободный кредит помощи Блеба.' : 'Хлад сейчас не может принять ответ.', 2.4);
+      return false;
+    }
+    if (!applyYogurtTransition(result, current)) {
+      toast(choiceId === 'bleb' ? 'Кредит Блеба не списан: помощь сейчас недоступна.' : 'Ответ не удалось сохранить.', 2.4);
+      return false;
+    }
+    if (choiceId === 'admit') {
+      addLog('Быкентий признался Хладу и решил извиниться свежим кофе.', 'info');
+    } else if (choiceId === 'silent') {
+      say('player', 'Молчу. Может, до пяти он забудет.', 2.8);
+      addLog('Быкентий решил промолчать до 17:00.', 'bad');
+    }
+    return true;
+  }
+  function yogurtChoiceDisabledReason(choiceId) {
+    const story = ensureYogurtExtension();
+    if (!story) return 'История ещё не подключена';
+    const result = chooseYogurtResolution(story, choiceId, yogurtChoiceContext(story));
+    if (result.ok) return '';
+    if (result.reason === 'favor_unavailable') return yogurtBlebDisabledReason();
+    if (result.reason === 'response_expired') return 'Хлад уже закрыл разговор';
+    if (result.reason === 'owner_unavailable') return 'Хлад сейчас отсутствует';
+    if (result.reason === 'resolution_locked') return 'Ответ уже выбран';
+    return 'Хлад сейчас не принимает ответ';
+  }
+  function startYogurtCoffeeGift() {
+    const story = ensureYogurtExtension();
+    if (!story || story.status !== 'discovered' || story.resolution !== 'admit' || !story.coffeeCompletedAfterDiscovery || !yogurtAtHladDesk()) {
+      toast('Хлад примет кофе, сваренный после пропажи, у своего стола.', 2.6);
+      return false;
+    }
+    startAction('yogurt-coffee-gift', 2);
+    say('player', LINES.yogurt.coffeeOffer, 2.4);
+    playSound('click');
+    return true;
+  }
+  function finishYogurtCoffeeBrew(reason) {
+    const current = saveExtensions.yogurt;
+    if (!current || !current.pendingCoffee) return false;
+    const next = { ...current, pendingCoffee: false };
+    if (reason === 'done') {
+      day.coffeeCups = (day.coffeeCups || 0) + 1;
+      if (day.coffeeCups >= 3 && rand() < 0.45) day.coffeeJammed = true;
+      stats.coffees++;
+      if (current.status === 'discovered') next.coffeeCompletedAfterDiscovery = true;
+      playSound('coffee');
+      puff(119, WD.FLOOR_TOP - 20, 'rgba(255,255,255,0.7)', 8);
+      addLog(`Кофе №${stats.coffees} готов для Хлада. Этот кофе не даёт бонуса скорости или кайфа.`, 'info');
+    }
+    saveExtensions.yogurt = next;
+    return true;
+  }
   function activityContext(overrides) {
     return Object.assign({
       shiftId,
@@ -534,7 +740,39 @@
   }
   function activityVariantMatchesAction(variant, action) {
     return (variant === 'smoke-listening' && action === 'smoke') ||
-      ((variant === 'youtube-quiet' || variant === 'youtube-loud') && action === 'youtube');
+      ((variant === 'youtube-quiet' || variant === 'youtube-loud') && action === 'youtube') ||
+      ((variant === 'fridge-own' || variant === 'fridge-yogurt') && action === 'fridge');
+  }
+  function fridgeYogurtDisabledReason() {
+    if (!yogurtStoryModuleAvailable()) return 'История йогурта ещё не подключена';
+    if (!unlocked('coworkers')) return 'Коллеги доступны со вторника';
+    const hlad = coworkerById('hlad');
+    if (!hlad || hlad.away || hlad.remote) return 'Хлада сейчас нет в офисе';
+    if (ensureActivitiesExtension().yogurtStolen) return 'Йогурт уже исчез';
+    const story = ensureYogurtExtension();
+    if (!story || story.status !== 'dormant') return 'Йогурт уже исчез';
+    return '';
+  }
+  function startFridgeVariant(variant) {
+    const current = ensureActivitiesExtension();
+    const storyAvailable = yogurtStoryModuleAvailable() && !fridgeYogurtDisabledReason();
+    const hlad = coworkerById('hlad');
+    const result = startActivityVariant(current, activityContext({
+      ownerAvailable: !!hlad && !hlad.away && !hlad.remote,
+      storyAvailable,
+    }), variant);
+    if (!commitActivitiesTransition(result, current)) {
+      if (variant === 'fridge-yogurt') toast(fridgeYogurtDisabledReason() || 'Сейчас нельзя взять этот йогурт', 2.2);
+      return false;
+    }
+    startAction('fridge', result.remaining);
+    playSound('click');
+    if (variant === 'fridge-own') say('player', pick(LINES.thoughts.fridge), 3.5);
+    else addLog('Быкентий взял йогурт Хлада. Пока Хлад не заметил пропажу.', 'bad');
+    return true;
+  }
+  function offerFridgeChoice() {
+    return openActionChoice({ id: 'fridge-choice', owner: 'player', options: ['own', 'yogurt'], expiresIn: 10 });
   }
   function startSmokeListening() {
     const current = ensureActivitiesExtension();
@@ -587,6 +825,21 @@
         addLog('Быкентий запомнил расписание проверок Д.Н.', 'good');
       } else if (effect.type === 'countCompleted' && effect.statId === 'videos') {
         stats.videos++;
+      } else if (effect.type === 'countCompleted' && effect.statId === 'fridge') {
+        stats.fridge++;
+      } else if (effect.type === 'startStory' && effect.storyId === 'yogurt') {
+        const current = ensureYogurtExtension();
+        if (!current) continue;
+        const started = startYogurtStory(current, {
+          shiftId,
+          sourceId: effect.sourceId,
+          clockMinutes,
+          shiftEnded: mode === 'ended' || clockMinutes >= CFG.shiftEnd,
+        });
+        if (commitYogurtTransition(started, current)) {
+          say('player', LINES.yogurt.thought, 3.5);
+          addLog('Йогурт Хлада исчез из холодильника. Хлад пока этого не заметил.', 'bad');
+        }
       } else if (effect.type === 'requestBossRoute' && effect.targetId === 'server' && effect.reasonId === 'youtube_loud') {
         if (!routeBossToServer()) {
           say('boss', LINES.boss.youtubeNoiseBlocked, 2.4);
@@ -638,7 +891,23 @@
       if (reason === 'done' && c) { grantPerk(c); completedChat = true; }
       player.chatWith = null;
     }
-    if (a === 'fridge' && reason === 'done') stats.fridge++;
+    if (a === 'coffee' && finishYogurtCoffeeBrew(reason) && reason === 'done') {
+      addLog('Новый кофе приготовлен. Кайф и ускорение от этой чашки не начисляются.', 'info');
+    }
+    if (a === 'yogurt-coffee-gift' && reason === 'done') {
+      if (!yogurtAtHladDesk()) {
+        toast('Нужно закончить у стола Хлада, пока он в офисе.', 2.4);
+      } else {
+        const current = ensureYogurtExtension();
+        const result = current && completeYogurtCoffee(current, yogurtChoiceContext(current));
+        if (!result || !result.ok) {
+          toast(result && result.reason === 'response_expired' ? 'Хлад уже закрыл разговор.' : 'Хлад сейчас не может принять кофе.', 2.4);
+        } else if (!applyYogurtTransition(result, current)) {
+          toast('Не удалось сохранить разговор с Хладом.', 2.4);
+        }
+      }
+    }
+    if (a === 'fridge' && reason === 'done' && !activityVariant) stats.fridge++;
     if (a === 'queue') {
       if (reason === 'done') {
         startAction('toilet', CFG.toiletSeconds);
@@ -736,6 +1005,11 @@
       say('bleb', pick(LINES.nudge.meme), 2.6);
       return;
     }
+    if (player.action === 'yogurt-coffee-gift') {
+      endAction('cancel');
+      toast('Кофе пока останется у Быкентия.', 1.6);
+      return;
+    }
     const info = getActionInfo();
     if (player.action === 'plant_hide' || player.action === 'cabinet_hide' || player.action === 'printer_hide') {
       playSound('hide');
@@ -775,7 +1049,14 @@
         addLog('Быкентий открыл Excel. Пальцы стучат по формулам.', 'good');
         break;
       case 'coffee':
-        if (player.action === 'coffee' || player.action === 'fix_coffee') return;
+        if (player.action === 'coffee') {
+          if (saveExtensions.yogurt && saveExtensions.yogurt.pendingCoffee) {
+            endAction('cancel');
+            toast('Варку для Хлада отменил. Кофе не засчитан.', 2);
+          }
+          return;
+        }
+        if (player.action === 'fix_coffee') return;
         if ((day.coffeeQueueTimer || 0) > 0) {
           toast(pick(LINES.coffeeQueue), 2.8);
           return;
@@ -783,6 +1064,16 @@
         if (day.coffeeJammed) {
           startAction('fix_coffee', 2.8);
           toast('Вытряхиваем жмых, промываем поддон (~3 с)...', 2.8);
+          return;
+        }
+        const yogurt = yogurtStoryModuleAvailable() ? ensureYogurtExtension() : null;
+        if (yogurt && yogurt.status === 'discovered') {
+          saveExtensions.yogurt = { ...yogurt, pendingCoffee: true };
+          startAction('coffee', 2.8);
+          say('player', LINES.yogurt.coffeeStart, 2.8);
+          addLog('Быкентий варит новый кофе для Хлада. Этот стакан не даёт кайфа или ускорения.', 'info');
+          playSound('coffee');
+          puff(119, WD.FLOOR_TOP - 20, 'rgba(255,255,255,0.7)', 8);
           return;
         }
         startAction('coffee', 2.8);
@@ -818,9 +1109,8 @@
         }
         break;
       case 'fridge':
-        startAction('fridge', 4.5);
-        playSound('click');
-        say('player', pick(LINES.thoughts.fridge), 3.5);
+        if (auto.on) { startFridgeVariant('fridge-own'); break; }
+        offerFridgeChoice();
         break;
       case 'smoke':
         if (player.action === 'smoke') { endAction('cancel'); toast('Сигарета потушена.', 1.4); return; }
@@ -935,6 +1225,18 @@
         const c = coworkerById(z.coworker);
         if (c.away) { toast(`${c.name} ушёл(ла). Стул ещё тёплый.`, 1.6); return; }
         if (!unlocked('coworkers')) { say(c.id, 'Понедельник же, не до разговоров!', 2); return; }
+        if (c.id === 'hlad' && yogurtStoryModuleAvailable()) {
+          const story = ensureYogurtExtension();
+          if (story && story.status === 'discovered') {
+            if (story.resolution === 'admit' && story.coffeeCompletedAfterDiscovery) startYogurtCoffeeGift();
+            else if (story.resolution === 'admit') toast('Сначала свари новый кофе после обнаружения пропажи.', 2.6);
+            else if (story.resolution === null) {
+              say('hlad', LINES.yogurt.question, 3.2);
+              openActionChoice({ id: 'yogurt-response', owner: 'hlad', options: ['admit', 'bleb', 'silent'], expiresIn: 12 });
+            } else say('hlad', 'Я жду до пяти. Потом поговорим.', 2.4);
+            return;
+          }
+        }
         if (c.cooldown > 0) { say(c.id, pick(['Отстань, я занят(а)!', 'Потом, дедлайн!', 'Не сейчас, Д.Н. бдит.']), 2.2); return; }
         const pair = pick(LINES.chat[c.id]);
         player.chatWith = c.id;
@@ -1030,6 +1332,30 @@
   }
   const achCount = () => ACHIEVEMENTS.filter(a => achieved[a.id]).length;
 
+  registerActionChoiceHandler('yogurt-response', {
+    title: 'Хлад заметил пропажу',
+    options: [
+      { id: 'admit', label: 'Признаться', detail: 'Сварить новый кофе и принести Хладу', disabledReason: () => yogurtChoiceDisabledReason('admit') },
+      { id: 'bleb', label: 'Попросить Блеба', detail: 'Потратить один кредит помощи', disabledReason: () => yogurtChoiceDisabledReason('bleb') },
+      { id: 'silent', label: 'Промолчать', detail: 'Хлад ждёт ответа до 17:00', disabledReason: () => yogurtChoiceDisabledReason('silent') },
+    ],
+    handlers: {
+      admit: () => resolveYogurtChoice('admit'),
+      bleb: () => resolveYogurtChoice('bleb'),
+      silent: () => resolveYogurtChoice('silent'),
+    },
+  });
+  registerActionChoiceHandler('fridge-choice', {
+    title: 'Холодильник: выбрать перекус',
+    options: [
+      { id: 'own', label: 'Свой перекус', detail: '4,5 с · 3 кайфа/с · итого 13,5' },
+      { id: 'yogurt', label: 'Йогурт Хлада', detail: '4,5 с · 4 кайфа/с · итого 18', disabledReason: fridgeYogurtDisabledReason },
+    ],
+    handlers: {
+      own: () => startFridgeVariant('fridge-own'),
+      yogurt: () => startFridgeVariant('fridge-yogurt'),
+    },
+  });
   registerActionChoiceHandler('smoke-listening', {
     title: 'Можно прислушаться: ещё 3 с',
     options: [
