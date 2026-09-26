@@ -4,7 +4,7 @@
 
 ## Проектные инструменты (используются)
 
-- `node scripts/qa.js [папка]` — Playwright-автотест: раскладки, коллизии, навигация, механики, события, скриншоты. Ищет Playwright локально или в `/opt/node22/lib/node_modules/playwright`. В игре есть отладочный хук `window.NP_DEBUG` (teleport, setBoss, skip, startEvent, set, setDay).
+- `node scripts/qa.js [папка]` — Playwright-автотест: раскладки, коллизии, навигация, механики, события, скриншоты. Ищет Playwright локально или в `/opt/node22/lib/node_modules/playwright`. В игре есть отладочный хук `window.NP_DEBUG` (teleport, setBoss, skip, startEvent, set, setDay); он создаётся только под автотестом (`navigator.webdriver`) или с `?debug` в адресе.
 - Для скриншотов реального холста с `file://` используй `locator.screenshot`: `toDataURL` блокируется из-за tainted canvas.
 - `scripts/make_panorama.py`, `make_boss_walk.py`, `replace_sprite.py`, `pixel_processor.py` — пересборка и замена ассетов (Pillow).
 

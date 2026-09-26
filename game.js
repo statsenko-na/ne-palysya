@@ -1,5 +1,5 @@
 // «Не пались» — игровой цикл, механики, ИИ начальника и рендер персонажей.
-// Геометрия — js/world.js, арт офиса — js/art.js, реплики — js/lines.js.
+// Геометрия — js/world.js, баланс и неделя — js/config.js, арт офиса — js/art.js, реплики — js/lines.js.
 (() => {
   'use strict';
 
@@ -33,106 +33,8 @@
   let art = ART.build();
   if (document.fonts && document.fonts.ready) document.fonts.ready.then(() => { art = ART.build(); });
 
-  // ---------- БАЛАНС ----------
-  const CFG = {
-    shiftSeconds: 240,         // реальная длительность смены 08:50–19:30
-    shiftStart: 8 * 60 + 50,
-    shiftEnd: 19 * 60 + 30,
-    playerSpeed: 100,          // Быкентий быстрее Д.Н. (50 на обходе, 70 на проверке)
-    coffeeBoost: 1.35,
-    coffeeSeconds: 16,
-    bossSpeed: 50,
-    bossInspectSpeed: 70,
-    visionRange: 160,
-    visionRangeInspect: 190,
-    visionHalfAngle: 0.72,
-    suspicionSlack: 75,        // в секунду, если видит прокрастинацию
-    suspicionInspect: 95,      // во время проверки — всё, что не Excel
-    suspicionDecay: 28,
-    workKpi: 1.0,              // работа к плану в секунду в Excel
-    workKpiCoffee: 1.3,
-    watchedKpiMultiplier: 2,   // Д.Н. видит, как ты работаешь — работа идёт вдвое быстрее
-    overPlan: 0.25,            // работа сверх плана идёт с такой отдачей — выгоднее кайфовать
-    firstCheck: [26, 32],      // первая проверка не раньше, чем новичок дочитает баннер и дойдёт до стола
-    checkInterval: [22, 32],
-    strollChance: 0.35,        // часть «проверок» — просто прогулка по офису без тревоги
-    reprimandGrace: 20,        // после выговора Д.Н. выдыхает: столько секунд без подозрения и проверок
-    chatCooldown: 30,
-    lunchOpen: 12 * 60 + 30,   // обед каждый день: выйти с 12:30 до 14:00
-    lunchClose: 14 * 60,
-    lunchSeconds: 7.5,         // час игрового времени: на обеде часы идут втрое быстрее
-    lunchTimeMul: 3,
-    aljaziraDisasterChance: 0.35, // шанс, что сегодня Альджазира обнулит кайф и план (не чаще раза в день)
-    vilkaFun: 20,              // четверг — стейки в «Вилке»: больше кайфа
-    lunchFun: 8,
-    toiletPerPerson: 2.2,      // очередь в туалет: секунд на человека
-    toiletSeconds: 6,
-    toiletCooldown: 45,
-    overtimeSeconds: 30,       // сверхурочные после плана: снять сегодняшний выговор (раз в смену)
-    snusSeconds: 30,           // Д.Н. под снюсом: медленнее и добрее
-    snusSpeed: 0.75,
-    snusSuspicion: 0.6,
-    hideMax: 25,               // сколько секунд подряд можно сидеть в укрытии
-    hideCooldown: 20,          // потом укрытия недоступны
-    workFunDrain: 1.0,         // Excel выматывает: −кайфа в секунду (гитара гасит половину)
-    planMinShare: 0.5,         // к 19:30 нужна хотя бы половина плана, иначе выговор
-    peeTimes: [2, 3],          // сколько раз за смену Быкентию приспичит
-    peeRise: 1.8,              // рост «приспичило» в секунду (0–100): ~55 с до конфуза
-    peeFail: 15,               // −кайфа, если не дотерпел
-    beerAt: 17 * 60 + 15,      // пятничное пиво после отъезда Д.Н.
-    beerChance: 0.65,
-    bdayFee: 10,               // сбор на ДР: минус кайф, KPI не даёт
-  };
-
-  // ---------- СЛОЖНОСТЬ ----------
-  // Множители к базовому балансу: чаще проверки, дальше взгляд, быстрее подозрение, больше план.
-  const DIFFICULTY = {
-    // warn — за сколько секунд до проверки «Кхм-кхм»; wait — сколько Д.Н. ждёт у пустого стола; speed — его шаг на проверке
-    // missLimit — сколько раз «не застал на месте» до выговора; missKeep — с чего счётчик начинается после такого выговора
-    // (Ветеран: 1 — дальше каждый промах сразу выговор). Замер автопилотом с задержкой реакции +2.5 с: промахов за смену
-    // 0.3 / 0.4 / 1.3 → выговор за «не застал» примерно в 0–7% / ~5% / ~40% смен.
-    easy: { name: 'СТАЖЁР', check: 1.3, vision: 0.9, slack: 0.7, plan: 0.8, missLimit: 3, missKeep: 0, warn: 3.5, wait: 5, speed: 0.9, surprise: 0, dayReprimandsMax: 4, weekReprimandsMax: 7 },
-    normal: { name: 'СОТРУДНИК', check: 0.8, vision: 1.05, slack: 1.1, plan: 1, missLimit: 2, missKeep: 0, warn: 2, wait: 2.5, speed: 1.15, surprise: 0.3, dayReprimandsMax: 3, weekReprimandsMax: 5 },
-    hard: { name: 'ВЕТЕРАН', check: 0.65, vision: 1.2, slack: 1.4, plan: 1.2, missLimit: 2, missKeep: 1, warn: 1.5, wait: 2, speed: 1.3, surprise: 0.5, dayReprimandsMax: 2, weekReprimandsMax: 4 },
-  };
-
-  // ---------- АПГРЕЙДЫ ЗА KPI-КОИНЫ ----------
-  // Коины копятся за смены (KPI и сделанные дела), тратятся в магазине на меню и в конце дня.
-  const UPGRADES = [
-    { id: 'chair', icon: '🪑', name: 'Ортопедическое кресло', desc: 'Excel: работа к плану +20%', cost: 25 },
-    { id: 'monitor', icon: '🖥', name: 'Второй монитор', desc: 'Excel: работа +15%, на столе второй экран', cost: 35 },
-    { id: 'turka', icon: '☕', name: 'Своя турка', desc: 'Кофе бодрит 24 с вместо 16', cost: 20 },
-    { id: 'headphones', icon: '🎧', name: 'Наушники с шумодавом', desc: 'Перфоратор не мешает работать', cost: 30 },
-    { id: 'fan', icon: '🌀', name: 'Настольный вентилятор', desc: 'Жара не режет кайф', cost: 20 },
-    { id: 'guitar', icon: '🎸', name: 'Гитара у стола', desc: 'В Excel +0.4 кайфа/с — рок вдохновляет', cost: 30 },
-    { id: 'cactus', icon: '🌵', name: 'Кактус на столе', desc: 'Д.Н. ждёт у пустого стола на 1.5 с дольше', cost: 10 },
-    { id: 'lava', icon: '🌋', name: 'Лава-лампа', desc: 'Чистая красота. +3 кайфа в начале смены', cost: 12 },
-  ];
-
-  // ---------- НЕДЕЛЯ ----------
-  // Каждый день — свой модификатор. Победа переводит на следующий день, проигрыш — переигровка.
-  // Неделя = обучение: каждый день открывает новые механики (после первой пройденной недели открыто всё).
-  // plan — цель работы на день; tasks — задачи дня (попадают в список дел первыми).
-  const DAYS = [
-    { name: 'ПОНЕДЕЛЬНИК', short: 'ПН', plan: 60, mod: 'Тяжёлый понедельник: проверки чаще', checkMul: 0.85,
-      news: 'Ядро: Д.Н. и его конус, твой стол и Excel, кофе, балкон, YouTube, укрытия, синий биотуалет. Цель — план и кайф без увольнения.',
-      tasks: ['coffee1', 'smoke1', 'toilet', 'lunch', 'inspect1', 'reportMon'] },
-    { name: 'ВТОРНИК', short: 'ВТ', plan: 70, mod: 'Обычный вторник. Подозрительно обычный.',
-      news: 'Новое: коллеги первого ряда (E перед их столом) — у каждого бонус. Офисные события: угощение, созвон, ксерокс.',
-      tasks: ['coffee1', 'smoke2', 'toilet', 'lunch', 'chatAimashyn', 'chatHlad', 'printReport'] },
-    { name: 'СРЕДА', short: 'СР', plan: 70, mod: 'Среда — маленькая пятница: кайф ×1.25', funMul: 1.25,
-      news: 'Новое: события — ДР, жара, перфоратор, учения. Алматинские дни: смог и пробка на Аль-Фараби.',
-      tasks: ['coffee2', 'smoke3', 'toilet2', 'lunch', 'reportTurlo'] },
-    { name: 'ЧЕТВЕРГ', short: 'ЧТ', plan: 80, mod: 'Аудит из головного офиса: Д.Н. видит дальше', visionMul: 1.15,
-      news: 'Новое: второй ряд (Д.Н. отвлекается на бездельников), летучка с выбором, Маджикистан, камеры СБ.',
-      tasks: ['coffee1', 'smoke1a', 'toilet', 'lunchVilka', 'majik', 'scold', 'hideAudit'] },
-    { name: 'ПЯТНИЦА', short: 'ПТ', plan: 60, mod: 'Пятница! Д.Н. уедет «на встречу» в 17:00', funMul: 1.2, bossLeaves: 17 * 60,
-      news: 'Пятница: в 17:00 Д.Н. уезжает, иногда коллеги зовут в «Мюнхен» на пиво. Итог недели по Маджикистану.',
-      tasks: ['coffee3', 'smoke4', 'toilet', 'lunch', 'cleanFriday', 'planEarly', 'yogurt', 'praise2'] },
-  ];
-  // С какого дня (индекс) открывается механика
-  const UNLOCK = { coworkers: 1, events1: 1, lunch: 0, events2: 2, almaty: 2, row2: 3, standup: 3, events3: 3 };
-  const EVENT_TIER = { food: 'events1', call: 'events1', internet: 'events1', jam: 'events1', bday: 'events2', heat: 'events2', noise: 'events2', drill: 'events2', standup: 'events3', majik: 'events3', autoshka: 'events3', arrfr: 'events3', sb: 'events3' };
+  // Баланс, сложность, апгрейды и неделя — js/config.js
+  const { CFG, DIFFICULTY, UPGRADES, DAYS, UNLOCK, EVENT_TIER } = window.NP_CONFIG;
 
   const store = {
     get(k, d) { try { const v = localStorage.getItem(`nepalsya.${k}`); return v === null ? d : JSON.parse(v); } catch (_) { return d; } },
@@ -178,7 +80,11 @@
     planTarget = s.planTarget || planTarget;
     majikArc = s.majikArc | 0;
     Object.assign(day, s.day || {});
-    if (Array.isArray(s.todo) && s.todo.length) todo = s.todo;
+    // Список дел — из актуальных задач дня; из сохранения берём только отметки «сделано»
+    if (Array.isArray(s.todo) && s.todo.length) {
+      const saved = s.todo.map(t => { const d = LINES.dayTasks.find(q => q.id === t.id); return d && { ...d, done: !!t.done, day: true }; }).filter(Boolean);
+      if (saved.length) todo = saved;
+    }
     if (s.stats) { Object.assign(stats, s.stats); stats.chatted = new Set(s.stats.chatted || []); }
     officeEvent = s.officeEvent && EVENTS[s.officeEvent.id] ? { ...EVENTS[s.officeEvent.id], ...s.officeEvent } : null;
     // Прошедшее время: первая проверка и событие — не мгновенно после загрузки
@@ -203,7 +109,7 @@
   const russianKeyAliases = { ц: 'w', ф: 'a', ы: 's', в: 'd', у: 'e', р: 'h', з: 'p', й: 'q', ь: 'm', г: 'u', ш: 'i', щ: 'o', т: 'n' };
   function getControlKey(event) {
     const key = (event.key || '').toLowerCase();
-    return physicalKeyAliases[event.code] || russianKeyAliases[key] || key;
+    return customKeys[event.code] || physicalKeyAliases[event.code] || russianKeyAliases[key] || key;
   }
   window.NP_getControlKey = getControlKey; // для автотеста раскладок
 
@@ -213,6 +119,9 @@
   let musicOn = true;
   try { musicOn = localStorage.getItem('nepalsya.music') !== 'false'; } catch (_) { /* нет доступа */ }
   try { muted = localStorage.getItem('nepalsya.muted') === 'true'; } catch (_) { /* нет доступа */ }
+  // Громкость 0..1 отдельно для звуков и музыки
+  let sfxVol = clamp(Number(store.get('sfxVol', 1)), 0, 1);
+  let musicVol = clamp(Number(store.get('musicVol', 1)), 0, 1);
   function getAudio() {
     if (!audioCtx) {
       const AC = window.AudioContext || window.webkitAudioContext;
@@ -221,8 +130,10 @@
     if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
     return audioCtx;
   }
-  function tone(type, f0, f1, dur, vol, delay = 0) {
-    if (muted) return;
+  function tone(type, f0, f1, dur, vol, delay = 0, bus = 'sfx') {
+    const k = bus === 'music' ? musicVol : sfxVol;
+    if (muted || k <= 0) return;
+    vol *= k;
     const a = getAudio();
     if (!a) return;
     const t = a.currentTime + delay;
@@ -276,9 +187,9 @@
     musicTimer = alarm ? 0.16 : 0.26;
     const i = musicStep++ % 8;
     const pitch = alarm ? 1.06 : 1;
-    if (musicStep % 2) tone('triangle', BASS[i] * pitch, 0, 0.22, 0.035);
-    tone('square', ARP[(i + (musicStep >> 3)) % 8] * pitch, 0, 0.09, 0.012);
-    if (alarm && musicStep % 2 === 0) tone('sawtooth', 1800, 900, 0.03, 0.01);
+    if (musicStep % 2) tone('triangle', BASS[i] * pitch, 0, 0.22, 0.035, 0, 'music');
+    tone('square', ARP[(i + (musicStep >> 3)) % 8] * pitch, 0, 0.09, 0.012, 0, 'music');
+    if (alarm && musicStep % 2 === 0) tone('sawtooth', 1800, 900, 0.03, 0.01, 0, 'music');
   }
 
   // ---------- DOM ----------
@@ -360,7 +271,10 @@
     if (!startLinks.length) startLinks = nav.filter(n => segmentClear(from, n, 2)).map(n => [n.i, dist(from, n)]);
     let endLinks = new Map(nav.filter(n => segmentClear(n, to, NAV_R - 1)).map(n => [n.i, dist(n, to)]));
     if (!endLinks.size) endLinks = new Map(nav.filter(n => segmentClear(n, to, 2)).map(n => [n.i, dist(n, to)]));
-    if (!startLinks.length || !endLinks.size) return [{ x: to.x, y: to.y }];
+    // Цель или старт внутри мебели — цепляемся за ближайшие узлы, а не идём «прямо в стену»
+    const nearest = p => nav.slice().sort((a, b) => dist(a, p) - dist(b, p)).slice(0, 3);
+    if (!startLinks.length) startLinks = nearest(from).map(n => [n.i, dist(from, n)]);
+    if (!endLinks.size) endLinks = new Map(nearest(to).map(n => [n.i, dist(n, to)]));
     const best = new Array(nav.length).fill(Infinity);
     const prev = new Array(nav.length).fill(-1);
     const open = [];
@@ -404,7 +318,6 @@
     ...c, x: c.desk.seatX, y: c.desk.y - 1, cooldown: 0, talkTimer: 0, idleTimer: 6 + i * 4, alert: 0,
     away: false, slack: null, slackTimer: 8 + i * 3, scoldCooldown: 0,
   }));
-  const MAIN_IDS = new Set(WD.coworkers.map(c => c.id));
 
   let mode = 'menu';
   let clockMinutes = CFG.shiftStart;
@@ -532,6 +445,8 @@
     document.querySelectorAll('.music-toggle').forEach(b => { b.textContent = musicOn ? '🎵 Музыка: вкл (N)' : '🔇 Музыка: выкл (N)'; b.classList.toggle('off', !musicOn); });
     document.querySelectorAll('.sound-toggle').forEach(b => { b.textContent = muted ? '🔇 Звуки: выкл (M)' : '🔊 Звуки: вкл (M)'; b.classList.toggle('off', muted); });
     if (coarsePointer) document.querySelectorAll('.music-toggle, .sound-toggle').forEach(b => { b.textContent = b.textContent.replace(/ \([NM]\)$/, ''); });
+    document.querySelectorAll('.vol-sfx').forEach(r => { r.value = String(sfxVol); });
+    document.querySelectorAll('.vol-music').forEach(r => { r.value = String(musicVol); });
     document.querySelectorAll('.text-toggle').forEach(b => { b.textContent = bigText ? '🔠 Текст: крупный' : '🔠 Текст: обычный'; });
   }
   function toggleMusic() {
@@ -606,27 +521,10 @@
   function todoProgress(t) {
     if (t.stat) return Math.floor(stats[t.stat] || 0);
     switch (t.id) {
-      case 'coffee3': return stats.coffees;
-      case 'chatAll': return [...stats.chatted].filter(id => MAIN_IDS.has(id)).length;
-      case 'lunch': return stats.lunch;
-      case 'toilet': return stats.toilet;
-      case 'scold': return stats.scolds;
-      case 'youtube2': return stats.videos;
-      case 'smoke2': return stats.cigarettes;
-      case 'inspect2': return stats.inspectPass;
-      case 'plantHide': return stats.plantHideInspect;
-      case 'fridge': return stats.fridge;
-      case 'printer': return stats.printed;
-      case 'coffee1': return stats.coffees;
-      case 'smoke1': return stats.cigarettes;
-      case 'inspect1': return stats.inspectPass;
       case 'chatAimashyn': return stats.chatted.has('aimashyn') ? 1 : 0;
       case 'chatHlad': return stats.chatted.has('hlad') ? 1 : 0;
-      case 'majik': return stats.majikFixed || 0;
       case 'cleanFriday': return clockMinutes >= 17 * 60 && reprimands === 0 ? 1 : 0;
       case 'planEarly': return stats.planAt && stats.planAt < 16 * 60 ? 1 : 0;
-      case 'praise3': return stats.praise;
-      case 'fun60': return Math.round(fun);
       default: return 0;
     }
   }
@@ -2159,28 +2057,58 @@
     if (eventIs('standup')) { autoGoal('standup', z('standup')); return; }
     if (eventIs('majik') && !officeEvent.used) { autoGoal('desk', z('desk'), { work: 6 }); return; }
     if ((eventIs('food') || eventIs('bday')) && !officeEvent.used) { autoGoal('feast', { x: 120, y: 236 }); return; }
-    if (day.beer) { autoGoal('exit', z('exit')); return; }
     if (day.peeActive && day.pee > 25) { autoGoal('toilet', z('toilet')); return; }
+    // Вечер, а план не сделан — сначала Excel, потом пиво
+    const planLate = !planDone() && dayProgress() > 0.72;
+    if (planLate) { autoGoal('desk', z('desk'), { work: 12 + rand() * 6 }); return; }
+    if (day.beer) { autoGoal('exit', z('exit')); return; }
     if (canLunch()) { autoGoal('exit', z('exit')); return; }
     // План: отстаёшь от графика — иди работать; сделал — кайфуй
-    if (!planDone() && usefulness < planTarget * dayProgress() + 12) { autoGoal('desk', z('desk'), { work: 9 + rand() * 5 }); return; }
+    if (!planDone() && usefulness < planTarget * dayProgress() + 6) { autoGoal('desk', z('desk'), { work: 9 + rand() * 5 }); return; }
+    // Невыполненные задачи дня тянут автопилот к нужному месту: обычно идёт закрывать их сразу
+    const want = autoTaskWants();
+    if (rand() < 0.75) {
+      if (want.coffee && !(eventIs('internet'))) { autoGoal('coffee', z('coffee')); return; }
+      if (want.smoke) { autoGoal('smoke', { x: 870, y: 230 }); return; }
+      if (want.toilet && !(day.toiletCd > 0)) { autoGoal('toilet', z('toilet')); return; }
+      if (want.printer) { autoGoal('printer', { x: 470, y: 456 }); return; }
+      if (want.fridge) { autoGoal('fridge', z('fridge')); return; }
+      const need = coworkers.filter(c => want.chat.has(c.id) && !c.away && c.cooldown <= 0);
+      if (need.length) { autoGoal('chat', zoneCenter(`chat_${need[0].id}`)); return; }
+    }
     const opts = [
       ['desk', 3, () => autoGoal('desk', z('desk'), { work: 5 + rand() * 6 })],
-      ['coffee', player.coffeeBoost > 0 ? 0 : 2, () => autoGoal('coffee', z('coffee'))],
-      ['smoke', 2, () => autoGoal('smoke', { x: 870, y: 230 })],
+      ['coffee', player.coffeeBoost > 0 && !want.coffee ? 0 : 2 + (want.coffee ? 6 : 0), () => autoGoal('coffee', z('coffee'))],
+      ['smoke', 2 + (want.smoke ? 6 : 0), () => autoGoal('smoke', { x: 870, y: 230 })],
       ['server', eventIs('internet') ? 0 : 1.5, () => autoGoal('server', { x: 870, y: 436 })],
-      ['fridge', 1, () => autoGoal('fridge', z('fridge'))],
+      ['fridge', 1 + (want.fridge ? 4 : 0), () => autoGoal('fridge', z('fridge'))],
       ['water', 1, () => autoGoal('water', z('water'))],
-      ['printer', 0.8, () => autoGoal('printer', { x: 470, y: 456 })],
-      ['toilet', day.toiletCd > 0 ? 0 : 1, () => autoGoal('toilet', z('toilet'))],
+      ['printer', 0.8 + (want.printer ? 4 : 0), () => autoGoal('printer', { x: 470, y: 456 })],
+      ['toilet', day.toiletCd > 0 ? 0 : 1 + (want.toilet ? 4 : 0), () => autoGoal('toilet', z('toilet'))],
       ['phone', 1, () => autoGoal('phone', { x: player.x, y: player.y })],
     ];
     const free = coworkers.filter(c => !c.away && !c.statist && c.cooldown <= 0);
-    if (free.length) { const c = free[Math.floor(rand() * free.length)]; opts.push(['chat', 2.5, () => autoGoal('chat', zoneCenter(`chat_${c.id}`))]); }
+    if (free.length) {
+      const need = free.filter(c => want.chat.has(c.id));
+      const c = (need.length ? need : free)[Math.floor(rand() * (need.length || free.length))];
+      opts.push(['chat', 2.5 + (need.length ? 6 : 0), () => autoGoal('chat', zoneCenter(`chat_${c.id}`))]);
+    }
     const sum = opts.reduce((a, o) => a + o[1], 0);
     let r = rand() * sum;
     for (const o of opts) { r -= o[1]; if (r <= 0) { o[2](); return; } }
     opts[0][2]();
+  }
+  // Что нужно для незакрытых задач дня
+  function autoTaskWants() {
+    const w = { chat: new Set() };
+    const STAT_GOAL = { coffees: 'coffee', cigarettes: 'smoke', toilet: 'toilet', printed: 'printer', fridge: 'fridge' };
+    for (const t of todo) {
+      if (t.done) continue;
+      if (STAT_GOAL[t.stat]) w[STAT_GOAL[t.stat]] = true;
+      if (t.id === 'chatAimashyn') w.chat.add('aimashyn');
+      if (t.id === 'chatHlad') w.chat.add('hlad');
+    }
+    return w;
   }
   function autoArrive() {
     const g = auto.goal;
@@ -2199,7 +2127,7 @@
     const danger = autoDanger();
     if (a === 'work') {
       auto.workT -= dt;
-      if (auto.workT > 0 || danger || (eventIs('majik') && !officeEvent.used)) return [0, 0];
+      if ((auto.workT > 0 && !canLunch()) || danger || (eventIs('majik') && !officeEvent.used)) return [0, 0]; // обед важнее отсидки в Excel
       player.y = SEAT.y; endAction('cancel');
     } else if (a === 'phone') {
       auto.phoneT -= dt;
@@ -2390,6 +2318,8 @@
       }
 
       stats.workedSeconds += dt;
+      // План сделан, а Быкентий всё сидит в Excel без надобности — напомнить, что пора кайфовать
+      if (planDone() && !boss.watchingWork) { day.overworkT = (day.overworkT || 0) + dt; if (day.overworkT > 15) hint('overwork', 'План уже сделан — Excel сейчас только прикрытие. Иди кайфуй!'); }
       kpiTick -= dt;
       if (boss.watchingWork && kpiTick <= 0) { floater(player.x + (rand() - 0.5) * 20, player.y - 58, planDone() ? 'ПРИКРЫТИЕ' : `+ПЛАН ×${CFG.watchedKpiMultiplier}`, '#57d08a'); playSound('kpi'); kpiTick = 0.5; }
     }
@@ -3773,8 +3703,35 @@
   }
 
   // ---------- ОБРАБОТЧИКИ ----------
+  // Переназначение клавиш: свои клавиши (KeyboardEvent.code → действие) работают вместе со стандартными
+  const BIND_ACTIONS = [['w', 'Вверх', 'W'], ['s', 'Вниз', 'S'], ['a', 'Влево', 'A'], ['d', 'Вправо', 'D'], ['e', 'Действие', 'E'], ['h', 'Спрятаться', 'H'], ['q', 'Телефон', 'Q / Tab'], ['p', 'Пауза', 'P / Esc'], ['o', 'Автопилот', 'O']];
+  let customKeys = store.get('bindings', {}) || {};
+  let bindWait = null;
+  let keysOpen = false;
+  const codeLabel = c => c.replace(/^Key|^Digit/, '').replace(/^Arrow(.*)/, (_, d) => ({ Up: '↑', Down: '↓', Left: '←', Right: '→' }[d] || d)).replace('Numpad', 'Num ');
+  function renderKeys() {
+    const list = document.getElementById('keys-list');
+    if (!list) return;
+    list.innerHTML = BIND_ACTIONS.map(([k, name, def]) => {
+      const mine = Object.keys(customKeys).filter(c => customKeys[c] === k).map(codeLabel).join(', ');
+      const btn = bindWait === k ? 'нажми клавишу…' : 'Назначить';
+      return `<div class="keys-row"><span>${name} <small>(${def})</small></span><kbd>${mine || '—'}</kbd><button class="audio-btn${bindWait === k ? ' wait' : ''}" data-bind="${k}">${btn}</button></div>`;
+    }).join('');
+    list.querySelectorAll('[data-bind]').forEach(b => addTap(b, () => { bindWait = b.dataset.bind; renderKeys(); }));
+  }
+  function openKeys() { keysOpen = true; bindWait = null; renderKeys(); document.getElementById('keys-overlay').classList.remove('hidden'); }
+  function closeKeys() { keysOpen = false; bindWait = null; document.getElementById('keys-overlay').classList.add('hidden'); }
   const MOVE_KEYS = ['arrowup', 'arrowdown', 'arrowleft', 'arrowright', 'w', 'a', 's', 'd'];
   window.addEventListener('keydown', e => {
+    if (bindWait) { // ждём новую клавишу для действия
+      e.preventDefault();
+      if (e.code && e.code !== 'Escape') {
+        for (const c of Object.keys(customKeys)) if (customKeys[c] === bindWait) delete customKeys[c];
+        customKeys[e.code] = bindWait; store.set('bindings', customKeys);
+      }
+      bindWait = null; renderKeys(); return;
+    }
+    if (keysOpen) { e.preventDefault(); if (e.key === 'Escape' || e.key === 'Enter') closeKeys(); return; }
     const key = getControlKey(e);
     if (MOVE_KEYS.includes(key) || ['e', 'h', 'p', 'q', 'o', 'enter', ' '].includes(key)) e.preventDefault();
     if (onb.open) {
@@ -3919,6 +3876,11 @@
   addTap($('onb-skip'), () => closeOnboarding(true));
   addTap(ui.shopClose, closeShop);
   document.querySelectorAll('.speed-range').forEach(r => r.addEventListener('input', () => setTimeScale(r.value)));
+  document.querySelectorAll('.vol-sfx').forEach(r => r.addEventListener('input', () => { sfxVol = clamp(Number(r.value), 0, 1); store.set('sfxVol', sfxVol); syncAudioButtons(); playSound('click'); }));
+  document.querySelectorAll('.vol-music').forEach(r => r.addEventListener('input', () => { musicVol = clamp(Number(r.value), 0, 1); store.set('musicVol', musicVol); syncAudioButtons(); }));
+  document.querySelectorAll('.keys-open').forEach(b => addTap(b, openKeys));
+  document.querySelectorAll('.keys-close').forEach(b => addTap(b, closeKeys));
+  document.querySelectorAll('.keys-reset').forEach(b => addTap(b, () => { customKeys = {}; store.set('bindings', customKeys); bindWait = null; renderKeys(); }));
   setTimeScale(timeScale);
   document.querySelectorAll('[data-diff]').forEach(b => addTap(b, () => { playSound('click'); setDifficulty(b.dataset.diff); }));
   setDifficulty(diffKey);
@@ -3932,13 +3894,14 @@
   syncAudioButtons();
 
   // Отладочный доступ для автотестов (scripts/qa.js)
-  window.NP_DEBUG = {
+  // Отладочный API только для автотестов (Playwright выставляет navigator.webdriver) и по ?debug
+  if (navigator.webdriver || new URLSearchParams(location.search).has('debug')) window.NP_DEBUG = {
     get state() { return { mode, player: { ...player }, boss: { ...boss, path: boss.path.length }, reprimands, weekReprimands, misses: day.misses, planTarget, usefulness, fun, clockMinutes, stats: { ...stats, chatted: stats.chatted.size }, todo, coverTokens, waterCups: day.waterCups, waterRecharge: day.waterRecharge, coffeeCups: day.coffeeCups, coffeeJammed: !!day.coffeeJammed, overtimeWork: day.overtimeWork || 0, excelWorkAcc: day.excelWorkAcc || 0, excelPoolTasks: day.excelPoolTasks || 0, adhocDone: !!day.adhocDone }; },
     teleport(x, y) { player.x = x; player.y = y; player.action = 'none'; player.actionTimer = 0; player.hideSpot = null; nudge = null; },
     setBoss(x, y, state = 'look', facing) { boss.snus = 0; boss.snusCd = 999; boss.x = x; boss.y = y; boss.state = state; boss.stateTimer = 99; boss.path = []; if (facing !== undefined) { boss.facing = facing; boss.lookTimer = 0; } },
     skip(seconds) { for (let i = 0; i < seconds * 20 && mode === 'playing'; i++) update(0.05); },
     setDay(d) { dayIndex = clampDay(d); },
-    set(v) { if ('usefulness' in v) usefulness = v.usefulness; if ('reprimands' in v) reprimands = v.reprimands; if ('weekReprimands' in v) { weekReprimands = v.weekReprimands; store.set('weekReprimands', weekReprimands); } if ('misses' in v) day.misses = v.misses; if ('fun' in v) fun = Math.min(100, Math.max(0, v.fun)); if ('waterCups' in v) day.waterCups = v.waterCups; if ('waterRecharge' in v) day.waterRecharge = v.waterRecharge; if ('coffeeJammed' in v) day.coffeeJammed = !!v.coffeeJammed; if ('coffeeQueueTimer' in v && day) day.coffeeQueueTimer = v.coffeeQueueTimer; if ('overtimeWork' in v) day.overtimeWork = v.overtimeWork; if ('adhocDone' in v) day.adhocDone = !!v.adhocDone; },
+    set(v) { if ('usefulness' in v) usefulness = v.usefulness; if ('reprimands' in v) reprimands = v.reprimands; if ('weekReprimands' in v) { weekReprimands = v.weekReprimands; store.set('weekReprimands', weekReprimands); } if ('misses' in v) day.misses = v.misses; if ('fun' in v) fun = Math.min(100, Math.max(0, v.fun)); if ('waterCups' in v) day.waterCups = v.waterCups; if ('waterRecharge' in v) day.waterRecharge = v.waterRecharge; if ('coffeeJammed' in v) day.coffeeJammed = !!v.coffeeJammed; if ('coffeeQueueTimer' in v && day) day.coffeeQueueTimer = v.coffeeQueueTimer; if ('overtimeWork' in v) day.overtimeWork = v.overtimeWork; if ('adhocDone' in v) day.adhocDone = !!v.adhocDone; if ('fed' in v) day.fed = !!v.fed; if ('noPee' in v) { day.peeActive = false; day.pee = 0; day.peeLeft = 0; } },
     interact, quickHide, togglePhone, startInspection, blocked, findPath, nav, startEvent,
     triggerAljazira(mood = 'neutral') {
       const c = coworkerById('aljazira');
@@ -3973,7 +3936,7 @@
     finish(r) { finishGame(r); },
     clearEvents() { officeEvent = null; eventQueue = []; nextEvent = 999; nextBossCheck = 999; nudge = null; if (day) { day.coffeeQueueTimer = 0; day.coffeeQueueChecked = true; day.adhocDone = true; } },
     get onboarding() { return { open: onb.open, i: onb.i }; },
-    get auto() { return { on: auto.on, demo: auto.demo }; },
+    get auto() { return { on: auto.on, demo: auto.demo, goal: auto.goal && auto.goal.kind }; },
     setAutoSlow(v) { auto.slow = v; },
     setDifficulty,
     get diffConfig() { return DIFFICULTY; },
@@ -3984,7 +3947,7 @@
     forceBeer() { day.beer = null; CFG.beerChance = 1; },
   };
 
-  if (window.location.hash === '#play' || window.location.search.includes('play')) resetGame(); // быстрый старт для разработки, без онбординга
+  if (location.hash === '#play' || new URLSearchParams(location.search).has('play')) resetGame(); // быстрый старт для разработки, без онбординга
   else setMode('menu');
   requestAnimationFrame(loop);
 })();
