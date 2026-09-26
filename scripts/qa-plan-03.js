@@ -64,6 +64,34 @@ const { loadPlaywright } = require('./pw');
     assert.ok(noRequiredEvent[1].todo.includes('reportTurlo'));
     assert.strictEqual(noRequiredEvent[1].required, null, 'слово «отчёт» само по себе не требует события');
 
+    // Старый v3 с пустым requiredEvent восстанавливает цель из сохранённой задачи.
+    await newThursday(2033);
+    const legacySnapshot = await page.evaluate(() => {
+      NP_DEBUG.saveProgress();
+      const snapshot = JSON.parse(localStorage.getItem('nepalsya.currentSave'));
+      snapshot.requiredEvent = null;
+      snapshot.eventQueue = snapshot.eventQueue.filter(id => id !== 'majik');
+      localStorage.setItem('nepalsya.currentSave', JSON.stringify(snapshot));
+      return JSON.stringify({ snapshot, queueLength: snapshot.eventQueue.length });
+    });
+    const legacyPage = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
+    legacyPage.on('pageerror', error => errors.push(error.message));
+    await legacyPage.addInitScript(serialized => {
+      localStorage.setItem('nepalsya.currentSave', serialized);
+      localStorage.setItem('nepalsya.day', '3');
+    }, legacySnapshot);
+    await legacyPage.goto(url);
+    await legacyPage.waitForFunction(() => !!window.NP_DEBUG);
+    const restoredLegacy = await legacyPage.evaluate(() => ({
+      queue: NP_DEBUG.eventQueue,
+      required: NP_DEBUG.persistence.requiredEvent,
+    }));
+    const expectedLegacyQueueLength = JSON.parse(legacySnapshot).queueLength;
+    assert.deepStrictEqual(restoredLegacy.required, { id: 'majik', deadlineStart: 900, dispatched: false }, 'старый v3 восстанавливает обязательную цель');
+    assert.strictEqual(restoredLegacy.queue[0], 'majik', 'старый v3 возвращает цель в начало очереди');
+    assert.strictEqual(restoredLegacy.queue.length, expectedLegacyQueueLength, 'восстановление не увеличивает очередь');
+    await legacyPage.close();
+
     // В обычной очереди Маджикистан начинается первым до deadline и переживает reload.
     await newThursday(2024);
     await page.evaluate(() => {
