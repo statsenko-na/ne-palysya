@@ -51,7 +51,7 @@
 - `js/boss.js` — ИИ Директора Начальниковича, план на день и выговоры.
 - `js/autopilot.js` — автопилот.
 - `js/player.js` — игрок и главный цикл обновления `update()`.
-- `js/render.js` — отрисовка, масштаб интерфейса, HUD, телефон и баннеры.
+- `js/render.js` — примитивы рисования, масштаб интерфейса, кадр `draw()` и цикл `loop()`; части кадра: `js/render-office.js` (офис и декор), `js/render-actors.js` (персонажи), `js/render-fx.js` (реплики, значки, частицы, баннер, свет), `js/render-hud.js` (HUD, подсказка E), `js/render-phone.js` (телефон), `js/render-guide.js` (обучение, летучка, значок автопилота, задание).
 - `game.js` — обработчики ввода и кнопок, `NP_DEBUG` и запуск игры.
 - `js/world.js` — геометрия: стены, коллайдеры, зоны, навигация. `js/art.js` — процедурный арт офиса. `js/lines.js` — все реплики.
 - `assets/` — листы спрайтов, которые грузит игра (`bykentiy-walk-v4`, `boss-walk-v3`, `coworkers-v3`, `extras-v1`), вид на Алматы, SVG-эмблема; `*-src.png` (только локально, в git не хранятся), `boss-walk-v2.png` и `office-background-pixel-v1.png` — исходники для `scripts/replace_sprite.py`, `make_boss_walk.py` и `make_panorama.py`.

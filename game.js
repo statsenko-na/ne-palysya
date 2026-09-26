@@ -230,7 +230,7 @@
     get choice() { return choice && { ...choice }; },
     setUpgrades(o) { owned = { ...o }; },
     deskCheck() { finishDeskInspection(); },
-    restart() { resetGame(); },
+    restart(seed) { resetGame(seed); },
     addWork, reprimand,
     get unlocked() { return Object.fromEntries(Object.keys(UNLOCK).map(k => [k, unlocked(k)])); },
     get eventQueue() { return eventQueue.slice(); },

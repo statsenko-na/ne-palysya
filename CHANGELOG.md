@@ -3,6 +3,8 @@
 ## [0.24.1] — 2026-09-26
 
 - **Структура:** `game.js` разбит на файлы по разделам (`js/core.js`, `js/meta.js`, `js/events.js`, `js/interact.js`, `js/boss.js`, `js/autopilot.js`, `js/player.js`, `js/render.js`), логика не менялась.
+- **Структура:** отрисовка поделена на логические блоки: `js/render.js` (основа, `draw()`, `loop()`), `js/render-office.js`, `js/render-actors.js`, `js/render-fx.js`, `js/render-hud.js`, `js/render-phone.js`, `js/render-guide.js`.
+- **Автотест:** неделя на автопилоте идёт с фиксированным зерном (`NP_DEBUG.startAutopilot(seed)`, `NP_DEBUG.restart(seed)`) и не зависит от времени запуска.
 
 ## [0.24.0] — 2026-09-26
 

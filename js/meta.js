@@ -146,8 +146,8 @@
     }
   }
 
-  function resetGame() {
-    rngSeed = Math.floor(Date.now() % 100000);
+  function resetGame(seed) {
+    rngSeed = Number.isInteger(seed) ? seed : Math.floor(Date.now() % 100000); // seed — только для автотестов
     clockMinutes = CFG.shiftStart;
     shiftTime = 0;
     reprimands = 0;

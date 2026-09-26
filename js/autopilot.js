@@ -135,12 +135,12 @@
     }
     return [(wp.x - player.x) / d, (wp.y - player.y) / d];
   }
-  function startAutopilot() {
+  function startAutopilot(seed) {
     stopAutopilot();
     playSound('click');
     enterFullscreen();
     auto.on = true; auto.demo = true; auto.goal = null; auto.path = []; // до resetGame: без утренней пробки
-    resetGame();
+    resetGame(seed);
     toast('🍿 АВТОПИЛОТ: смотри и угорай. WASD или O — взять управление.', 3.2);
   }
   // O / кнопка 🍿 посреди смены: Быкентий доигрывает сам с того же места, WASD или O — вернуть управление
