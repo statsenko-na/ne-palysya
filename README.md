@@ -46,8 +46,7 @@
 - Автотест в headless Chromium (раскладки, стены, болтовня, проверки, события, пятница, маленькие экраны): `node scripts/qa.js`
 - Скриншоты на 6 экранах (ноутбуки, Full HD, iPhone, Android, iPad): `node scripts/screens.js`
 - Работа на своём компьютере (Windows): [docs/LOCAL_SETUP.md](docs/LOCAL_SETUP.md)
-- Пересборка спрайтов из исходников: `cd scripts && python normalize_sprites.py && python make_panorama.py`
-- Персонажи v3 (Быкентий, Аймашын, второй ряд): `python3 scripts/make_characters.py`
+- Пересборка ассетов (нужен Pillow): вид на Алматы — `python scripts/make_panorama.py`, ходьба Д.Н. — `python scripts/make_boss_walk.py`, замена ячейки листа — `python scripts/replace_sprite.py`
 
 ## Документация
 

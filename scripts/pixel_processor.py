@@ -3,7 +3,6 @@ Pixel Art Processor for office_game
 Utility for cropping, downscaling, palette-quantizing, and extracting alpha transparency for game sprites and tiles.
 """
 
-import sys
 import argparse
 from pathlib import Path
 

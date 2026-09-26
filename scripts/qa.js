@@ -11,7 +11,7 @@ const { loadPlaywright } = require('./pw');
   const outDir = process.argv[2] || path.join(__dirname, '..', '.qa');
   fs.mkdirSync(outDir, { recursive: true });
   const url = require('url').pathToFileURL(path.join(__dirname, '..', 'index.html')).href;
-  const browser = await chromium.launch(fs.existsSync('/opt/pw-browsers/chromium') ? {} : {});
+  const browser = await chromium.launch();
   const page = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
   const errors = [];
   page.on('pageerror', e => errors.push(e.message));
@@ -293,7 +293,6 @@ const { loadPlaywright } = require('./pw');
   // Апгрейды реально работают: KPI в Excel с креслом и монитором, турка, лава, кактус, гитара
   const up = await page.evaluate(() => {
     NP_DEBUG.setClock(11 * 60); NP_DEBUG.set({ reprimands: 0, misses: 0, usefulness: 20 }); NP_DEBUG.clearEvents();
-    NP_DEBUG.clearEvents();
     const kpiRate = () => { NP_DEBUG.clearEvents(); NP_DEBUG.setBoss(706, 446, 'office'); NP_DEBUG.set({ usefulness: 20, reprimands: 0, fun: 20 }); NP_DEBUG.teleport(728, 150); NP_DEBUG.interact(); NP_DEBUG.skip(5); const s = NP_DEBUG.state; return { k: s.usefulness - 20, fun: s.fun }; };
     NP_DEBUG.setUpgrades({});
     const base = kpiRate();
@@ -488,14 +487,14 @@ const { loadPlaywright } = require('./pw');
     const t = NP_DEBUG.coworkers.find(c => c.id === 'tigran');
     NP_DEBUG.setSuspicion(70); NP_DEBUG.chatPerk('tigran');
     const sus = NP_DEBUG.state.boss.suspicion;
-    const desk = window.NP_WORLD ? NP_WORLD.desks.find(d => d.id === 'r2_1').owner : 'tigran';
+    const desk = NP_WORLD.desks.find(d => d.id === 'r2_1').owner;
     return { monAway: mon.away, slack: t.slack, sus, desk, title: document.title };
   });
   await new Promise(r => setTimeout(r, 1500));
   const tigDrill = await page.evaluate(() => NP_DEBUG.coworkers.find(c => c.id === 'tigran').away);
   check('Тигран: сидит с понедельника, на учениях не уходит', !tig.monAway && !tigDrill && !tig.slack, JSON.stringify(tig) + ' drill:' + tigDrill);
   check('Тигран: «Поехали!» обнуляет подозрение', tig.sus === 0, String(tig.sus));
-  await page.evaluate(() => { NP_DEBUG.clearEvents && NP_DEBUG.clearEvents(); });
+  await page.evaluate(() => { NP_DEBUG.clearEvents(); });
   await new Promise(r => setTimeout(r, 600));
   { const box = await page.$eval('#game', el => { const b = el.getBoundingClientRect(); return { x: b.x, y: b.y, w: b.width }; });
     const k = box.w / 960; await page.screenshot({ path: path.join(outDir, '25-tigran.png'), clip: { x: box.x + 340 * k, y: box.y + 230 * k, width: 160 * k, height: 130 * k } }); }
@@ -511,13 +510,6 @@ const { loadPlaywright } = require('./pw');
   check('Асель, Альджазира и Штази — статисты без болтовни', stat.noChat && stat.sirgeyChat, JSON.stringify(stat));
   check('перепалка соседей: реплика и ответ', stat.banter >= 10 && stat.talk.length >= 2, JSON.stringify(stat.talk));
 
-  // 17:00: подсказка про план, если отстаёшь
-  const pw = await page.evaluate(async () => {
-    NP_DEBUG.setDay(1); NP_DEBUG.restart(); NP_DEBUG.clearEvents();
-    NP_DEBUG.setClock(17 * 60 + 2);
-    await new Promise(r => setTimeout(r, 200));
-    return { warned: NP_DEBUG.planWarned, toast: document.getElementById('toast').textContent };
-  });
   // Проверки по замечаниям код-ревью (P1/P2):
   // 1. Лимит кайфа 100 (включая пятничное пиво)
   const funCap = await page.evaluate(() => {
@@ -656,7 +648,7 @@ const { loadPlaywright } = require('./pw');
   // Укрытие не бесконечное: через 25 с «хвостик торчит», потом 20 с нельзя прятаться
   const hd = await page.evaluate(() => {
     NP_DEBUG.setDay(0); NP_DEBUG.clearSavedProgress(); NP_DEBUG.restart(); NP_DEBUG.clearEvents(); NP_DEBUG.setBoss(706, 446, 'office');
-    const p = NP_DEBUG.state; NP_DEBUG.teleport(776, 276); NP_DEBUG.quickHide();
+    NP_DEBUG.teleport(776, 276); NP_DEBUG.quickHide();
     const hid = NP_DEBUG.state.player.action; NP_DEBUG.skip(26);
     const out = NP_DEBUG.state.player.action; NP_DEBUG.quickHide();
     return { hid, out, again: NP_DEBUG.state.player.action };

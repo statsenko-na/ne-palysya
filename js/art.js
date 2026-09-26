@@ -55,15 +55,14 @@
     g.rotate(tilt);
     R(g, -w / 2 + 0.6, -h / 2 + 0.8, w, h, 'rgba(0,0,0,0.28)');
     R(g, -w / 2, -h / 2, w, h, bg);
-    if (opts.border) O(g, -w / 2, -h / 2, w, h, opts.border, 0.6);
     if (!opts.noTape) {
       R(g, -w / 2 - 1, -h / 2 - 1.2, 5, 2.4, 'rgba(230,220,170,0.75)');
       R(g, w / 2 - 4, -h / 2 - 1.2, 5, 2.4, 'rgba(230,220,170,0.75)');
     }
     const lh = h / lines.length;
     lines.forEach((ln, i) => {
-      const s = fitText(g, ln, w - 2, Math.min(opts.size || 6, lh * 0.95), 700, opts.font || FONT_SANS);
-      T(g, ln, 0, -h / 2 + lh * (i + 0.5) + 0.3, s, fg, 'center', 700, opts.font || FONT_SANS);
+      const s = fitText(g, ln, w - 2, Math.min(opts.size || 6, lh * 0.95), 700, FONT_SANS);
+      T(g, ln, 0, -h / 2 + lh * (i + 0.5) + 0.3, s, fg, 'center', 700, FONT_SANS);
     });
     g.restore();
   }
@@ -84,8 +83,6 @@
         R(g, x, y, tile, tile, c);
         // ворс: мелкий шум
         for (let k = 0; k < 10; k++) R(g, x + rr(0, tile), y + rr(0, tile), 0.5, 0.5, rnd() < 0.5 ? 'rgba(255,255,255,0.05)' : 'rgba(0,0,0,0.07)');
-        // направление ворса — полосы через плитку
-        if ((x / tile + y / tile) % 2 === 0) R(g, x, y, tile, tile, 'rgba(255,255,255,0.018)');
         R(g, x, y, tile, 0.5, 'rgba(0,0,0,0.16)');
         R(g, x, y, 0.5, tile, 'rgba(0,0,0,0.16)');
       }
@@ -197,7 +194,7 @@
       for (let x = 794; x < WD.RIGHT; x += 20) {
         R(g, x, y, 20, 20, '#4b5559');
         R(g, x + 0.5, y + 0.5, 19, 19, '#556064');
-        if ((x + y) % 60 === 2 || (x * 3 + y) % 7 === 0) {
+        if ((x * 3 + y) % 7 === 0) {
           for (let py = 3; py < 18; py += 2.5) for (let px = 3; px < 18; px += 2.5) R(g, x + px, y + py, 1, 1, '#2c3438');
         }
       }
@@ -495,10 +492,6 @@
       note(g, x + 44, y + 6, 18, 8, ['БАЙКОНУР'], { noTape: true, size: 3.2, bg: '#1d2a4a', fg: '#f2d060' });
       note(g, x + 8, y + 12, 24, 11, ['МЕСТО', 'ЗАНЯТО'], { tilt: -0.08, size: 4.2, bg: '#fbe98f' });
       R(g, x + 76, y + 14, 6, 7, '#e87a1e'); R(g, x + 77, y + 15, 1, 5, '#1a1a1a'); R(g, x + 79.5, y + 15, 1, 5, '#1a1a1a'); // тигровая кружка
-    } else if (st === 'boxes') {
-      R(g, x + 8, y - 12, 34, 26, '#b08a58'); R(g, x + 8, y - 12, 34, 3, '#c69c64'); R(g, x + 24, y - 12, 2, 26, '#d8c49a');
-      note(g, x + 12, y - 4, 26, 8, ['ПЕРЕЕЗД'], { noTape: true, size: 4.8, bg: '#e8dcc0' });
-      R(g, x + 48, y - 6, 26, 18, '#9c7a4c'); note(g, x + 50, y, 22, 6, ['NPL 2023'], { noTape: true, size: 3.8, bg: '#e8dcc0' });
     } else if (st === 'broken') {
       monitorBack(g, x + 24, y - 16, 34, 22, '#2e3337');
       g.strokeStyle = '#ddd'; g.lineWidth = 0.6; g.beginPath(); g.moveTo(x + 30, y - 14); g.lineTo(x + 38, y - 6); g.lineTo(x + 34, y); g.stroke();
@@ -674,7 +667,6 @@
       note(g, 208, 500, 22, 8, ['NPL 2019'], { noTape: true, size: 3.8, bg: '#f0e6c8' });
       note(g, 183, 474, 22, 8, ['ГОДОВЫЕ'], { noTape: true, size: 3.8, bg: '#f0e6c8' });
     }, 'boxes');
-    // Календарь на стене архива (на фасаде северной перегородки)
     // МФУ «Ксерокс» с табличкой
     prop(398, 438, 60, 84, 518, g => {
       const x = 404, y = 474;
@@ -849,7 +841,7 @@
     const staticLayer = buildStatic();
     const windowOverlay = buildWindowOverlay();
     buildProps();
-    return { staticLayer, windowOverlay, props: props.slice(), windowPanes, balconyView, S };
+    return { staticLayer, windowOverlay, props: props.slice(), windowPanes, balconyView };
   }
 
   window.NP_ART = { build, S, FONT, FONT_SANS };

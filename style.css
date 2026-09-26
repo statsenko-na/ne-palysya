@@ -13,13 +13,9 @@
   --paper: #f1ebdc;
   --ink: #172027;
   --muted: #788083;
-  --blue: #087e8b;
-  --blue-dark: #075661;
   --red: #ed4b46;
   --yellow: #f4b949;
   --green: #68bc80;
-  --line: #cbd0c5;
-  --panel: #fbf8ee;
   --card: #12262a;
   --text: #d4e0d6;
   --text-dim: #9fc0bb;
@@ -74,8 +70,6 @@ button { font: inherit; }
 
 .brand { display: flex; align-items: center; gap: 11px; }
 .brand-emblem {
-  display: grid;
-  place-items: center;
   width: 36px;
   height: 36px;
   box-shadow: 3px 3px 0 var(--ink);
@@ -105,15 +99,6 @@ button { font: inherit; }
   height: 100%;
   object-fit: contain;
   background: #17262b;
-}
-
-.scanlines {
-  pointer-events: none;
-  position: absolute;
-  inset: 8px;
-  opacity: .12;
-  background: repeating-linear-gradient(to bottom, rgba(255,255,255,.18) 0, rgba(255,255,255,.18) 1px, transparent 1px, transparent 3px);
-  mix-blend-mode: screen;
 }
 
 .footerbar { margin-top: 14px; padding: 10px 13px; min-height: 43px; font-size: .75rem; gap: 12px; }
@@ -329,8 +314,6 @@ body.is-playing {
     height: 100vh !important;
     height: 100dvh !important;
     margin: 0 !important;
-    padding: 0 !important;
-    max-width: none !important;
     display: flex;
     align-items: center;
     justify-content: center;
@@ -346,7 +329,6 @@ body.is-playing {
     aspect-ratio: auto !important;
     background: #0b1519;
   }
-  .scanlines { inset: 0; }
   /* телефон: окна компактнее — текст читаемый, но окно не на весь экран */
   html { font-size: 15.5px; }
   html.text-lg { font-size: 17.5px; }
@@ -390,7 +372,7 @@ body.is-playing {
 .speed-val { min-width: 2.5rem; color: var(--yellow); font-family: 'Press Start 2P', monospace; font-size: .75rem; }
 
 /* Онбординг «Как играть»: шапка и навигация видны всегда, слайды прокручиваются внутри */
-.onb-card { position: relative; width: min(100%, 54rem); max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px); display: flex; flex-direction: column; padding: 1rem 1.3rem .9rem; }
+.onb-card { width: min(100%, 54rem); max-height: calc(100vh - 24px); max-height: calc(100dvh - 24px); display: flex; flex-direction: column; padding: 1rem 1.3rem .9rem; }
 .onb-top { display: flex; justify-content: space-between; align-items: center; gap: .6rem; }
 .onb-skip { min-height: 36px; border: 0; background: none; color: var(--text-dim); font-weight: 700; font-size: .8125rem; cursor: pointer; }
 .onb-slides { flex: 1 1 auto; min-height: 0; overflow-y: auto; overscroll-behavior: contain; margin-top: .5rem; padding-right: 4px; }
@@ -416,9 +398,9 @@ body.is-playing {
 .mbar span { display: block; color: #f5edd9; font-size: .75rem; font-weight: 700; margin: .4rem 0 .2rem; }
 .mbar i { display: block; height: 10px; background: linear-gradient(90deg, var(--c) var(--v), #0b1417 var(--v)); border: 1px solid #0b1417; }
 .spr { image-rendering: pixelated; background-repeat: no-repeat; }
-.spr-vik { width: 64px; height: 120px; background-image: url(assets/bykentiy-walk-v3.png); background-position: 0 0; transform: scale(1.4); }
+.spr-vik { width: 64px; height: 120px; background-image: url(assets/bykentiy-walk-v4.png); background-position: 0 0; transform: scale(1.4); }
 .spr-boss { width: 106px; height: 134px; background-image: url(assets/boss-walk-v3.png); background-position: -848px 0; position: relative; z-index: 1; }
-.spr-cw0, .spr-cw3, .spr-ex1 { width: 80px; height: 112px; background-size: auto; transform: scale(.8); margin: 0 -8px; }
+.spr-cw0, .spr-cw3, .spr-ex1 { width: 80px; height: 112px; transform: scale(.8); margin: 0 -8px; }
 .spr-cw0 { background-image: url(assets/coworkers-v3.png); background-position: 0 0; }
 .spr-cw3 { background-image: url(assets/coworkers-v3.png); background-position: -240px 0; }
 .spr-ex1 { background-image: url(assets/extras-v1.png); background-position: -80px 0; }

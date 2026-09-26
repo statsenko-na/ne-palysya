@@ -13,9 +13,6 @@ cd ne-palysya
 git fetch origin
 git checkout main
 git pull
-# ветка с последними правками, пока её PR не смерджен
-git checkout claude/festive-cray-15hwkf
-git pull
 ```
 
 ## 2. Инструменты (один раз)
@@ -24,7 +21,7 @@ git pull
 winget install OpenJS.NodeJS.LTS Python.Python.3.12 Git.Git
 npm i -g playwright
 npx playwright install chromium
-py -m pip install pillow numpy scipy
+py -m pip install pillow
 ```
 
 ## 3. Проверка
@@ -32,7 +29,7 @@ py -m pip install pillow numpy scipy
 ```powershell
 node --check game.js
 Get-ChildItem js\*.js | ForEach-Object { node --check $_.FullName }
-node scripts\qa.js          # автотест: 80 проверок, скриншоты в .qa\
+node scripts\qa.js          # автотест, скриншоты в .qa\
 node scripts\screens.js     # меню, онбординг, игра, реплики, телефон на 6 экранах → .qa\screens\
 ```
 
@@ -41,8 +38,8 @@ node scripts\screens.js     # меню, онбординг, игра, репли
 ## 4. Спрайты
 
 ```powershell
-py scripts\make_characters.py        # Быкентий v3, Аймашын, второй ряд, Тигран
-cd scripts; py normalize_sprites.py; py make_panorama.py; cd ..
+py scripts\make_panorama.py      # вид на Алматы из office-background-pixel-v1.png
+py scripts\make_boss_walk.py     # цикл ходьбы Д.Н. из boss-walk-v2.png
 ```
 
 Новые картинки через подписки (Antigravity / Codex) — проектный скилл [`.claude/skills/game-image-gen`](../.claude/skills/game-image-gen/SKILL.md) (`agy` из пустой папки, быстрая модель, затем `scripts/replace_sprite.py`): результат клади в `assets/` и записывай источник в `docs/ART_DIRECTION.md`.

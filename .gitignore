@@ -3,18 +3,15 @@
 .env.*
 !.env.example
 
-# Dependencies and generated test output
+# Dependencies
 node_modules/
-coverage/
-playwright-report/
-test-results/
-output/
 
 # OS/editor noise
 .DS_Store
 Thumbs.db
 Desktop.ini
 *.log
+__pycache__/
 .qa/
 .claude/settings.local.json
 sqlite_mcp_server.db
