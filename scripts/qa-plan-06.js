@@ -111,9 +111,12 @@ function checkResultModel() {
     await page.waitForTimeout(160);
     assert.strictEqual(await page.evaluate(() => NP_DEBUG.moments.variety.phoneEpisode.seconds), pausedSeconds, 'пауза не добавляет телефонное время');
     await page.keyboard.press('KeyP');
-    await page.evaluate(() => NP_DEBUG.skip(3.6));
-    restored = await page.evaluate(() => NP_DEBUG.moments.variety.phoneEpisode.seconds);
-    assert.ok(restored - pausedSeconds >= 3.5 && restored - pausedSeconds <= 3.7, 'после загрузки учитывается только активное симуляционное время');
+    const resumedTime = await page.evaluate(() => {
+      const before = NP_DEBUG.moments.variety.phoneEpisode.seconds;
+      NP_DEBUG.skip(3.6);
+      return { before, after: NP_DEBUG.moments.variety.phoneEpisode.seconds };
+    });
+    assert.ok(resumedTime.after - resumedTime.before >= 3.5 && resumedTime.after - resumedTime.before <= 3.7, 'после загрузки учитывается только активное симуляционное время');
 
     await reset(605);
     await page.evaluate(() => { NP_DEBUG.set({ fun: 75, usefulness: 90 }); NP_DEBUG.triggerAljazira('disaster'); NP_DEBUG.skip(25); });

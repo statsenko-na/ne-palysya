@@ -231,6 +231,23 @@
     addLog('Быкентий прислушивается после перекура. Ещё три секунды без кайфа.', 'info');
     return true;
   }
+  function startYoutubeVariant(variant) {
+    const current = ensureActivitiesExtension();
+    const result = startActivityVariant(current, activityContext({
+      internetAvailable: !eventIs('internet'),
+    }), variant);
+    if (!commitActivitiesTransition(result, current)) {
+      if (result.reason === 'internet_unavailable') say('player', 'Интернета нет... Придётся работать?!', 2.4);
+      return false;
+    }
+    startAction('youtube', result.remaining);
+    playSound('click');
+    say('player', pick(LINES.thoughts.youtube), 3.2);
+    addLog(variant === 'youtube-loud'
+      ? 'Серверная: ролик со звуком. Шум может привлечь Д.Н.'
+      : 'Серверная: тихий ролик на гигабитном канале.', 'bad');
+    return true;
+  }
   function offerSmokeListeningChoice() {
     if (dayIndex < 1) return false;
     const activities = ensureActivitiesExtension();
@@ -250,6 +267,16 @@
         intelTimer = Math.max(intelTimer, effect.seconds);
         say('player', bossIntelHasCountdown() ? LINES.thoughts.smokeIntel : bossIntelStatusText(), 3.2);
         addLog('Быкентий запомнил расписание проверок Д.Н.', 'good');
+      } else if (effect.type === 'countCompleted' && effect.statId === 'videos') {
+        stats.videos++;
+      } else if (effect.type === 'requestBossRoute' && effect.targetId === 'server' && effect.reasonId === 'youtube_loud') {
+        if (!routeBossToServer()) {
+          say('boss', LINES.boss.youtubeNoiseBlocked, 2.4);
+        }
+      } else if (effect.type === 'message' && effect.lineId === 'youtubeNoiseBlocked') {
+        const message = LINES.boss.youtubeNoiseBlocked;
+        if (['gone', 'out', 'leaving', 'goout'].includes(boss.state)) toast(message, 2.4);
+        else say('boss', message, 2.4);
       }
     }
   }
@@ -507,10 +534,8 @@
       case 'server':
         if (player.action === 'youtube') { endAction('cancel'); toast('Вкладка закрыта.', 1.4); return; }
         if (eventIs('internet')) { say('player', 'Интернета нет... Придётся работать?!', 2.4); return; }
-        startAction('youtube', 8);
-        playSound('click');
-        say('player', pick(LINES.thoughts.youtube), 3.2);
-        addLog('Серверная: 4K-ролик на гигабитном канале.', 'bad');
+        if (auto.on) { startYoutubeVariant('youtube-quiet'); return; }
+        openActionChoice({ id: 'youtube-risk', owner: 'player', options: ['quiet', 'loud'], expiresIn: 10 });
         break;
       case 'exit':
         if (day.beer) { goMunichBeer(); return; }
@@ -682,5 +707,16 @@
     handlers: {
       listen: () => startSmokeListening(),
       later: () => {},
+    },
+  });
+  registerActionChoiceHandler('youtube-risk', {
+    title: 'Серверная: выбрать риск',
+    options: [
+      { id: 'quiet', label: 'Тихо', detail: '8 с · 5 кайфа/с · итого 40', disabledReason: () => eventIs('internet') ? 'Интернет отключён' : '' },
+      { id: 'loud', label: 'Со звуком', detail: '6 с · 5.5 кайфа/с · итого 33 · шум на 3-й секунде', disabledReason: () => eventIs('internet') ? 'Интернет отключён' : '' },
+    ],
+    handlers: {
+      quiet: () => startYoutubeVariant('youtube-quiet'),
+      loud: () => startYoutubeVariant('youtube-loud'),
     },
   });

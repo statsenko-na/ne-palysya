@@ -31,6 +31,21 @@
     }[boss.state];
     return status || 'Д.Н. занят';
   }
+  function youtubeServerApproach() {
+    return WD.patrolSpots.find(spot => spot.desc === 'серверную') || { x: 880, y: 432 };
+  }
+  function bossCanRouteToServer() {
+    if (!['office', 'patrol', 'look', 'return'].includes(boss.state) || onLunch() || eventIs('call') || eventIs('drill')) return false;
+    const target = youtubeServerApproach();
+    if (blocked(target.x, target.y, 6)) return false;
+    const path = findPath(boss, target);
+    return Array.isArray(path) && path.length > 0;
+  }
+  function routeBossToServer() {
+    if (!bossCanRouteToServer()) return false;
+    bossGoTo(youtubeServerApproach(), 'patrol', 'серверную');
+    return true;
+  }
   // Куда Д.Н. идёт гулять: общие точки или к столу случайного коллеги
   function strollSpot() {
     const people = coworkers.filter(c => !c.away && !c.ghost);

@@ -57,11 +57,14 @@
       if (activities && activities.active && activitiesStateIsValid(activities) &&
           activityVariantMatchesAction(activities.active.variant, player.action)) {
         const consumedSeconds = Math.min(dt, activities.active.remainingSeconds);
-        const result = tickActivityVariant(activities, dt, activityContext({
-          bossState: boss.state,
-          bossDistance: dist(boss, player),
-          bossRouteAvailable: typeof bossCanRouteToServer === 'function' && bossCanRouteToServer(),
-        }));
+        const tickContext = activityContext();
+        const active = activities.active;
+        if (active.variant === 'youtube-loud' && !active.noiseTriggered && active.elapsedSeconds < 3 && active.elapsedSeconds + dt >= 3) {
+          tickContext.bossState = boss.state;
+          tickContext.bossDistance = dist(boss, player);
+          tickContext.bossRouteAvailable = bossCanRouteToServer();
+        }
+        const result = tickActivityVariant(activities, dt, tickContext);
         if (commitActivitiesTransition(result, activities)) {
           activityTick = Object.assign({}, result, { consumedSeconds });
           player.actionTimer = result.remaining;

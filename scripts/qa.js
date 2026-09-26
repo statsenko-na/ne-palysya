@@ -268,14 +268,16 @@ const { loadPlaywright } = require('./pw');
     window.dispatchEvent(new KeyboardEvent('keyup', { key: 'у', code: '' }));
     NP_DEBUG.teleport(870, 436);
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'у', code: 'KeyE' }));
+    const choiceId = NP_DEBUG.actionChoice && NP_DEBUG.actionChoice.id;
+    NP_DEBUG.selectActionChoice(0);
     const a2 = NP_DEBUG.state.player.action;
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'щ', code: '' }));
     const a3 = NP_DEBUG.auto.on && !NP_DEBUG.auto.demo;
     window.dispatchEvent(new KeyboardEvent('keydown', { key: 'щ', code: '' }));
     const a4 = NP_DEBUG.auto.on;
-    return { a1, a2, a3, a4, noBossKey: !('bossKey' in NP_DEBUG) };
+    return { a1, a2, choiceId, a3, a4, noBossKey: !('bossKey' in NP_DEBUG) };
   });
-  check('русская раскладка: У — Excel, У — YouTube, Щ — автопилот вкл/выкл посреди смены; альт-таба нет', rus.a1 === 'work' && rus.a2 === 'youtube' && rus.a3 && !rus.a4 && rus.noBossKey, JSON.stringify(rus));
+  check('русская раскладка: У — Excel и выбор YouTube, Щ — автопилот вкл/выкл посреди смены; альт-таба нет', rus.a1 === 'work' && rus.a2 === 'youtube' && rus.choiceId === 'youtube-risk' && rus.a3 && !rus.a4 && rus.noBossKey, JSON.stringify(rus));
 
   // Летучка: выбор ответа клавишей 2
   const su = await page.evaluate(() => {
@@ -313,7 +315,7 @@ const { loadPlaywright } = require('./pw');
     const noisy = noiseRate();
     NP_DEBUG.setUpgrades({ headphones: true });
     const quiet = noiseRate();
-    const funRate = () => { NP_DEBUG.clearEvents(); NP_DEBUG.startEvent('heat'); NP_DEBUG.setBoss(706, 446, 'office'); NP_DEBUG.set({ fun: 0 }); NP_DEBUG.teleport(870, 436); NP_DEBUG.interact(); NP_DEBUG.skip(3); return NP_DEBUG.state.fun; };
+    const funRate = () => { NP_DEBUG.clearEvents(); NP_DEBUG.startEvent('heat'); NP_DEBUG.setBoss(706, 446, 'office'); NP_DEBUG.set({ fun: 0 }); NP_DEBUG.teleport(870, 436); NP_DEBUG.interact(); NP_DEBUG.selectActionChoice(0); NP_DEBUG.skip(3); return NP_DEBUG.state.fun; };
     NP_DEBUG.startEvent('heat'); NP_DEBUG.setUpgrades({});
     const hot = funRate();
     NP_DEBUG.skip(6); NP_DEBUG.setUpgrades({ fan: true });
