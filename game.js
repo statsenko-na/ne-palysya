@@ -85,15 +85,15 @@
   };
 
   // ---------- СЛОЖНОСТЬ ----------
-  // Множители к базовому балансу: чаще проверки, дальше взгляд, быстрее подозрение, медленнее KPI.
+  // Множители к базовому балансу: чаще проверки, дальше взгляд, быстрее подозрение, больше план.
   const DIFFICULTY = {
     // warn — за сколько секунд до проверки «Кхм-кхм»; wait — сколько Д.Н. ждёт у пустого стола; speed — его шаг на проверке
     // missLimit — сколько раз «не застал на месте» до выговора; missKeep — с чего счётчик начинается после такого выговора
     // (Ветеран: 1 — дальше каждый промах сразу выговор). Замер автопилотом с задержкой реакции +2.5 с: промахов за смену
     // 0.3 / 0.4 / 1.3 → выговор за «не застал» примерно в 0–7% / ~5% / ~40% смен.
-    easy: { name: 'СТАЖЁР', check: 1.3, vision: 0.9, slack: 0.7, work: 1, plan: 0.8, missLimit: 3, missKeep: 0, warn: 3.5, wait: 5, speed: 0.9, surprise: 0, dayReprimandsMax: 4, weekReprimandsMax: 7 },
-    normal: { name: 'СОТРУДНИК', check: 0.8, vision: 1.05, slack: 1.1, work: 1, plan: 1, missLimit: 2, missKeep: 0, warn: 2, wait: 2.5, speed: 1.15, surprise: 0.3, dayReprimandsMax: 3, weekReprimandsMax: 5 },
-    hard: { name: 'ВЕТЕРАН', check: 0.65, vision: 1.2, slack: 1.4, work: 1, plan: 1.2, missLimit: 2, missKeep: 1, warn: 1.5, wait: 2, speed: 1.3, surprise: 0.5, dayReprimandsMax: 2, weekReprimandsMax: 4 },
+    easy: { name: 'СТАЖЁР', check: 1.3, vision: 0.9, slack: 0.7, plan: 0.8, missLimit: 3, missKeep: 0, warn: 3.5, wait: 5, speed: 0.9, surprise: 0, dayReprimandsMax: 4, weekReprimandsMax: 7 },
+    normal: { name: 'СОТРУДНИК', check: 0.8, vision: 1.05, slack: 1.1, plan: 1, missLimit: 2, missKeep: 0, warn: 2, wait: 2.5, speed: 1.15, surprise: 0.3, dayReprimandsMax: 3, weekReprimandsMax: 5 },
+    hard: { name: 'ВЕТЕРАН', check: 0.65, vision: 1.2, slack: 1.4, plan: 1.2, missLimit: 2, missKeep: 1, warn: 1.5, wait: 2, speed: 1.3, surprise: 0.5, dayReprimandsMax: 2, weekReprimandsMax: 4 },
   };
 
   // ---------- АПГРЕЙДЫ ЗА KPI-КОИНЫ ----------
@@ -115,7 +115,7 @@
   // plan — цель работы на день; tasks — задачи дня (попадают в список дел первыми).
   const DAYS = [
     { name: 'ПОНЕДЕЛЬНИК', short: 'ПН', plan: 60, mod: 'Тяжёлый понедельник: проверки чаще', checkMul: 0.85,
-      news: 'Ядро: Д.Н. и его конус, твой стол и Excel, кофе, балкон, YouTube, укрытия, синий биотуалет. Цель — план и кайф без 3 выговоров.',
+      news: 'Ядро: Д.Н. и его конус, твой стол и Excel, кофе, балкон, YouTube, укрытия, синий биотуалет. Цель — план и кайф без увольнения.',
       tasks: ['coffee1', 'smoke1', 'toilet', 'lunch', 'inspect1', 'reportMon'] },
     { name: 'ВТОРНИК', short: 'ВТ', plan: 70, mod: 'Обычный вторник. Подозрительно обычный.',
       news: 'Новое: коллеги первого ряда (E перед их столом) — у каждого бонус. Офисные события: угощение, созвон, ксерокс.',
@@ -131,7 +131,7 @@
       tasks: ['coffee3', 'smoke4', 'toilet', 'lunch', 'cleanFriday', 'planEarly', 'yogurt', 'praise2'] },
   ];
   // С какого дня (индекс) открывается механика
-  const UNLOCK = { coworkers: 1, events1: 1, lunch: 0, toilet: 0, events2: 2, almaty: 2, row2: 3, standup: 3, events3: 3 };
+  const UNLOCK = { coworkers: 1, events1: 1, lunch: 0, events2: 2, almaty: 2, row2: 3, standup: 3, events3: 3 };
   const EVENT_TIER = { food: 'events1', call: 'events1', internet: 'events1', jam: 'events1', bday: 'events2', heat: 'events2', noise: 'events2', drill: 'events2', standup: 'events3', majik: 'events3', autoshka: 'events3', arrfr: 'events3', sb: 'events3' };
 
   const store = {
@@ -139,8 +139,7 @@
     set(k, v) { try { localStorage.setItem(`nepalsya.${k}`, JSON.stringify(v)); } catch (_) { /* приватный режим */ } },
   };
   let dayIndex = clampDay(store.get('day', 0));
-  let timeScale = clamp0(Number(store.get('timeScale', 1)) || 1, 0.5, 3);
-  function clamp0(v, a, b) { return Math.max(a, Math.min(b, v)); }
+  let timeScale = clamp(Number(store.get('timeScale', 1)) || 1, 0.5, 3);
   let coins = store.get('coins', 0) | 0;
   let weekReprimands = store.get('weekReprimands', 0) | 0; // выговоры копятся за всю неделю
   let majikArc = store.get('majikArc', 0) | 0; // сюжет недели: сколько раз подняли/уронили Маджикистан
@@ -184,8 +183,6 @@
     officeEvent = s.officeEvent && EVENTS[s.officeEvent.id] ? { ...EVENTS[s.officeEvent.id], ...s.officeEvent } : null;
     // Прошедшее время: первая проверка и событие — не мгновенно после загрузки
     nextBossCheck = Math.max(nextBossCheck, 20);
-    // Сохранились во время обеда — коллеги всё ещё в «Мюнхене»
-    if (day.lunchAway) coworkers.forEach(c => { if (!c.ghost) c.away = true; });
     return true;
   }
   function clearSavedProgress() {
@@ -298,7 +295,7 @@
   // ---------- УТИЛИТЫ ----------
   let rngSeed = 42;
   function rand() { rngSeed = (rngSeed * 9301 + 49297) % 233280; return rngSeed / 233280; }
-  const clamp = (v, a, b) => Math.max(a, Math.min(b, v));
+  function clamp(v, a, b) { return Math.max(a, Math.min(b, v)); }
   const dist = (a, b) => Math.hypot(a.x - b.x, a.y - b.y);
   const pick = arr => arr[Math.floor(rand() * arr.length)];
   const rectContains = (r, x, y) => x >= r.x && x <= r.x + r.w && y >= r.y && y <= r.y + r.h;
@@ -396,9 +393,9 @@
     coffeeBoost: 0, bumpCooldown: 0, chatWith: null, hideSpot: null,
   };
   const boss = {
-    x: WD.bossHome.x, y: WD.bossHome.y, r: 7,
-    state: 'office', stateTimer: 6, path: [], target: null, mode: 'patrol', spotDesc: 'кабинет',
-    facing: Math.PI / 2, facingX: -1, walkTimer: 0, moving: false,
+    x: WD.bossHome.x, y: WD.bossHome.y,
+    state: 'office', stateTimer: 6, path: [], mode: 'patrol', spotDesc: 'кабинет',
+    facing: Math.PI / 2, walkTimer: 0, moving: false,
     suspicion: 0, catchCooldown: 0, quoteTimer: 6, praiseTimer: 0, lookTimer: 0, inspectTimer: 0,
     visitedSpots: 0, warned: false,
   };
@@ -416,12 +413,7 @@
   let planTarget = 60;        // цель работы на день
   let usefulness = 0;         // работа к плану (не тает)
   let fun = 0;
-  function addFun(n) {
-    const before = fun;
-    fun = Math.min(100, Math.max(0, fun + n));
-    if (stats && fun > before) stats.totalFunEarned = (stats.totalFunEarned || 0) + (fun - before);
-    return fun;
-  }
+  function addFun(n) { fun = Math.min(100, Math.max(0, fun + n)); }
   let stats;
   let nextBossCheck = 16;
   let intelTimer = 0;
@@ -449,11 +441,11 @@
   let phoneSafe = 0;          // бонус Сиргея: телефон не палево
   let nextDrill = 0;          // тик перфоратора
   let walkers = [];           // люди, выходящие из биотуалета
-  let choice = null;          // выбор ответа на летучке { opts, t }
+  let choice = null;          // выбор ответа на летучке { t, asked, done }
   let nudge = null;           // Блеб отвлекает, пока ты в Excel
 
   function resetStats() {
-    stats = { coffees: 0, cigarettes: 0, videos: 0, fridge: 0, chats: 0, chatted: new Set(), catches: 0, inspectPass: 0, praise: 0, plantHideInspect: 0, printed: 0, workedSeconds: 0, lunch: 0, toilet: 0, scolds: 0, complaints: 0 };
+    stats = { coffees: 0, cigarettes: 0, videos: 0, fridge: 0, chats: 0, chatted: new Set(), catches: 0, inspectPass: 0, praise: 0, plantHideInspect: 0, printed: 0, workedSeconds: 0, lunch: 0, toilet: 0, scolds: 0 };
   }
   resetStats();
 
@@ -540,7 +532,7 @@
     document.querySelectorAll('.music-toggle').forEach(b => { b.textContent = musicOn ? '🎵 Музыка: вкл (N)' : '🔇 Музыка: выкл (N)'; b.classList.toggle('off', !musicOn); });
     document.querySelectorAll('.sound-toggle').forEach(b => { b.textContent = muted ? '🔇 Звуки: выкл (M)' : '🔊 Звуки: вкл (M)'; b.classList.toggle('off', muted); });
     if (coarsePointer) document.querySelectorAll('.music-toggle, .sound-toggle').forEach(b => { b.textContent = b.textContent.replace(/ \([NM]\)$/, ''); });
-    document.querySelectorAll('.text-toggle').forEach(b => { b.textContent = bigText ? '🔠 Текст: крупный' : '🔠 Текст: обычный'; b.classList.toggle('on', bigText); });
+    document.querySelectorAll('.text-toggle').forEach(b => { b.textContent = bigText ? '🔠 Текст: крупный' : '🔠 Текст: обычный'; });
   }
   function toggleMusic() {
     musicOn = !musicOn;
@@ -555,7 +547,7 @@
     document.querySelectorAll('[data-diff]').forEach(b => b.classList.toggle('on', b.dataset.diff === k));
   }
   function setTimeScale(v) {
-    timeScale = clamp0(Number(v) || 1, 0.5, 3);
+    timeScale = clamp(Number(v) || 1, 0.5, 3);
     store.set('timeScale', timeScale);
     document.querySelectorAll('.speed-range').forEach(r => { r.value = String(timeScale); });
     document.querySelectorAll('.speed-val').forEach(el => { el.textContent = `×${+timeScale.toFixed(2)}`; });
@@ -607,14 +599,9 @@
     document.body.classList.toggle('is-playing', next === 'playing' || next === 'paused');
   }
 
-  // Список дел: сначала задачи дня (обучают новому), потом случайные из открытых механик
-  const TODO_NEEDS = { chatAll: 'coworkers', chatAimashyn: 'coworkers', chatHlad: 'coworkers', lunch: 'lunch', toilet: 'toilet', scold: 'row2', majik: 'events3' };
+  // Список дел — задачи дня (обучают тому, что открылось сегодня)
   function pickTodo() {
-    const all = LINES.dayTasks.concat(LINES.todoPool); // задачи дня важнее одноимённых из пула
-    const out = (today().tasks || []).map(id => all.find(t => t.id === id)).filter(Boolean).map(t => ({ ...t, done: false, day: true }));
-    const pool = LINES.todoPool.filter(t => !out.some(o => o.id === t.id) && (!TODO_NEEDS[t.id] || unlocked(TODO_NEEDS[t.id])));
-    while (out.length < 5 && pool.length) out.push({ ...pool.splice(Math.floor(rand() * pool.length), 1)[0], done: false });
-    return out;
+    return (today().tasks || []).map(id => LINES.dayTasks.find(t => t.id === id)).filter(Boolean).map(t => ({ ...t, done: false, day: true }));
   }
   function todoProgress(t) {
     if (t.stat) return Math.floor(stats[t.stat] || 0);
@@ -677,8 +664,8 @@
     nextEvent = 32 + rand() * 12;
     eventQueue = shuffleEvents();
     Object.assign(player, { x: SEAT.x, y: WD.ROW1_Y + 62, action: 'none', actionTimer: 0, coffeeBoost: 0, speed: CFG.playerSpeed, chatWith: null, hideSpot: null, facingX: -1 });
-    Object.assign(boss, { x: WD.bossHome.x, y: WD.bossHome.y, state: 'office', stateTimer: 5, path: [], target: null, suspicion: 0, catchCooldown: 0, quoteTimer: 4, praiseTimer: 0, warned: false, facing: Math.PI / 2 });
-    coworkers.forEach((c, i) => { c.cooldown = 0; c.talkTimer = 0; c.idleTimer = 2 + rand() * 12; c.alert = 0; c.away = !!c.remote; c.slack = null; c.slackTimer = 10 + rand() * 12; c.scoldCooldown = 0; c.rocketAt = 660 + rand() * 360; c.draftCd = 0; });
+    Object.assign(boss, { x: WD.bossHome.x, y: WD.bossHome.y, state: 'office', stateTimer: 5, path: [], suspicion: 0, catchCooldown: 0, quoteTimer: 4, praiseTimer: 0, warned: false, facing: Math.PI / 2 });
+    coworkers.forEach(c => { c.cooldown = 0; c.talkTimer = 0; c.idleTimer = 2 + rand() * 12; c.alert = 0; c.slack = null; c.slackTimer = 10 + rand() * 12; c.scoldCooldown = 0; c.rocketAt = 660 + rand() * 360; c.draftCd = 0; });
     banterT = 10 + rand() * 12; pendingSays.length = 0;
     day = {
       misses: 0, lunchCalled: false, lunchOpen: false, fed: false, hungry: false, bossLunch: false, beer: null,
@@ -782,7 +769,7 @@
     sb: { dur: 24, title: 'СБ СМОТРИТ В КАМЕРЫ' },
     autoshka: { dur: 18, title: 'У СИРГЕЯ УПАЛА АВТОШКА' },
   };
-  const FEAST_ZONE = { id: 'feast', type: 'feast', x: 76, y: 170, w: 90, h: 86, short: 'Угощение' };
+  const FEAST_ZONE = { id: 'feast', type: 'feast', x: 76, y: 170, w: 90, h: 86 };
   function shuffleEvents() {
     const open = id => unlocked(EVENT_TIER[id]);
     const pool = ['call', 'internet', 'jam', 'bday', 'heat', 'noise', 'drill', 'standup', 'majik', 'autoshka', 'arrfr'].filter(open);
@@ -796,7 +783,7 @@
   const bossBusy = () => ['inspect', 'waitDesk', 'lecture', 'leaving', 'gone', 'goout', 'out', 'scold'].includes(boss.state);
   function startEvent(id) {
     const def = EVENTS[id];
-    officeEvent = { id, t: def.dur, dur: def.dur, used: false };
+    officeEvent = { id, t: def.dur, used: false };
     let text = def.title;
     if (id === 'food') { officeEvent.food = pick(FOODS); text = officeEvent.food.text; }
     if (id === 'call') {
@@ -835,7 +822,7 @@
     }
     if (id === 'sb') {
       text = 'Красные конусы камер — взгляд СБ. Не прокрастинируй в них: СБ доложит Д.Н. Работа и укрытия — безопасно.';
-      officeEvent.watch = 0; officeEvent.reports = 0;
+      officeEvent.watch = 0;
       say('sirgey', 'Камеры зашевелились... СБ проснулась!', 2.8, '#ffd4c8');
     }
     if (id === 'arrfr') {
@@ -961,10 +948,9 @@
   function updateCameras(dt) {
     const ev = officeEvent;
     const seen = CAMERAS.some(cameraSees);
-    ev.seen = seen;
     if (seen && SLACK.has(player.action)) ev.watch += dt; else ev.watch = Math.max(0, ev.watch - dt * 0.5);
     if (ev.watch >= 1.6) {
-      ev.watch = 0; ev.reports++;
+      ev.watch = 0;
       stats.sbReports = (stats.sbReports || 0) + 1;
       floater(player.x, player.y - 70, 'СБ ЗАПИСАЛА!', '#ff6a5a');
       reprimand('СБ записала, как ты бездельничаешь, и доложила Д.Н.', 'доклад СБ');
@@ -1120,7 +1106,7 @@
       }
     }
 
-    // Ад-хок от правления (случается один раз в день между 12:00 и 16:30)
+    // Ад-хок от правления (случается один раз в день между 12:00 и 15:30)
     if (!day.adhocDone && m >= day.adhocAt && !onLunch()) {
       day.adhocDone = true;
       const cut = Math.min(usefulness, 12);
@@ -1197,7 +1183,7 @@
       day.lastSavedMinute = Math.floor(m);
       saveProgress();
     }
-    // 12:55 — Быкентий зовёт всех на обед
+    // За 5 минут до обеда (12:25) Быкентий зовёт всех
     if (!day.lunchCalled && m >= CFG.lunchOpen - 5) {
       day.lunchCalled = true;
       say('player', pick(LINES.lunch.call), 3.4);
@@ -1282,7 +1268,7 @@
   }
   // «Приспичило»: 2–3 раза за смену надо дойти до синей кабинки
   function updatePee(dt) {
-    if (!unlocked('toilet') || AWAY.has(player.action) && player.action !== 'toilet') return;
+    if (AWAY.has(player.action) && player.action !== 'toilet') return;
     if (!day.peeActive) {
       if (day.peeLeft > 0 && clockMinutes >= day.peeAt && player.action !== 'toilet' && player.action !== 'queue') {
         day.peeActive = true; day.pee = 5; day.peeLeft--;
@@ -1297,7 +1283,7 @@
     if (before < 70 && day.pee >= 70) say('player', pick(LINES.pee.urgent), 2.6);
     if (day.pee >= 100) {
       day.peeActive = false; day.pee = 0;
-      addFun(-CFG.peeFail); stats.peeFail = (stats.peeFail || 0) + 1;
+      addFun(-CFG.peeFail);
       flash = 0.5; shake = 0.4; playSound('caught');
       say('player', pick(LINES.pee.fail), 3.4);
       banner = { text: 'НЕ ДОТЕРПЕЛ', sub: `Пришлось бежать в соседний БЦ. −${CFG.peeFail} кайфа`, t: 0, bad: true };
@@ -1397,7 +1383,6 @@
     if (a === 'fridge' && reason === 'done') stats.fridge++;
     if (a === 'queue') {
       if (reason === 'done') {
-        player.action = 'none';
         startAction('toilet', CFG.toiletSeconds);
         say('player', pick(LINES.toilet.inside), 3);
         day.cabinDoor = 0.6;
@@ -1414,7 +1399,7 @@
       day.cabinDoor = 0.8;
       player.x = WD.toiletDoor.x; player.y = WD.toiletDoor.y;
       if (day.peeActive) {
-        day.peeActive = false; day.pee = 0; addFun(4); stats.peeOk = (stats.peeOk || 0) + 1; schedulePee();
+        day.peeActive = false; day.pee = 0; addFun(4); schedulePee();
         floater(player.x, player.y - 64, 'ПОЛЕГЧАЛО! +4 КАЙФ', '#8fd0f0');
         setTimeout(() => { if (mode === 'playing') say('player', pick(LINES.pee.relief), 2.8); }, 300);
       } else floater(player.x, player.y - 64, 'ПОЛЕГЧАЛО', '#8fd0f0');
@@ -1473,7 +1458,6 @@
     if (nudge && player.action === 'work') {
       // Блеб показывает мем через перегородку: кайф, но ты уже не в Excel
       nudge = null;
-      player.action = 'none';
       startAction('meme', 3);
       say('bleb', pick(LINES.nudge.meme), 2.6);
       return;
@@ -1548,7 +1532,7 @@
           return;
         }
         startAction('water', 1.8);
-        day.waterCups = (day.waterCups || 4) - 1;
+        day.waterCups -= 1;
         const wGain = eventIs('heat') ? 6 : 2;
         addFun(wGain);
         playSound('coffee');
@@ -1588,7 +1572,6 @@
           break;
         }
         fun += 10;
-        stats.feasts = (stats.feasts || 0) + 1;
         playSound('coffee');
         say('player', `${officeEvent.food.name[0].toUpperCase()}${officeEvent.food.name.slice(1)}! Жизнь удалась.`, 2.6);
         floater(player.x, player.y - 64, '+10 КАЙФ', officeEvent.food.color);
@@ -1657,7 +1640,6 @@
         if (boss.state !== 'office') { toast('Д.Н. нет в кабинете.', 1.6); return; }
         if (officeEvent.used) { say('boss', 'Я же сказал — заявку в АХО!', 2.4); return; }
         officeEvent.used = true;
-        stats.complaints++;
         fun += 5;
         say('player', kind === 'heat' ? 'Директор Начальникович, тут +32! Кондей сдох!' : 'Директор Начальникович, сверлят! Невозможно работать!', 2.8);
         setTimeout(() => { if (mode === 'playing') say('boss', pick(LINES.boss.complain[kind]), 3); }, 1500);
@@ -1766,7 +1748,6 @@
   // ---------- ИИ НАЧАЛЬНИКА ----------
   function bossGoTo(target, state, desc) {
     boss.state = state;
-    boss.target = { x: target.x, y: target.y };
     boss.path = findPath(boss, target);
     boss.spotDesc = desc || boss.spotDesc;
   }
@@ -1840,7 +1821,7 @@
   const planMinDone = () => usefulness >= planTarget * CFG.planMinShare; // половина — минимум, чтобы не было выговора
 
   // ---------- ВЫГОВОРЫ ----------
-  // Единственная угроза: 3 выговора = уволен. Прикрытие Аймашына прощает один.
+  // Дневной или недельный лимит выговоров (DIFFICULTY) = уволен. Прикрытие Аймашына прощает один.
   function reprimand(reason, short) {
     if (mode !== 'playing' || onLunch()) return false; // на обеде Д.Н. не наказывает
     if (coverTokens > 0) {
@@ -1852,13 +1833,12 @@
       return false;
     }
     reprimands++;
-    stats.reprimands = reprimands;
     weekReprimands++;
     store.set('weekReprimands', weekReprimands);
     flash = 0.9; shake = 0.5;
     playSound('caught');
-    const dMax = diff().dayReprimandsMax || 3;
-    const wMax = diff().weekReprimandsMax || 5;
+    const dMax = diff().dayReprimandsMax;
+    const wMax = diff().weekReprimandsMax;
     banner = { text: `ВЫГОВОР ${reprimands}/${dMax} (НЕДЕЛЯ: ${weekReprimands}/${wMax})`, sub: reason, t: 0, bad: true };
     // Передышка: выговоры не идут очередью
     boss.suspicion = 0;
@@ -1867,14 +1847,12 @@
     if (officeEvent && officeEvent.id === 'sb') officeEvent.watch = 0;
     addLog(`📝 ВЫГОВОР ${reprimands}/${dMax} (за неделю: ${weekReprimands}/${wMax}): ${reason}`, 'bad');
     if (reprimands === dMax - 1) hint('rep2', 'Остался 1 выговор до увольнения! Не попадайся в конус Д.Н. и будь на месте.');
-    if (reprimands >= dMax || weekReprimands >= wMax) setTimeout(() => finishGame('fired'), 900);
     return true;
   }
   // Проверка стола: Д.Н. не застал на месте → счётчик; на лимите — выговор
   function missAtDesk(what) {
     if (onLunch()) return; // обед — спокойное время
     day.misses++;
-    stats.misses = (stats.misses || 0) + 1;
     const lim = diff().missLimit;
     floater(player.x, player.y - 70, `НЕ ЗАСТАЛ НА МЕСТЕ ${Math.min(day.misses, lim)}/${lim}`, '#ff8a7a');
     addLog(`👀 ${what}: не застал на месте ${day.misses}/${lim}.`, 'bad');
@@ -1885,7 +1863,7 @@
 
   function caught() {
     stats.catches++;
-    const why = { smoke: 'курил на балконе', youtube: 'смотрел YouTube', fridge: 'шарил в холодильнике', chat: 'болтал', phone: 'сидел в телефоне', meme: 'смотрел мем Блеба', toilet: 'сидел в биотуалете' }[player.action];
+    const why = { smoke: 'курил на балконе', youtube: 'смотрел YouTube', fridge: 'шарил в холодильнике', chat: 'болтал', phone: 'сидел в телефоне', meme: 'смотрел мем Блеба' }[player.action];
     reprimand(why ? `Д.Н. видел, как ты ${why}` : 'на проверке ты был не в Excel', 'залёт');
     boss.suspicion = 0;
     boss.state = 'lecture';
@@ -1944,7 +1922,6 @@
     boss.y += vy * step;
     const want = Math.atan2(vy, vx);
     boss.facing += angleDiff(want, boss.facing) * Math.min(1, dt * 8);
-    if (Math.abs(vx) > 0.15) boss.facingX = vx < 0 ? -1 : 1;
     boss.moving = true;
     const prev = Math.floor(boss.walkTimer);
     boss.walkTimer += dt * (speed / 4.5); // 8 кадров = два шага ≈ 36 ед.: ноги не «скользят»
@@ -1957,7 +1934,6 @@
   function lookAround(dt) {
     boss.lookTimer += dt;
     boss.facing += Math.sin(boss.lookTimer * 1.6) * dt * 1.8;
-    boss.facingX = Math.cos(boss.facing) < 0 ? -1 : 1;
   }
 
   function updateBoss(dt) {
@@ -2100,7 +2076,6 @@
         if (followPath(dt, CFG.bossInspectSpeed)) {
           boss.moving = false;
           boss.facing = Math.PI;
-          boss.facingX = -1;
           if (boss.quoteTimer <= 0) { say('boss', pick(LINES.boss.standupTalk), 3); boss.quoteTimer = 5; }
         }
         if (!eventIs('standup')) endInspection();
@@ -2371,7 +2346,7 @@
       fun = Math.max(0, fun - CFG.workFunDrain * (has('guitar') ? 0.5 : 1) * dt);
       const base = player.coffeeBoost > 0 ? CFG.workKpiCoffee : CFG.workKpi;
       const gear = (has('chair') ? 1.2 : 1) * (has('monitor') ? 1.15 : 1) * (eventIs('noise') && !has('headphones') ? 0.7 : 1);
-      const mult = (boss.watchingWork ? CFG.watchedKpiMultiplier : 1) * (eventIs('internet') ? 1.5 : 1) * gear * diff().work * (day.peeActive && day.pee > 50 ? 0.7 : 1) * (day.hungry ? 0.85 : 1);
+      const mult = (boss.watchingWork ? CFG.watchedKpiMultiplier : 1) * (eventIs('internet') ? 1.5 : 1) * gear * (day.peeActive && day.pee > 50 ? 0.7 : 1) * (day.hungry ? 0.85 : 1);
       const beforeWork = usefulness;
       addWork(base * mult * dt);
       const gained = usefulness - beforeWork;
@@ -2382,7 +2357,7 @@
         day.excelWorkAcc -= 14;
         addFun(4);
         day.excelPoolTasks = (day.excelPoolTasks || 0) + 1;
-        const taskName = pick(LINES.excelTasks || ['Заявка закрыта']);
+        const taskName = pick(LINES.excelTasks);
         floater(player.x, player.y - 64, '✔ ЗАЯВКА ЗАКРЫТА! +4 КАЙФ', '#e0a0f0');
         addLog(`Excel: «${taskName}». +4 кайфа.`, 'good');
         playSound('click');
@@ -2406,7 +2381,6 @@
           day.overtimeWork = 0; day.overtimeUsed = true;
           reprimands--;
           if (weekReprimands > 0) { weekReprimands--; store.set('weekReprimands', weekReprimands); }
-          stats.reprimands = reprimands;
           playSound('success');
           say('boss', 'Быкентий закрыл сверхурочный аудит! Ладно, старый выговор аннулирую. Но не расслабляться!', 3.5);
           floater(player.x, player.y - 70, '⭐ ВЫГОВОР АННУЛИРОВАН! (−1)', '#57d08a');
@@ -2569,8 +2543,8 @@
     flash = Math.max(0, flash - dt);
 
     if (Math.floor(shiftTime * 2) !== Math.floor((shiftTime - dt) * 2)) { checkTodo(); checkAchievements(); }
-    const dMax = diff().dayReprimandsMax || 3;
-    const wMax = diff().weekReprimandsMax || 5;
+    const dMax = diff().dayReprimandsMax;
+    const wMax = diff().weekReprimandsMax;
     if (clockMinutes >= CFG.shiftEnd) finishGame('win');
     else if (reprimands >= dMax || weekReprimands >= wMax) finishGame('fired');
   }
@@ -2594,12 +2568,12 @@
     if (mode !== 'playing') return;
     // Конец смены: меньше половины плана — выговор (на лимите — увольнение); от половины — без выговора, но и без бонуса
     let planFailed = false;
-    const dMax = diff().dayReprimandsMax || 3;
-    const wMax = diff().weekReprimandsMax || 5;
+    const dMax = diff().dayReprimandsMax;
+    const wMax = diff().weekReprimandsMax;
     const planHalf = !planDone() && planMinDone();
     if (result === 'win' && !planDone() && !planHalf) {
       planFailed = true;
-      reprimands++; stats.reprimands = reprimands;
+      reprimands++;
       weekReprimands++; store.set('weekReprimands', weekReprimands);
       addLog(`📝 ВЫГОВОР ${reprimands}/${dMax} (нед: ${weekReprimands}/${wMax}): не сделана даже половина плана (${Math.floor(usefulness)}/${planTarget}).`, 'bad');
       if (reprimands >= dMax || weekReprimands >= wMax) result = 'fired';
@@ -3350,9 +3324,8 @@
 
   function bar(x, y, w, label, value, color, valueColor, shown) {
     T(label, x, y, 8.5, '#f5edd9', 'left', 700, FONT_SANS);
-    const isFun = label === 'КАЙФ';
-    const text = isFun && value >= 100 ? '100 MAX' : `${Math.round(shown === undefined ? value : shown)}${isFun ? '' : '%'}`;
-    T(text, x + w, y, 8.5, isFun && value >= 100 ? '#ffe082' : (valueColor || color), 'right', 700);
+    const max = value >= 100;
+    T(max ? '100 MAX' : `${Math.round(shown)}`, x + w, y, 8.5, max ? '#ffe082' : valueColor, 'right', 700);
     R(x, y + 5, w, 8, '#0b1417');
     R(x + 1, y + 6, (w - 2) * clamp(value / 100, 0, 1), 6, color);
     R(x + 1, y + 6, (w - 2) * clamp(value / 100, 0, 1), 1.5, 'rgba(255,255,255,0.25)');
@@ -3370,8 +3343,8 @@
     T('7 ЭТАЖ', 44, 36, 6.5, '#789', 'left', 700, FONT_SANS);
 
     // Выговоры: кружки по dayReprimandsMax + недельные + счётчик «не застал на месте»
-    const dMax = diff().dayReprimandsMax || 3;
-    const wMax = diff().weekReprimandsMax || 5;
+    const dMax = diff().dayReprimandsMax;
+    const wMax = diff().weekReprimandsMax;
     T('ВЫГОВОРЫ', 88, 14, 8.5, '#f5edd9', 'left', 700, FONT_SANS);
     for (let i = 0; i < dMax; i++) {
       const cx = 96 + i * 15, on = i < reprimands;
@@ -3458,8 +3431,8 @@
     R(0, HH - 1.5, VW, 1.5, '#d8aa40');
     const gap = 7;
     let x = 6;
-    const dMax = diff().dayReprimandsMax || 3;
-    const wMax = diff().weekReprimandsMax || 5;
+    const dMax = diff().dayReprimandsMax;
+    const wMax = diff().weekReprimandsMax;
     // выговоры и «не застал»
     for (let i = 0; i < dMax; i++) {
       const cx = x + 4 + i * 11, on = i < reprimands;
@@ -3550,7 +3523,7 @@
     const out = [];
     const doneN = todo.filter(t => t.done).length;
     out.push(['📋', planDone() ? `План ${Math.floor(usefulness)}/${planTarget} ✓ — дальше работа почти не нужна` : `План ${Math.floor(usefulness)}/${planTarget} к 19:30 (меньше ${Math.ceil(planTarget * CFG.planMinShare)} — выговор)`, planDone() ? '#9fe0b0' : '#f2bb38']);
-    const dMax = diff().dayReprimandsMax || 3, wMax = diff().weekReprimandsMax || 5;
+    const dMax = diff().dayReprimandsMax, wMax = diff().weekReprimandsMax;
     out.push(['⚠️', `Выговоры: ${reprimands}/${dMax} за день · ${weekReprimands}/${wMax} за неделю`, (reprimands >= dMax - 1 || weekReprimands >= wMax - 1) ? '#ff9a8a' : '#f2bb38']);
     out.push(['⭐', `Очки сейчас: ${Math.max(0, Math.round(fun + (planDone() ? 20 : 0) + doneN * 12 - reprimands * 15))} (кайф + план + дела − выговоры)`, '#e0a0f0']);
     if (coverTokens) out.push(['🛡', 'Прикрытие: Аймашын отмажет от следующего выговора', '#9fe0b0']);
@@ -3562,7 +3535,6 @@
     else if (!day.fed && clockMinutes < CFG.lunchClose) out.push(['🍽', day.vilka ? 'Обед 12:30–14:00: стейки в «Вилке» 🥩 (выход слева)' : 'Обед 12:30–14:00 в «Мюнхене» (выход слева)', '#9ab']);
     const cds = coworkers.filter(c => c.cooldown > 0).map(c => `${c.name} ${Math.ceil(c.cooldown)}с`);
     if (cds.length) out.push(['⏳', `Заняты: ${cds.join(', ')}`, '#9ab']);
-    if (!out.length) out.push(['💬', 'Поболтай с коллегами — у каждого свой бонус', '#9ab']);
     return out;
   }
 
@@ -3900,9 +3872,6 @@
 
     [stick, touchZoneLeft].filter(Boolean).forEach(el => {
       el.addEventListener('touchstart', handleTouchStart, { passive: false });
-      el.addEventListener('touchmove', handleTouchMove, { passive: false });
-      el.addEventListener('touchend', handleTouchEnd, { passive: false });
-      el.addEventListener('touchcancel', handleTouchEnd, { passive: false });
     });
 
     window.addEventListener('touchmove', handleTouchMove, { passive: false });
@@ -3964,13 +3933,11 @@
 
   // Отладочный доступ для автотестов (scripts/qa.js)
   window.NP_DEBUG = {
-    get state() { return { mode, player: { ...player }, boss: { ...boss, path: boss.path.length }, reprimands, weekReprimands, misses: day.misses, planTarget, usefulness, fun, clockMinutes, stats: { ...stats, chatted: stats.chatted.size }, todo, coverTokens, intelTimer, waterCups: day.waterCups, waterRecharge: day.waterRecharge, coffeeCups: day.coffeeCups, coffeeJammed: !!day.coffeeJammed, aljaziraVisiting: !!day.aljaziraVisiting, overtimeWork: day.overtimeWork || 0, excelWorkAcc: day.excelWorkAcc || 0, excelPoolTasks: day.excelPoolTasks || 0, adhocDone: !!day.adhocDone }; },
+    get state() { return { mode, player: { ...player }, boss: { ...boss, path: boss.path.length }, reprimands, weekReprimands, misses: day.misses, planTarget, usefulness, fun, clockMinutes, stats: { ...stats, chatted: stats.chatted.size }, todo, coverTokens, waterCups: day.waterCups, waterRecharge: day.waterRecharge, coffeeCups: day.coffeeCups, coffeeJammed: !!day.coffeeJammed, overtimeWork: day.overtimeWork || 0, excelWorkAcc: day.excelWorkAcc || 0, excelPoolTasks: day.excelPoolTasks || 0, adhocDone: !!day.adhocDone }; },
     teleport(x, y) { player.x = x; player.y = y; player.action = 'none'; player.actionTimer = 0; player.hideSpot = null; nudge = null; },
     setBoss(x, y, state = 'look', facing) { boss.snus = 0; boss.snusCd = 999; boss.x = x; boss.y = y; boss.state = state; boss.stateTimer = 99; boss.path = []; if (facing !== undefined) { boss.facing = facing; boss.lookTimer = 0; } },
     skip(seconds) { for (let i = 0; i < seconds * 20 && mode === 'playing'; i++) update(0.05); },
     setDay(d) { dayIndex = clampDay(d); },
-    get tutorial() { return tutorial.step; },
-    get day() { return dayIndex; },
     set(v) { if ('usefulness' in v) usefulness = v.usefulness; if ('reprimands' in v) reprimands = v.reprimands; if ('weekReprimands' in v) { weekReprimands = v.weekReprimands; store.set('weekReprimands', weekReprimands); } if ('misses' in v) day.misses = v.misses; if ('fun' in v) fun = Math.min(100, Math.max(0, v.fun)); if ('waterCups' in v) day.waterCups = v.waterCups; if ('waterRecharge' in v) day.waterRecharge = v.waterRecharge; if ('coffeeJammed' in v) day.coffeeJammed = !!v.coffeeJammed; if ('coffeeQueueTimer' in v && day) day.coffeeQueueTimer = v.coffeeQueueTimer; if ('overtimeWork' in v) day.overtimeWork = v.overtimeWork; if ('adhocDone' in v) day.adhocDone = !!v.adhocDone; },
     interact, quickHide, togglePhone, startInspection, blocked, findPath, nav, startEvent,
     triggerAljazira(mood = 'neutral') {
@@ -3978,29 +3945,25 @@
       if (!c) return false;
       day.aljaziraVisiting = true;
       day.aljaziraPhase = 'walk_to';
-      day.aljaziraForceMood = mood === true ? 'bad' : mood === false ? 'neutral' : mood;
+      day.aljaziraForceMood = mood === false ? 'neutral' : mood;
       return true;
     },
-    saveProgress, loadSavedProgress, clearSavedProgress,
+    saveProgress, clearSavedProgress,
     say(owner, text, dur = 4) { say(owner, text, dur); },
     banterNow() { banterT = 0; updateBanter(0); updateBanter(2.1); return bubbles.map(b => b.owner); },
     get zones() { return WD.zones.map(z => z.id); },
     hideBanner() { banner = null; },
-    get planWarned() { return !!day.planWarned; },
     get ui() { return { UI, unitPx, compact: compactHud(), hudBottom: hudBottom(), bigText }; },
-    setBigText(v) { bigText = !!v; updateUiScale(); syncAudioButtons(); },
     chatPerk(id) { grantPerk(coworkers.find(c => c.id === id)); }, setSuspicion(v) { boss.suspicion = v; },
     get event() { return officeEvent; },
     get flags() { return { ...day }; },
     get coins() { return coins; },
     get owned() { return { ...owned }; },
-    get coworkers() { return coworkers.map(c => ({ id: c.id, away: c.away, slack: c.slack, extra: !!c.extra })); },
+    get coworkers() { return coworkers.map(c => ({ id: c.id, away: c.away, slack: c.slack })); },
     setClock(mins) { shiftTime = (mins - CFG.shiftStart) / (CFG.shiftEnd - CFG.shiftStart) * CFG.shiftSeconds; clockMinutes = mins; if (mins < CFG.lunchOpen && day.lunchAway) { day.lunchAway = false; coworkers.forEach(c => { c.away = !!c.remote; }); } },
     setCoins(v) { coins = v; store.set('coins', v); },
-    buyUpgrade, openShop, closeShop, startAutopilot, stopAutopilot,
-    get achievements() { return { ...achieved }; },
-    toggleAutopilot, answerStandup, get choice() { return choice && { ...choice }; }, get nudge() { return nudge && { ...nudge }; },
-    get majikArc() { return majikArc; },
+    buyUpgrade, startAutopilot, stopAutopilot,
+    get choice() { return choice && { ...choice }; },
     setUpgrades(o) { owned = { ...o }; },
     deskCheck() { finishDeskInspection(); },
     restart() { resetGame(); },
@@ -4010,13 +3973,12 @@
     finish(r) { finishGame(r); },
     clearEvents() { officeEvent = null; eventQueue = []; nextEvent = 999; nextBossCheck = 999; nudge = null; if (day) { day.coffeeQueueTimer = 0; day.coffeeQueueChecked = true; day.adhocDone = true; } },
     get onboarding() { return { open: onb.open, i: onb.i }; },
-    get auto() { return { on: auto.on, demo: auto.demo, goal: auto.goal && auto.goal.kind }; },
+    get auto() { return { on: auto.on, demo: auto.demo }; },
     setAutoSlow(v) { auto.slow = v; },
-    get timeScale() { return timeScale; }, setTimeScale, setDifficulty,
-    get difficulty() { return diffKey; },
+    setDifficulty,
     get diffConfig() { return DIFFICULTY; },
     get aljazira() { const c = coworkerById('aljazira'); return { x: c.x, y: c.y, visiting: !!day.aljaziraVisiting, phase: day.aljaziraPhase, disasterDone: !!day.aljaziraDisasterDone, walking: !!day.aljaziraVisiting && day.aljaziraPhase !== 'confront' }; },
-    get pee() { return { active: day.peeActive, pee: day.pee, left: day.peeLeft, at: day.peeAt }; },
+    get pee() { return { active: day.peeActive, pee: day.pee, left: day.peeLeft }; },
     forcePee(v = 5) { day.peeActive = true; day.pee = v; },
     forceSlack(id, kind = 'phone') { const c = coworkerById(id); c.slack = kind; c.slackTimer = 30; c.scoldCooldown = 0; c.alert = 0; },
     forceBeer() { day.beer = null; CFG.beerChance = 1; },

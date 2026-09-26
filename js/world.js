@@ -127,25 +127,25 @@
 
   // Интерактивные зоны (где должны стоять ноги Быкентия).
   const zones = [
-    { id: 'desk', type: 'desk', x: playerDesk.x + 4, y: FLOOR_TOP + 2, w: DESK_W - 8, h: ROW1_Y - FLOOR_TOP - 2, short: 'Твой стол' },
-    { id: 'coffee', type: 'coffee', x: 96, y: 150, w: 58, h: 30, short: 'Кофемашина' },
-    { id: 'fridge', type: 'fridge', x: 16, y: 172, w: 52, h: 36, short: 'Холодильник' },
-    { id: 'water', type: 'water', x: 180, y: 214, w: 26, h: 42, short: 'Кулер' },
-    { id: 'smoke', type: 'smoke', x: 800, y: 150, w: 140, h: 164, short: 'Курилка' },
-    { id: 'archive', type: 'archive', x: 50, y: 360, w: 40, h: 150, short: 'За шкафами' },
-    { id: 'printer', type: 'printer', x: 396, y: 440, w: 130, h: 32, short: 'Ксерокс' },
-    { id: 'server', type: 'server', x: 800, y: 402, w: 140, h: 68, short: 'Серверная' },
+    { id: 'desk', type: 'desk', x: playerDesk.x + 4, y: FLOOR_TOP + 2, w: DESK_W - 8, h: ROW1_Y - FLOOR_TOP - 2 },
+    { id: 'coffee', type: 'coffee', x: 96, y: 150, w: 58, h: 30 },
+    { id: 'fridge', type: 'fridge', x: 16, y: 172, w: 52, h: 36 },
+    { id: 'water', type: 'water', x: 180, y: 214, w: 26, h: 42 },
+    { id: 'smoke', type: 'smoke', x: 800, y: 150, w: 140, h: 164 },
+    { id: 'archive', type: 'archive', x: 50, y: 360, w: 40, h: 150 },
+    { id: 'printer', type: 'printer', x: 396, y: 440, w: 130, h: 32 },
+    { id: 'server', type: 'server', x: 800, y: 402, w: 140, h: 68 },
   ];
   zones.push(
-    { id: 'exit', type: 'exit', x: 16, y: 284, w: 46, h: 36, short: 'Выход' },
-    { id: 'toilet', type: 'toilet', x: 246, y: 508, w: 50, h: 18, short: 'Биотуалет' },
-    { id: 'complain', type: 'complain', x: 598, y: 372, w: 48, h: 28, short: 'Дверь Д.Н.' },
-    { id: 'standup', type: 'standup', x: 266, y: 404, w: 84, h: 32, short: 'Доска' },
+    { id: 'exit', type: 'exit', x: 16, y: 284, w: 46, h: 36 },
+    { id: 'toilet', type: 'toilet', x: 246, y: 508, w: 50, h: 18 },
+    { id: 'complain', type: 'complain', x: 598, y: 372, w: 48, h: 28 },
+    { id: 'standup', type: 'standup', x: 266, y: 404, w: 84, h: 32 },
   );
   people.filter(c => !c.statist).forEach(c => {
     zones.push({
       id: `chat_${c.id}`, type: 'chat', coworker: c.id,
-      x: c.desk.x - 4, y: c.desk.y + DESK_DEPTH, w: DESK_W + 8, h: 30, short: c.name,
+      x: c.desk.x - 4, y: c.desk.y + DESK_DEPTH, w: DESK_W + 8, h: 30,
     });
   });
 
@@ -168,7 +168,7 @@
     { x: 812, y: 216 }, { x: 870, y: 190 }, { x: 900, y: 240 }, { x: 772, y: 434 }, { x: 812, y: 434 }, { x: 880, y: 432 },
   ];
 
-  // Точки обхода (индексы навигационных узлов + описание для радара).
+  // Точки обхода (координаты + описание для радара).
   const patrolSpots = [
     { x: 520, y: 230, desc: 'опенспейс' },
     { x: 178, y: 300, desc: 'коридор' },
@@ -180,15 +180,15 @@
     { x: 676, y: 146, desc: 'окна' },
     { x: 364, y: 372, desc: 'второй ряд' },
   ];
-  const bossHome = { x: 706, y: 446, desc: 'кабинет' };
+  const bossHome = { x: 706, y: 446 };
   const exitDoor = { x: 40, y: 302 };       // дверь на лестницу: обед, пиво, эвакуация
   const toiletDoor = { x: 267, y: 518 };    // перед дверью биотуалета (кабинка x 248–286, y 446–508)
   const standupSpot = { x: 362, y: 420 };   // Д.Н. у доски на летучке
 
   window.NP_WORLD = {
     W, H, HUD_H, FLOOR_TOP, FLOOR_BOTTOM, LEFT, RIGHT,
-    DESK_W, DESK_DEPTH, ROW1_Y, ROW2_Y,
-    walls, furniture, colliders, desks, playerDesk, coworkers, extras, people, plants, zones,
+    DESK_W, DESK_DEPTH, ROW1_Y,
+    walls, colliders, desks, playerDesk, coworkers, people, plants, zones,
     navNodes, patrolSpots, bossHome, exitDoor, toiletDoor, standupSpot,
   };
 })();
