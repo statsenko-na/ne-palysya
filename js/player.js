@@ -29,6 +29,7 @@
       player.coffeeBoost = Math.max(0, player.coffeeBoost - dt);
       player.speed = CFG.playerSpeed * (player.coffeeBoost > 0 ? CFG.coffeeBoost : 1);
     }
+    const movementSpeed = player.speed * (day.hungry ? 0.9 : 1) * (day.peeActive && day.pee >= 100 ? CFG.peeCriticalSpeed : 1);
     player.bumpCooldown = Math.max(0, player.bumpCooldown - dt);
 
     player.moving = false;
@@ -44,7 +45,7 @@
       const len = Math.hypot(dx, dy);
       dx /= len; dy /= len;
       if (Math.abs(dx) > 0.05) player.facingX = dx < 0 ? -1 : 1;
-      const hit = moveWithCollision(player, dx * player.speed * (day.hungry ? 0.9 : 1) * dt, dy * player.speed * (day.hungry ? 0.9 : 1) * dt, player.r);
+      const hit = moveWithCollision(player, dx * movementSpeed * dt, dy * movementSpeed * dt, player.r);
       if (hit && player.bumpCooldown <= 0) { playSound('bump'); player.bumpCooldown = 0.35; }
       player.walkTimer += dt * (player.coffeeBoost > 0 ? 11 : 8);
       player.moving = true;
@@ -73,7 +74,7 @@
       if (tgt) {
         const d = Math.hypot(tgt.x - player.x, tgt.y - player.y);
         if (d > 1) {
-          const step = Math.min(d, CFG.playerSpeed * 0.8 * dt);
+          const step = Math.min(d, movementSpeed * 0.8 * dt);
           player.x += (tgt.x - player.x) / d * step; player.y += (tgt.y - player.y) / d * step;
           player.facingX = tgt.x < player.x ? -1 : 1;
           player.moving = true; player.walkTimer += dt * 8;

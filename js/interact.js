@@ -38,8 +38,9 @@
     if (!day.peeActive) {
       if (day.peeLeft > 0 && clockMinutes >= day.peeAt && player.action !== 'toilet' && player.action !== 'queue') {
         day.peeActive = true; day.pee = 5; day.peeLeft--;
+        day.peeCriticalTold = false;
         say('player', pick(LINES.pee.start), 2.8);
-        hint('pee', 'Быкентию приспичило! Дойди до синего биотуалета (юго-запад), пока шкала 🚽 не дошла до 100%.');
+        hint('pee', 'Быкентию приспичило! Дойди до синего биотуалета. На 100% шаг замедлится, кайф начнёт уходить.');
       }
       return;
     }
@@ -48,13 +49,13 @@
     day.pee = Math.min(100, day.pee + CFG.peeRise * dt * (player.action === 'queue' ? 0.5 : 1) * (player.coffeeBoost > 0 ? 1.3 : 1));
     if (before < 70 && day.pee >= 70) say('player', pick(LINES.pee.urgent), 2.6);
     if (day.pee >= 100) {
-      day.peeActive = false; day.pee = 0;
-      addFun(-CFG.peeFail);
-      flash = 0.5; shake = 0.4; playSound('caught');
-      say('player', pick(LINES.pee.fail), 3.4);
-      banner = { text: 'НЕ ДОТЕРПЕЛ', sub: `Пришлось бежать в соседний БЦ. −${CFG.peeFail} кайфа`, t: 0, bad: true };
-      addLog(`🚽 Не дотерпел до биотуалета. −${CFG.peeFail} кайфа и немного достоинства.`, 'bad');
-      schedulePee();
+      day.pee = 100;
+      const drain = player.action === 'queue' ? CFG.peeQueueDrain : CFG.peeCriticalDrain;
+      addFun(-drain * dt);
+      if (!day.peeCriticalTold) {
+        day.peeCriticalTold = true;
+        toast(LINES.pee.critical, 3.6);
+      }
     }
   }
   function schedulePee() {
@@ -159,16 +160,18 @@
       toast('Ушёл из очереди. Место заняли.', 1.6);
     }
     if (a === 'toilet') {
-      stats.toilet++;
-      day.toiletCd = CFG.toiletCooldown;
-      playSound('flush');
-      day.cabinDoor = 0.8;
       player.x = WD.toiletDoor.x; player.y = WD.toiletDoor.y;
-      if (day.peeActive) {
-        day.peeActive = false; day.pee = 0; addFun(4); schedulePee();
-        floater(player.x, player.y - 64, 'ПОЛЕГЧАЛО! +4 КАЙФ', '#8fd0f0');
-        scheduleShiftCallback(() => { if (mode === 'playing') say('player', pick(LINES.pee.relief), 2.8); }, 300);
-      } else floater(player.x, player.y - 64, 'ПОЛЕГЧАЛО', '#8fd0f0');
+      if (reason === 'done') {
+        stats.toilet++;
+        day.toiletCd = CFG.toiletCooldown;
+        playSound('flush');
+        day.cabinDoor = 0.8;
+        if (day.peeActive) {
+          day.peeActive = false; day.pee = 0; day.peeCriticalTold = false; addFun(4); schedulePee();
+          floater(player.x, player.y - 64, 'ПОЛЕГЧАЛО! +4 КАЙФ', '#8fd0f0');
+          scheduleShiftCallback(() => { if (mode === 'playing') say('player', pick(LINES.pee.relief), 2.8); }, 300);
+        } else floater(player.x, player.y - 64, 'ПОЛЕГЧАЛО', '#8fd0f0');
+      } else day.cabinDoor = 0.6;
     }
     if (a === 'lunch' && reason === 'done') {
       day.fed = true; day.hungry = false; stats.lunch++;

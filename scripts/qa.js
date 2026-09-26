@@ -623,7 +623,7 @@ const { loadPlaywright } = require('./pw');
   });
   check('сверхурочные: 30 с после плана снимают выговор, раз в смену', otThreshold.midRep === 1 && otThreshold.midWork > 5 && otThreshold.endRep === 0 && otThreshold.endWRep === 0 && otThreshold.secondRep === 1, JSON.stringify(otThreshold));
 
-  // Приспичило: шкала растёт, туалет снимает, не дотерпел — минус кайф
+  // Приспичило: критическое состояние остаётся активным до завершённого туалета
   const pee = await page.evaluate(() => {
     NP_DEBUG.setDay(2); NP_DEBUG.clearSavedProgress(); NP_DEBUG.restart(); NP_DEBUG.clearEvents(); NP_DEBUG.hideBanner();
     NP_DEBUG.setBoss(706, 446, 'office');
@@ -631,11 +631,11 @@ const { loadPlaywright } = require('./pw');
     NP_DEBUG.forcePee(10); NP_DEBUG.teleport(470, 260); NP_DEBUG.skip(5);
     const rose = NP_DEBUG.pee.pee;
     NP_DEBUG.set({ fun: 50 }); NP_DEBUG.forcePee(99); NP_DEBUG.skip(1);
-    const failFun = NP_DEBUG.state.fun, afterFail = NP_DEBUG.pee.active;
+    const criticalFun = NP_DEBUG.state.fun, criticalPee = NP_DEBUG.pee.pee, criticalActive = NP_DEBUG.pee.active;
     NP_DEBUG.forcePee(40); NP_DEBUG.teleport(267, 518); NP_DEBUG.interact(); NP_DEBUG.skip(20);
-    return { plan, rose, failFun, afterFail, relieved: !NP_DEBUG.pee.active };
+    return { plan, rose, criticalFun, criticalPee, criticalActive, relieved: !NP_DEBUG.pee.active };
   });
-  check('приспичило: 2–3 раза, шкала растёт, туалет снимает, конфуз −15 кайфа', pee.plan >= 2 && pee.plan <= 3 && pee.rose > 15 && pee.failFun === 35 && !pee.afterFail && pee.relieved, JSON.stringify(pee));
+  check('приспичило: 2–3 раза, шкала растёт, 100% держится до завершённого туалета', pee.plan >= 2 && pee.plan <= 3 && pee.rose > 15 && Math.abs(pee.criticalFun - 49.73) < 0.01 && pee.criticalPee === 100 && pee.criticalActive && pee.relieved, JSON.stringify(pee));
 
   // Сохранение: флаги дня, список дел и счётчики восстанавливаются
   const sv = await page.evaluate(() => {
