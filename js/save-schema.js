@@ -5,6 +5,7 @@ const SAVE_SCHEMA_VERSION = 3;
 const SAVE_SCHEMA_EVENTS = new Set(['food', 'call', 'internet', 'jam', 'bday', 'heat', 'noise', 'drill', 'standup', 'majik', 'arrfr', 'sb', 'autoshka']);
 const SAVE_SCHEMA_NPCS = new Set(['aimashyn', 'hlad', 'shurik', 'bleb', 'sirgey', 'asel', 'aljazira', 'stazy', 'tigran']);
 const SAVE_SCHEMA_EXTENSIONS = new Set(['moments', 'relationships', 'activities', 'distractions', 'disguise', 'equipment', 'bossMemory', 'yogurt', 'weekScenario', 'weekOutcomes', 'phone', 'daily', 'groupSmoke']);
+const SAVE_SCHEMA_EXTENSION_ERROR_KEYS = new Set([...SAVE_SCHEMA_EXTENSIONS, '$root']);
 const SAVE_SCHEMA_DAY_FIELDS = [
   'misses', 'lunchCalled', 'lunchOpen', 'fed', 'hungry', 'bossLunch', 'beer', 'toiletCd', 'queue', 'queueTotal',
   'qShift', 'knock', 'cabinDoor', 'npcInside', 'npcTimer', 'waterCups', 'waterRecharge', 'coffeeCups',
@@ -12,7 +13,7 @@ const SAVE_SCHEMA_DAY_FIELDS = [
   'overtimeUsed', 'overworkT', 'adhocDone', 'adhocAt', 'aljaziraTimer', 'aljaziraVisiting', 'aljaziraDisasterAt',
   'aljaziraDisasterDone', 'aljaziraPhase', 'aljaziraPhaseTimer', 'aljaziraForceMood', 'lastSavedMinute', 'pee',
   'peeActive', 'peeLeft', 'peeAt', 'peeCriticalTold', 'vilka', 'smog', 'traffic', 'lunchAway', 'dish',
-  'majikFail', 'hideCd', 'planWarned', 'recoveryGraceUsed',
+  'majikFail', 'hideCd', 'planWarned', 'recoveryGraceUsed', 'drillAwayTimer', 'drillAwayIndex', 'lunchAwayTimer', 'lunchAwayIndex', 'beerAwayTimer', 'beerAwayIndex',
 ];
 const SAVE_SCHEMA_PLAYER_FIELDS = [
   'x', 'y', 'speed', 'action', 'actionTimer', 'actionTotal', 'facingX', 'walkTimer', 'moving', 'coffeeBoost',
@@ -23,11 +24,11 @@ const SAVE_SCHEMA_BOSS_FIELDS = [
   'catchCooldown', 'quoteTimer', 'praiseTimer', 'lookTimer', 'inspectTimer', 'visitedSpots', 'warned',
   'alarm', 'caught', 'coworker', 'emptyDesk', 'gaveUp', 'heat', 'inspectAge', 'lunchBack', 'noise',
   'office', 'patrol', 'praise', 'scold', 'scoldTarget', 'seesPlayer', 'silentCheck', 'snus', 'snusCd',
-  'standupTalk', 'stroll', 'suspicious', 'waitT', 'watchingWork', 'outTimer', 'outWhy', 'routeTarget',
+  'standupTalk', 'stroll', 'suspicious', 'waitT', 'watchingWork', 'outTimer', 'outWhy', 'path',
 ];
 const SAVE_SCHEMA_COWORKER_FIELDS = [
   'id', 'x', 'y', 'cooldown', 'talkTimer', 'idleTimer', 'alert', 'remote', 'away', 'slack', 'slackTimer',
-  'scoldCooldown', 'rocketAt', 'draftCd',
+  'scoldCooldown', 'rocketAt', 'draftCd', 'path',
 ];
 const SAVE_SCHEMA_STATS_FIELDS = [
   'coffees', 'cigarettes', 'videos', 'fridge', 'chats', 'catches', 'inspectPass', 'praise', 'plantHideInspect',
@@ -39,7 +40,7 @@ const SAVE_SCHEMA_TIMER_KEYS = new Set([
   'bumpCooldown', 'hideT', 'cooldown', 'talkTimer', 'idleTimer', 'slackTimer', 'scoldCooldown', 'stateTimer',
   'catchCooldown', 'quoteTimer', 'praiseTimer', 'lookTimer', 'inspectTimer', 'inspectAge', 'snus', 'snusCd',
   'waitT', 'outTimer', 'toiletCd', 'waterRecharge', 'coffeeQueueTimer', 'overtimeWork', 'overworkT', 'aljaziraTimer',
-  'aljaziraPhaseTimer', 'peeAt', 'peeLeft', 'peeCriticalTimer', 'hideCd', 'banterT', 'remaining', 'expiresIn',
+  'aljaziraPhaseTimer', 'peeAt', 'peeLeft', 'peeCriticalTimer', 'hideCd', 'banterT', 'drillAwayTimer', 'lunchAwayTimer', 'beerAwayTimer', 'remaining', 'expiresIn',
 ]);
 
 function saveSchemaIsRecord(value) {
@@ -94,6 +95,19 @@ function saveSchemaPoint(point) {
   return saveSchemaPick(point, ['x', 'y', 'id', 'label']);
 }
 
+function saveSchemaPath(path) {
+  if (path == null) return { ok: true, value: null };
+  if (!Array.isArray(path) || path.length > 100) return { ok: false, reason: 'invalid_path' };
+  const out = [];
+  for (const point of path) {
+    const picked = saveSchemaPick(point, ['x', 'y']);
+    if (!picked.ok) return picked;
+    if (!Number.isFinite(picked.value.x) || !Number.isFinite(picked.value.y)) return { ok: false, reason: 'invalid_path_point' };
+    out.push(picked.value);
+  }
+  return { ok: true, value: out };
+}
+
 function saveSchemaDay(day) {
   const picked = saveSchemaPick(day, SAVE_SCHEMA_DAY_FIELDS);
   if (!picked.ok) return picked;
@@ -119,10 +133,10 @@ function saveSchemaPlayer(player) {
 function saveSchemaBoss(boss) {
   const picked = saveSchemaPick(boss, SAVE_SCHEMA_BOSS_FIELDS);
   if (!picked.ok) return picked;
-  if (picked.value.routeTarget !== undefined) {
-    const point = saveSchemaPoint(picked.value.routeTarget);
-    if (!point.ok) return point;
-    picked.value.routeTarget = point.value;
+  if (picked.value.path !== undefined) {
+    const path = saveSchemaPath(picked.value.path);
+    if (!path.ok) return path;
+    picked.value.path = path.value;
   }
   return { ok: true, value: picked.value };
 }
@@ -137,6 +151,11 @@ function saveSchemaCoworkers(coworkers) {
     const id = picked.value.id;
     if (!SAVE_SCHEMA_NPCS.has(id) || ids.has(id)) return { ok: false, reason: 'invalid_coworker_id' };
     ids.add(id);
+    if (picked.value.path !== undefined) {
+      const path = saveSchemaPath(picked.value.path);
+      if (!path.ok) return path;
+      picked.value.path = path.value;
+    }
     out.push(picked.value);
   }
   return { ok: true, value: out };
@@ -205,14 +224,26 @@ function saveSchemaRequiredEvent(event) {
 }
 
 function saveSchemaExtensions(extensions) {
-  if (extensions == null) return { ok: true, value: {} };
-  if (!saveSchemaIsRecord(extensions)) return { ok: false, reason: 'invalid_extensions' };
+  const errors = {};
+  if (extensions == null) return { ok: true, value: {}, errors };
+  if (!saveSchemaIsRecord(extensions)) return { ok: true, value: {}, errors: { $root: 'invalid_extensions' } };
   const out = {};
   for (const key of Object.keys(extensions)) {
     if (!SAVE_SCHEMA_EXTENSIONS.has(key)) continue;
     const cloned = saveSchemaCloneJson(extensions[key]);
-    if (!cloned.ok) return cloned;
-    out[key] = cloned.value;
+    if (cloned.ok) out[key] = cloned.value;
+    else errors[key] = cloned.reason || 'invalid_extension_state';
+  }
+  return { ok: true, value: out, errors };
+}
+
+function saveSchemaExtensionErrors(errors) {
+  if (errors == null) return { ok: true, value: {} };
+  if (!saveSchemaIsRecord(errors)) return { ok: true, value: { $root: 'invalid_extension_errors' } };
+  const out = {};
+  for (const [key, reason] of Object.entries(errors)) {
+    if (!SAVE_SCHEMA_EXTENSION_ERROR_KEYS.has(key) || typeof reason !== 'string' || reason.length > 80) continue;
+    out[key] = reason;
   }
   return { ok: true, value: out };
 }
@@ -220,7 +251,7 @@ function saveSchemaExtensions(extensions) {
 function saveSchemaProject(source) {
   if (!saveSchemaIsRecord(source)) return { ok: false, reason: 'invalid_source' };
   const out = { v: SAVE_SCHEMA_VERSION };
-  const direct = ['shiftId', 'dayIndex', 'diffKey', 'clockMinutes', 'usefulness', 'fun', 'reprimands', 'weekReprimands', 'planTarget', 'majikArc', 'rngSeed', 'nextBossCheck', 'intelTimer', 'coverTokens', 'phoneSafe', 'nextDrill', 'eventQueue', 'nextEvent', 'choice', 'banner', 'tutorial', 'nudge', 'banterT', 'autoUsed', 'recoveryGraceUsed', 'migratedFromV2'];
+  const direct = ['shiftId', 'dayIndex', 'diffKey', 'clockMinutes', 'usefulness', 'fun', 'reprimands', 'weekReprimands', 'planTarget', 'majikArc', 'rngSeed', 'nextBossCheck', 'intelTimer', 'coverTokens', 'phoneSafe', 'nextDrill', 'eventQueue', 'nextEvent', 'choice', 'banner', 'tutorial', 'nudge', 'banterT', 'autoUsed', 'recoveryGraceUsed', 'migratedFromV2', 'demo'];
   const fields = {
     day: saveSchemaDay,
     player: saveSchemaPlayer,
@@ -231,7 +262,6 @@ function saveSchemaProject(source) {
     officeEvent: saveSchemaOfficeEvent,
     requiredEvent: saveSchemaRequiredEvent,
     actionChoice: saveSchemaActionChoice,
-    extensions: saveSchemaExtensions,
   };
   for (const key of direct) {
     if (!Object.prototype.hasOwnProperty.call(source, key) || source[key] === undefined) continue;
@@ -245,7 +275,12 @@ function saveSchemaProject(source) {
     if (!projected.ok) return projected;
     out[key] = projected.value;
   }
-  if (!Object.prototype.hasOwnProperty.call(out, 'extensions')) out.extensions = {};
+  const extensions = saveSchemaExtensions(source.extensions);
+  if (!extensions.ok) return extensions;
+  const extensionErrors = saveSchemaExtensionErrors(source.extensionErrors);
+  if (!extensionErrors.ok) return extensionErrors;
+  out.extensions = extensions.value;
+  out.extensionErrors = { ...extensionErrors.value, ...extensions.errors };
   if (!Object.prototype.hasOwnProperty.call(out, 'actionChoice')) out.actionChoice = null;
   return { ok: true, value: out };
 }
@@ -271,10 +306,10 @@ function saveSchemaClampTimers(value) {
   return out;
 }
 
-function saveSchemaValidateCandidate(candidate) {
+function saveSchemaValidateCandidate(candidate, allowMigratedV2 = false) {
   const root = candidate.value;
   if (root.v !== SAVE_SCHEMA_VERSION) return { ok: false, reason: 'unsupported_version' };
-  const migrated = root.migratedFromV2 === true;
+  const migrated = allowMigratedV2 && root.migratedFromV2 === true;
   if (!Number.isInteger(root.dayIndex) || root.dayIndex < 0 || root.dayIndex > 4) return { ok: false, reason: 'invalid_day_index' };
   if (!['easy', 'normal', 'hard'].includes(root.diffKey)) return { ok: false, reason: 'invalid_difficulty' };
   if (typeof root.clockMinutes !== 'number' || !Number.isFinite(root.clockMinutes) || root.clockMinutes < 0 || root.clockMinutes > 1440) return { ok: false, reason: 'invalid_clock' };
@@ -285,17 +320,19 @@ function saveSchemaValidateCandidate(candidate) {
   }
   if (typeof root.majikArc !== 'number' || !Number.isFinite(root.majikArc) || Math.abs(root.majikArc) > 100) return { ok: false, reason: 'invalid_majik_arc' };
   if (typeof root.shiftId !== 'string' || root.shiftId.length < 1 || root.shiftId.length > 96) return { ok: false, reason: 'invalid_shift_id' };
-  if (root.rngSeed !== undefined && (!Number.isInteger(root.rngSeed) || root.rngSeed < 0 || root.rngSeed >= 233280)) return { ok: false, reason: 'invalid_rng_seed' };
+  if ((!migrated && !Number.isInteger(root.rngSeed)) || (root.rngSeed !== undefined && (!Number.isInteger(root.rngSeed) || root.rngSeed < 0 || root.rngSeed >= 233280))) return { ok: false, reason: 'invalid_rng_seed' };
+  if (!migrated && (!Array.isArray(root.eventQueue) || typeof root.nextBossCheck !== 'number' || !Number.isFinite(root.nextBossCheck) || root.nextBossCheck < 0)) return { ok: false, reason: 'missing_event_runtime' };
   if (root.eventQueue !== undefined && (!Array.isArray(root.eventQueue) || root.eventQueue.length > 32 || root.eventQueue.some(id => !SAVE_SCHEMA_EVENTS.has(id)))) return { ok: false, reason: 'unknown_event_id' };
   if (root.officeEvent && !SAVE_SCHEMA_EVENTS.has(root.officeEvent.id)) return { ok: false, reason: 'unknown_event_id' };
   if (!migrated && (!root.day || !root.player || !root.boss || !Array.isArray(root.coworkers) || !root.stats || !Array.isArray(root.todo))) return { ok: false, reason: 'missing_runtime_state' };
   if (root.day && !saveSchemaIsRecord(root.day)) return { ok: false, reason: 'invalid_day_state' };
   if (!migrated && root.player && (typeof root.player.action !== 'string' || !Number.isFinite(root.player.x) || !Number.isFinite(root.player.y))) return { ok: false, reason: 'invalid_player_state' };
   if (root.stats && !saveSchemaIsRecord(root.stats)) return { ok: false, reason: 'invalid_stats' };
-  if (root.nextEvent !== undefined && (typeof root.nextEvent !== 'number' || !Number.isFinite(root.nextEvent) || root.nextEvent < 0)) return { ok: false, reason: 'invalid_event_timer' };
+  if ((!migrated && root.nextEvent === undefined) || (root.nextEvent !== undefined && (typeof root.nextEvent !== 'number' || !Number.isFinite(root.nextEvent) || root.nextEvent < 0))) return { ok: false, reason: 'invalid_event_timer' };
   if (saveSchemaNegativeTimer(root)) return { ok: false, reason: 'negative_timer' };
   if (root.autoUsed !== undefined && typeof root.autoUsed !== 'boolean') return { ok: false, reason: 'invalid_auto_used' };
   if (root.recoveryGraceUsed !== undefined && typeof root.recoveryGraceUsed !== 'boolean') return { ok: false, reason: 'invalid_recovery_grace' };
+  if (root.demo !== undefined && typeof root.demo !== 'boolean') return { ok: false, reason: 'invalid_demo_flag' };
   return { ok: true, snapshot: root };
 }
 
@@ -335,8 +372,12 @@ function migrateSaveV2(raw) {
     officeEvent: old.officeEvent || null,
     migratedFromV2: true,
     recoveryGraceUsed: true,
+    demo: false,
     actionChoice: null,
     extensions: {},
   };
-  return validateSaveSnapshot(migrated);
+  const candidate = saveSchemaProject(migrated);
+  if (!candidate.ok) return candidate;
+  candidate.value = saveSchemaClampTimers(candidate.value);
+  return saveSchemaValidateCandidate(candidate, true);
 }

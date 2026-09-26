@@ -85,7 +85,7 @@
     if (coverTokens > 0) {
       coverTokens = 0;
       say('aimashyn', 'Директор Начальникович, он по моему поручению!', 3, '#ffd4c8');
-      setTimeout(() => { if (mode === 'playing') say('boss', 'Ну... ладно. Смотрите мне!', 2.6); }, 1200);
+      scheduleShiftCallback(() => { if (mode === 'playing') say('boss', 'Ну... ладно. Смотрите мне!', 2.6); }, 1200);
       addLog(`Аймашын отмазал Быкентия: «${short}» не засчитан.`, 'good');
       toast(`🛡 Аймашын прикрыл! Выговор за «${short}» не дали.`, 3);
       return false;
@@ -274,7 +274,7 @@
         boss.facing = -Math.PI / 2;
         if (playerIsWorking()) {
           say('player', pick(LINES.excuses), 2.6);
-          setTimeout(() => { if (mode === 'playing') say('boss', 'Ну-ну. Работай давай.', 2.2); }, 1300);
+          scheduleShiftCallback(() => { if (mode === 'playing') say('boss', 'Ну-ну. Работай давай.', 2.2); }, 1300);
           addLog('Быкентий успел к столу и отмазался.', 'info');
           endInspection();
           nextBossCheck *= 0.7; // Д.Н. насторожился — следующая проверка раньше
@@ -321,7 +321,7 @@
           boss.inspectTimer = 3.4;
           if (c) {
             say('boss', pick(LINES.boss.scold[c.id]), 3.2);
-            setTimeout(() => { if (mode === 'playing') say(c.id, pick(['Я работаю! Честно!', 'Это для отчёта!', 'Я на созвоне!', 'Уже убрал!']), 2.4, '#ffd4c8'); }, 1500);
+            scheduleShiftCallback(() => { if (mode === 'playing') say(c.id, pick(['Я работаю! Честно!', 'Это для отчёта!', 'Я на созвоне!', 'Уже убрал!']), 2.4, '#ffd4c8'); }, 1500);
             c.slack = null; c.slackTimer = 14 + rand() * 10; c.scoldCooldown = 45;
             stats.scolds++;
             addLog(`Д.Н. отчитывает: ${c.name}. У Быкентия — окно.`, 'good');

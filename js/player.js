@@ -380,7 +380,11 @@
       [stats.praise, 'похвал Д.Н.'],
     ].map(s => `<div class="end-stat"><b>${s[0]}</b><span>${s[1]}</span></div>`).join('');
     playSound(win ? 'success' : 'caught');
-    if (auto.on) { clearTimeout(auto.restartTimer); auto.restartTimer = setTimeout(() => { if (auto.on && mode === 'ended') startAutopilot(); }, 7000); }
+    if (auto.on) {
+      clearTimeout(auto.restartTimer);
+      const endedShiftId = shiftId;
+      auto.restartTimer = setTimeout(() => { if (shiftId === endedShiftId && auto.on && mode === 'ended') startAutopilot(); }, 7000);
+    }
     addLog(win ? '19:30 — смена окончена. Свобода!' : 'Трудовой договор расторгнут.', win ? 'good' : 'bad');
     // Недельный лимит исчерпан: переигровка дня увольняла бы сразу — неделя начинается заново
     if (!win && weekReprimands >= wMax) {

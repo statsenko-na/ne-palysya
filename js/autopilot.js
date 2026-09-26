@@ -148,6 +148,7 @@
     if (mode !== 'playing') return false;
     playSound('click');
     if (auto.on) { stopAutopilot('Управление у тебя. Автопилот выключен.'); return false; }
+    autoUsed = true;
     auto.on = true; auto.demo = false; auto.goal = null; auto.path = []; auto.reactAt = null;
     keys.clear();
     toast('🍿 Автопилот включён: откинься и смотри. WASD или O — взять управление.', 3);

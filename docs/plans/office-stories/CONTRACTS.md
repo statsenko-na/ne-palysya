@@ -29,6 +29,7 @@
 Карточки 01/02 владеют форматом snapshot, shiftId/runId, восстановлением RNG и extensions.
 Один shiftId используется как runId рекорда. Новая попытка создаёт новый id; reload сохраняет его.
 extensions: moments, relationships, activities, distractions, disguise, equipment, bossMemory, yogurt, weekScenario, weekOutcomes, phone, daily, groupSmoke. Каждое поле подключает владелец фичи, до этого default отсутствует.
+Невалидное JSON-состояние одного известного extension не отклоняет снимок смены: сериализатор пропускает только это поле и записывает причину в `extensionErrors[id]`. Адаптер загружает безопасный default для отсутствующего поля и читает причину через `saveExtensionErrors[id]`; `clearSaveExtensionError(id)` удаляет запись после обработки. Неизвестные extension id игнорируются.
 Локальные records, ownedEquipment, loadout, playerName и настройки — отдельные постоянные ключи store, не вложенные в day.
 Вложенные структуры нельзя молча добавить в day: текущий DAY_SKIP/сбор dayFlags сохраняет только примитивы.
 

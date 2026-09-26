@@ -54,43 +54,132 @@
   const today = () => DAYS[dayIndex];
   const unlocked = f => store.get('weekDone', false) || dayIndex >= (UNLOCK[f] || 0);
 
-  // Автосохранение смены: день, счётчики, флаги дня (примитивы), список дел, статистика, событие
-  const SAVE_VERSION = 2;
-  const DAY_SKIP = new Set(['queue', 'queueTotal', 'qShift', 'knock', 'cabinDoor', 'npcInside', 'npcTimer', 'aljaziraVisiting', 'aljaziraPhase', 'aljaziraPhaseTimer', 'coffeeQueueTimer', 'lastSavedMinute', 'traffic']);
-  function saveProgress() {
-    if ((mode !== 'playing' && mode !== 'paused') || (auto.on && auto.demo)) return;
-    const dayFlags = {};
-    for (const [k, v] of Object.entries(day || {})) if (!DAY_SKIP.has(k) && ['number', 'boolean', 'string'].includes(typeof v)) dayFlags[k] = v;
-    store.set('currentSave', {
-      v: SAVE_VERSION, dayIndex, diffKey, clockMinutes, usefulness, fun, reprimands, weekReprimands, planTarget, majikArc,
-      day: dayFlags,
-      todo: todo.map(t => ({ ...t })),
-      stats: { ...stats, chatted: Array.from(stats.chatted || []) },
-      officeEvent: officeEvent ? { id: officeEvent.id, t: officeEvent.t, used: !!officeEvent.used } : null,
-    });
+  // Идентификатор живёт одну смену; отложенные callbacks сверяются с ним перед изменением игры.
+  let shiftId = '';
+  let shiftSequence = 0;
+  let autoUsed = false;
+  let recoveryGraceUsed = false;
+  let lastLoadResult = { status: 'new', reason: null };
+  let requiredEvent = null;
+  let actionChoiceState = null;
+  let saveExtensions = {};
+  let saveExtensionErrors = {};
+  function createShiftId() {
+    shiftSequence++;
+    return `shift-${Date.now().toString(36)}-${shiftSequence.toString(36)}-${rngSeed.toString(36)}`;
   }
+  function scheduleShiftCallback(callback, delayMs) {
+    const expectedShiftId = shiftId;
+    return setTimeout(() => {
+      if (shiftId !== expectedShiftId || mode !== 'playing') return;
+      callback();
+    }, delayMs);
+  }
+
+  function saveProgress() {
+    if ((mode !== 'playing' && mode !== 'paused') || (auto.on && auto.demo)) return { ok: false, reason: 'save_unavailable' };
+    const result = makeSaveSnapshot({
+      shiftId, dayIndex, diffKey, clockMinutes, usefulness, fun, reprimands, weekReprimands, planTarget, majikArc, rngSeed,
+      day, player, boss, coworkers, nextBossCheck, intelTimer, coverTokens, phoneSafe, nextDrill, todo,
+      stats: { ...stats, chatted: Array.from(stats.chatted || []) }, officeEvent, eventQueue, nextEvent, requiredEvent,
+      choice, actionChoice: actionChoiceState, banner, tutorial, nudge, banterT, autoUsed, demo: !!auto.demo,
+      recoveryGraceUsed, extensions: saveExtensions, extensionErrors: saveExtensionErrors,
+    });
+    if (!result.ok) return result;
+    saveExtensionErrors = { ...result.snapshot.extensionErrors };
+    store.set('currentSave', result.snapshot);
+    return result;
+  }
+
+  function clearSaveExtensionError(key) {
+    if (!Object.prototype.hasOwnProperty.call(saveExtensionErrors, key)) return false;
+    delete saveExtensionErrors[key];
+    return true;
+  }
+
+  function restoreSavedTodos(saved, useCurrentWhenEmpty = false) {
+    const restored = (saved || []).map(t => {
+      const definition = LINES.dayTasks.find(q => q.id === t.id);
+      return definition && { ...definition, done: !!t.done, day: true };
+    }).filter(Boolean);
+    if (restored.length || !useCurrentWhenEmpty) todo = restored;
+  }
+
   function loadSavedProgress() {
-    const s = store.get('currentSave', null);
-    if (!s || s.v !== SAVE_VERSION || s.dayIndex !== dayIndex || s.diffKey !== diffKey || auto.on) return false;
+    const raw = store.get('currentSave', null);
+    if (!raw) return { status: 'new', reason: null };
+    let checked;
+    let migrated = false;
+    if (raw.v === 2) {
+      checked = migrateSaveV2(raw);
+      migrated = true;
+    } else if (raw.v === 3) checked = validateSaveSnapshot(raw);
+    else return { status: 'new', reason: 'unsupported_version' };
+    if (!checked.ok) return { status: 'new', reason: checked.reason };
+    const s = checked.snapshot;
+    if (s.dayIndex !== dayIndex || s.diffKey !== diffKey) return { status: 'new', reason: 'context_mismatch' };
+    if (auto.on) return { status: 'new', reason: 'autopilot' };
+
     clockMinutes = s.clockMinutes;
     shiftTime = ((clockMinutes - CFG.shiftStart) / (CFG.shiftEnd - CFG.shiftStart)) * CFG.shiftSeconds;
     usefulness = s.usefulness;
-    fun = Math.min(100, Math.max(0, s.fun || 0));
+    fun = s.fun;
     reprimands = s.reprimands;
     weekReprimands = s.weekReprimands; store.set('weekReprimands', weekReprimands);
-    planTarget = s.planTarget || planTarget;
-    majikArc = s.majikArc | 0;
+    planTarget = s.planTarget;
+    majikArc = s.majikArc;
     Object.assign(day, s.day || {});
-    // Список дел — из актуальных задач дня; из сохранения берём только отметки «сделано»
-    if (Array.isArray(s.todo) && s.todo.length) {
-      const saved = s.todo.map(t => { const d = LINES.dayTasks.find(q => q.id === t.id); return d && { ...d, done: !!t.done, day: true }; }).filter(Boolean);
-      if (saved.length) todo = saved;
-    }
+    restoreSavedTodos(s.todo, migrated);
     if (s.stats) { Object.assign(stats, s.stats); stats.chatted = new Set(s.stats.chatted || []); }
     officeEvent = s.officeEvent && EVENTS[s.officeEvent.id] ? { ...EVENTS[s.officeEvent.id], ...s.officeEvent } : null;
-    // Прошедшее время: первая проверка и событие — не мгновенно после загрузки
-    nextBossCheck = Math.max(nextBossCheck, 20);
-    return true;
+    requiredEvent = s.requiredEvent || null;
+
+    if (migrated) {
+      shiftId = createShiftId();
+      recoveryGraceUsed = true;
+      nextBossCheck = Math.max(nextBossCheck, 20);
+      player.x = SEAT.x; player.y = SEAT.y; player.action = 'none'; player.actionTimer = 0; player.actionTotal = 0;
+      player.queueTarget = null; player.chatWith = null; player.hideSpot = null;
+      if (day.lunchAway) coworkers.forEach(c => { if (!c.ghost) c.away = true; });
+      return { status: 'migrated', reason: null };
+    }
+
+    shiftId = s.shiftId;
+    rngSeed = s.rngSeed;
+    autoUsed = !!s.autoUsed;
+    recoveryGraceUsed = !!s.recoveryGraceUsed;
+    auto.demo = !!s.demo;
+    nextBossCheck = s.nextBossCheck;
+    intelTimer = s.intelTimer || 0;
+    coverTokens = s.coverTokens || 0;
+    phoneSafe = s.phoneSafe || 0;
+    nextDrill = s.nextDrill || 0;
+    eventQueue = s.eventQueue.slice();
+    nextEvent = s.nextEvent;
+    choice = s.choice || null;
+    actionChoiceState = s.actionChoice || null;
+    banner = s.banner || null;
+    tutorial = s.tutorial || tutorial;
+    nudge = s.nudge || null;
+    banterT = s.banterT || 0;
+    saveExtensions = s.extensions || {};
+    saveExtensionErrors = s.extensionErrors || {};
+    Object.assign(player, s.player);
+    Object.assign(boss, s.boss);
+    coworkers.forEach(c => {
+      const saved = s.coworkers.find(item => item.id === c.id);
+      if (!saved) return;
+      Object.assign(c, saved);
+      if (Object.prototype.hasOwnProperty.call(saved, 'path')) c.path = saved.path;
+    });
+    boss.path = Array.isArray(s.boss.path) ? s.boss.path : [];
+    if (player.action === 'work') { player.x = SEAT.x; player.y = SEAT.y; }
+    else if (player.action === 'toilet') { player.x = WD.toiletDoor.x; player.y = WD.toiletDoor.y; }
+    else if (player.action === 'queue') {
+      if (day.queue > 0 && typeof queueSlot === 'function') player.queueTarget = queueSlot(day.queue);
+      else { player.action = 'none'; player.actionTimer = 0; }
+    }
+    return { status: 'resumed', reason: null };
   }
   function clearSavedProgress() {
     store.set('currentSave', null);

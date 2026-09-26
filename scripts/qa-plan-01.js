@@ -32,9 +32,17 @@ assert.deepStrictEqual(JSON.parse(JSON.stringify(made.snapshot.officeEvent)), {
   id: 'majik', t: 18, used: false, food: { name: 'курт', text: 'текст', color: '#fff' }, work: 3,
 });
 assert.strictEqual('path' in made.snapshot.player, false, 'навигационный путь не сериализуется');
-assert.strictEqual('path' in made.snapshot.boss, false, 'навигационный путь начальника не сериализуется');
+assert.deepStrictEqual(JSON.parse(JSON.stringify(made.snapshot.boss.path)), [{ x: 2, y: 3 }], 'сохраняются только координаты точек пути');
 assert.strictEqual('desk' in made.snapshot.coworkers[0], false, 'статическая ссылка на стол не сериализуется');
 assert.deepStrictEqual(JSON.parse(JSON.stringify(made.snapshot.extensions)), {}, 'расширения по умолчанию пусты');
+const cycle = {}; cycle.self = cycle;
+const partialExtension = sample();
+partialExtension.extensions = { moments: cycle, relationships: { aimashyn: 2 }, unknownFuture: { kept: true } };
+const recoveredExtension = api.makeSaveSnapshot(partialExtension);
+assert.strictEqual(recoveredExtension.ok, true, 'ошибка расширения не блокирует общую смену');
+assert.deepStrictEqual(JSON.parse(JSON.stringify(recoveredExtension.snapshot.extensions)), { relationships: { aimashyn: 2 } });
+assert.strictEqual(recoveredExtension.snapshot.extensionErrors.moments, 'non_json_value', 'ошибка отдельного расширения записана');
+assert.strictEqual('unknownFuture' in recoveredExtension.snapshot.extensions, false, 'неизвестное расширение отбрасывается');
 
 const missedMajik = sample();
 missedMajik.majikArc = -1;
@@ -49,6 +57,11 @@ assert.strictEqual(api.makeSaveSnapshot(unknownEvent).reason, 'unknown_event_id'
 const badQueueEvent = sample();
 badQueueEvent.eventQueue.push('not-an-event');
 assert.strictEqual(api.makeSaveSnapshot(badQueueEvent).reason, 'unknown_event_id');
+const missingRuntime = sample();
+delete missingRuntime.rngSeed; delete missingRuntime.eventQueue; delete missingRuntime.nextEvent; delete missingRuntime.nextBossCheck;
+assert.strictEqual(api.makeSaveSnapshot(missingRuntime).ok, false, 'v3 без RNG и расписания не может попасть в интегратор');
+missingRuntime.migratedFromV2 = true;
+assert.strictEqual(api.makeSaveSnapshot(missingRuntime).ok, false, 'маркер миграции нельзя подделать во v3');
 
 for (const badValue of [-1, NaN]) {
   const invalid = sample();

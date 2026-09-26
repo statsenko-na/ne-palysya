@@ -167,7 +167,7 @@
       if (day.peeActive) {
         day.peeActive = false; day.pee = 0; addFun(4); schedulePee();
         floater(player.x, player.y - 64, 'ПОЛЕГЧАЛО! +4 КАЙФ', '#8fd0f0');
-        setTimeout(() => { if (mode === 'playing') say('player', pick(LINES.pee.relief), 2.8); }, 300);
+        scheduleShiftCallback(() => { if (mode === 'playing') say('player', pick(LINES.pee.relief), 2.8); }, 300);
       } else floater(player.x, player.y - 64, 'ПОЛЕГЧАЛО', '#8fd0f0');
     }
     if (a === 'lunch' && reason === 'done') {
@@ -408,7 +408,7 @@
         officeEvent.used = true;
         fun += 5;
         say('player', kind === 'heat' ? 'Директор Начальникович, тут +32! Кондей сдох!' : 'Директор Начальникович, сверлят! Невозможно работать!', 2.8);
-        setTimeout(() => { if (mode === 'playing') say('boss', pick(LINES.boss.complain[kind]), 3); }, 1500);
+        scheduleShiftCallback(() => { if (mode === 'playing') say('boss', pick(LINES.boss.complain[kind]), 3); }, 1500);
         if (rand() < 0.5) {
           officeEvent.t = Math.min(officeEvent.t, 5);
           addLog(kind === 'heat' ? 'Жалоба сработала: АХО включило кондей.' : 'Жалоба сработала: соседи притихли.', 'good');
