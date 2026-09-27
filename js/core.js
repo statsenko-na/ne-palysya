@@ -142,7 +142,10 @@
 
   function recordRelationshipEvent(npcId, kind, eventId) {
     const result = applyRelationshipEvent(ensureRelationshipsExtension(), { npcId, kind, eventId, dayIndex });
-    if (result.ok) saveExtensions.relationships = result.state;
+    if (result.ok) {
+      saveExtensions.relationships = result.state;
+      if (typeof recordWeekRelationshipFact === 'function') recordWeekRelationshipFact(kind, eventId);
+    }
     return result;
   }
 

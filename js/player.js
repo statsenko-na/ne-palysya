@@ -278,6 +278,7 @@
     tickAutoclickerAdapter(dt);
     updateActionChoice(dt);
     updateBoss(dt);
+    tickTigranSecretSearch(dt);
     updateBossDistraction(dt);
     updateCoworkers(dt);
     updateAmbient(dt);
@@ -354,6 +355,7 @@
     if (mode !== 'playing') return;
     closeActionChoice('shift_ended');
     closePhonePanel(true, true);
+    tickTigranSecretSearchAtShiftEnd();
     interruptBossDistraction('interrupted');
     tickYogurtStoryAdapter(0, true);
     tickAutoshkaAdapter(0, true);
@@ -370,9 +372,11 @@
       planFailed = true;
       reprimands++;
       weekReprimands++; store.set('weekReprimands', weekReprimands);
+      recordWeekOutcomeFact('reprimand', `${shiftId}:week-plan-reprimand`);
       addLog(`📝 ВЫГОВОР ${reprimands}/${dMax} (нед: ${weekReprimands}/${wMax}): не сделана даже половина плана (${Math.floor(usefulness)}/${planTarget}).`, 'bad');
       if (reprimands >= dMax || weekReprimands >= wMax) result = 'fired';
     }
+    if (planDone()) recordWeekOutcomeFact('fullPlan', `${shiftId}:week-full-plan`);
     if (player.action === 'phone') finishPhoneMoment(false);
     clearSavedProgress();
     setMode('ended');
@@ -407,12 +411,26 @@
     if (record) store.set(bestKey, score);
     const dayName = today().name;
     const earned = shiftResult.coins;
+    let weeklyOutcomeSummary = null;
+    if (win && dayName === 'ПЯТНИЦА' && weekOutcomeModelAvailable()) {
+      recordWeekOutcomeFact('majikArc', `${shiftId}:week-majik-arc`, majikArc);
+      if (result === 'munich') recordWeekOutcomeFact('munichEnding', `${shiftId}:week-munich-ending`, true);
+      const weeklyState = ensureWeekOutcomesExtension();
+      const selectedTitle = weeklyState && selectWeekTitle(weeklyState);
+      if (selectedTitle && selectedTitle.ok) {
+        weeklyOutcomeSummary = {
+          titleId: selectedTitle.titleId,
+          facts: selectedTitle.facts.summary.map(fact => ({ ...fact })),
+        };
+      }
+    }
     coins += earned;
     store.set('coins', coins);
     if (win && dayName === 'ПЯТНИЦА') {
       store.set('weekDone', true);
       weekNumber++;
       store.set('weekNumber', weekNumber);
+      createNextWeeklyOutcomeStates();
       weekReprimands = 0; store.set('weekReprimands', 0);
     }
     if (win) {
@@ -443,6 +461,15 @@
       ui.endKicker.textContent = `${dayName} · ${timeString(clockMinutes)} · РАННИЙ УХОД`;
       ui.endCopy.textContent = 'Бизнес-ланч тут хрючево, но пятничное пиво — святое. Аймашын травит байки, Хлад снял наушники, Блеб одобрил вторую кружку. +25 кайфа.';
     }
+    if (weeklyOutcomeSummary) {
+      const lines = LINES.weekOutcomes;
+      const title = weeklyOutcomeSummary.titleId === 'department_pillar' ? lines.departmentPillar
+        : weeklyOutcomeSummary.titleId === 'excuse_master' ? lines.excuseMaster
+          : weeklyOutcomeSummary.titleId === 'boss_favorite' ? lines.bossFavorite : lines.neutral;
+      const factLabels = { helped: 'помощь', betrayed: 'предательства', distractions: 'успешные отвлечения', reprimands: 'выговоры', fullPlans: 'полные планы' };
+      const facts = weeklyOutcomeSummary.facts.map(fact => `${factLabels[fact.id]} ${fact.count}`).join(' · ');
+      ui.endCopy.textContent += ` Титул недели: «${title.title}». ${title.summary} ${facts}.`;
+    }
     checkAchievements({ win, result, dayName });
     if (ui.endCoins) ui.endCoins.textContent = `+${earned} KPI-коинов · всего ${coins} ₭ — трать в «Апгрейдах» · 🏆 ${achCount()}/${ACHIEVEMENTS.length}`;
     ui.restart.innerHTML = win ? `${dayIndex === 0 ? 'НОВАЯ НЕДЕЛЯ' : DAYS[dayIndex].name} <span>↵</span>` : 'ПЕРЕИГРАТЬ ДЕНЬ <span>↵</span>';
@@ -464,6 +491,7 @@
       weekReprimands = 0; store.set('weekReprimands', 0);
       dayIndex = 0; store.set('day', 0);
       resetRelationshipsForNewWeek();
+      createNextWeeklyOutcomeStates();
       addLog('Новая неделя: с понедельника с чистого листа.', 'info');
     }
   }

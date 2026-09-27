@@ -244,6 +244,7 @@
     reprimands++;
     weekReprimands++;
     store.set('weekReprimands', weekReprimands);
+    if (typeof recordWeekReprimandFact === 'function') recordWeekReprimandFact();
     flash = 0.9; shake = 0.5;
     playSound('caught');
     const dMax = diff().dayReprimandsMax;

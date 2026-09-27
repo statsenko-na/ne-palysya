@@ -117,6 +117,10 @@
     if (intelTimer > 0) out.push(['📅', `Инсайд: ${bossIntelStatusText()}`, '#f2bb38']);
     if (player.coffeeBoost > 0) out.push(['☕', `Кофеин: ещё ${Math.ceil(player.coffeeBoost)} с`, '#e8b070']);
     out.push(['🏔', `Маджикистан на этой неделе: ${majikArc > 0 ? '+' : ''}${majikArc} (цель — +2 к пятнице)`, majikArc >= 0 ? '#9fe0b0' : '#ff9a8a']);
+    const tigranSecret = peekTigranSecretExtension();
+    if (tigranSecret && tigranSecret.phase === 'hinted') out.push(['📁', 'Тигран: поищи старый пропуск в архиве', '#9fd0ff']);
+    else if (tigranSecret && tigranSecret.phase === 'searching') out.push(['📁', `Архив: ещё ${Math.max(0, 3 - tigranSecret.searchElapsed).toFixed(1)} с поиска`, '#9fd0ff']);
+    else if (tigranSecret && tigranSecret.phase === 'found') out.push(['📁', 'Старый пропуск найден — вернись к Тиграну', '#9fd0ff']);
     if (phoneSafe > 0) out.push(['📱', `Приём Сиргея: ещё ${Math.ceil(phoneSafe)} с телефон не палево`, '#9fe0b0']);
     if (day.hungry) out.push(['🍽', 'Голоден: кайф −20%, Excel −15%, шаг медленнее. Обед был 12:30–14:00', '#ff9a8a']);
     else if (!day.fed && clockMinutes < CFG.lunchClose) out.push(['🍽', day.vilka ? 'Обед 12:30–14:00: стейки в «Вилке» 🥩 (выход слева)' : 'Обед 12:30–14:00 в «Мюнхене» (выход слева)', '#9ab']);
@@ -221,7 +225,7 @@
         }
         cy += 27;
       }
-      const statusLines = perkLines().filter(line => ['🛡', '📅', '📱', '☕', '⏳'].includes(line[0]));
+      const statusLines = perkLines().filter(line => ['🛡', '📅', '📱', '☕', '⏳', '📁'].includes(line[0]));
       if (statusLines.length && cy + 11 <= bodyBottom) {
         T('АКТИВНО', cx, cy + 4, 6.5, '#f2bb38', 'left', 900, FONT_SANS);
         cy += 11;

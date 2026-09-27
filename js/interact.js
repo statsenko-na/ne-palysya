@@ -75,6 +75,270 @@
   }
   function coworkerById(id) { return coworkers.find(c => c.id === id); }
 
+  function weekOutcomeModelAvailable() {
+    return typeof createWeekOutcomes === 'function' && typeof recordWeekFact === 'function'
+      && typeof selectWeekTitle === 'function' && typeof createTigranSecret === 'function'
+      && typeof advanceTigranSecret === 'function';
+  }
+  function isWeeklyModelId(value) {
+    return (typeof value === 'string' && !!value) || (Number.isInteger(value) && value >= 0);
+  }
+  function rememberWeekOutcomeId(weekId) {
+    store.set('weekOutcomeWeekId', weekId);
+    const match = typeof weekId === 'string' ? weekId.match(/^week-\d+-(\d+)$/) : null;
+    if (!match) return;
+    const currentEpoch = store.get('weekOutcomeEpoch', 0);
+    const epoch = Number(match[1]);
+    if (!Number.isInteger(currentEpoch) || currentEpoch <= epoch) store.set('weekOutcomeEpoch', epoch + 1);
+  }
+  function nextWeekOutcomeId() {
+    let epoch = store.get('weekOutcomeEpoch', 0);
+    if (!Number.isInteger(epoch) || epoch < 0) epoch = 0;
+    const weekId = `week-${weekNumber}-${epoch}`;
+    store.set('weekOutcomeEpoch', epoch + 1);
+    store.set('weekOutcomeWeekId', weekId);
+    return weekId;
+  }
+  function currentWeekOutcomeId() {
+    if (!weekOutcomeModelAvailable()) return null;
+    const storedId = store.get('weekOutcomeWeekId', null);
+    if (isWeeklyModelId(storedId)) return storedId;
+    const candidates = [
+      saveExtensions.weekOutcomes,
+      store.get('weekOutcomes', null),
+      saveExtensions.tigranSecret,
+      store.get('tigranSecret', null),
+    ];
+    const outcome = candidates.find(state => state && isWeeklyModelId(state.weekId) && selectWeekTitle(state).ok);
+    const secret = candidates.find(state => state && isWeeklyModelId(state.weekId)
+      && advanceTigranSecret(state, 'new_week', { weekId: state.weekId }).ok);
+    const weekId = outcome ? outcome.weekId : secret ? secret.weekId : null;
+    if (weekId !== null) {
+      rememberWeekOutcomeId(weekId);
+      return weekId;
+    }
+    return nextWeekOutcomeId();
+  }
+  function tigranSecretForWeek(state, weekId) {
+    if (!state) return null;
+    const result = advanceTigranSecret(state, 'new_week', { weekId });
+    return result.ok ? result.state : null;
+  }
+  function latestTigranSecretState(snapshot, persisted, weekId) {
+    const saved = tigranSecretForWeek(snapshot, weekId);
+    const stored = tigranSecretForWeek(persisted, weekId);
+    if (!saved) return stored;
+    if (!stored) return saved;
+    if (saved.phase === 'searching' && stored.phase === 'searching') {
+      return saved.searchElapsed > stored.searchElapsed ? saved : stored;
+    }
+    return stored;
+  }
+  function ensureWeekOutcomesExtension() {
+    if (!weekOutcomeModelAvailable()) return null;
+    const weekId = currentWeekOutcomeId();
+    const candidates = [store.get('weekOutcomes', null), saveExtensions.weekOutcomes];
+    const state = candidates.find(candidate => candidate && candidate.weekId === weekId && selectWeekTitle(candidate).ok)
+      || createWeekOutcomes(weekId);
+    saveExtensions.weekOutcomes = state;
+    delete saveExtensionErrors.weekOutcomes;
+    store.set('weekOutcomes', state);
+    return state;
+  }
+  function ensureTigranSecretExtension() {
+    if (!weekOutcomeModelAvailable()) return null;
+    const weekId = currentWeekOutcomeId();
+    const persisted = store.get('tigranSecret', null);
+    const candidates = [saveExtensions.tigranSecret, persisted];
+    let state = latestTigranSecretState(saveExtensions.tigranSecret, persisted, weekId);
+    if (!state) {
+      const previous = candidates.find(candidate => !!tigranSecretForWeek(candidate, weekId));
+      const reset = previous
+        ? advanceTigranSecret(previous, 'new_week', { weekId })
+        : null;
+      state = reset && reset.ok ? reset.state : createTigranSecret(weekId);
+      store.set('tigranSecret', state);
+    } else if (!tigranSecretForWeek(persisted, weekId) || persisted.weekId !== weekId || persisted.phase !== state.phase) {
+      if (state.phase !== 'searching') store.set('tigranSecret', state);
+    }
+    saveExtensions.tigranSecret = state;
+    delete saveExtensionErrors.tigranSecret;
+    return state;
+  }
+  function peekTigranSecretExtension() {
+    if (!weekOutcomeModelAvailable()) return null;
+    const storedId = store.get('weekOutcomeWeekId', null);
+    const weekId = isWeeklyModelId(storedId) ? storedId : null;
+    if (weekId !== null) return latestTigranSecretState(saveExtensions.tigranSecret, store.get('tigranSecret', null), weekId);
+    const candidates = [saveExtensions.tigranSecret, store.get('tigranSecret', null)];
+    return candidates.find(state => state && isWeeklyModelId(state.weekId)
+      && advanceTigranSecret(state, 'new_week', { weekId: state.weekId }).ok) || null;
+  }
+  function recordWeekOutcomeFact(kind, eventId, value) {
+    const state = ensureWeekOutcomesExtension();
+    if (!state || typeof eventId !== 'string' || !eventId) return { ok: false, state, effects: [], reason: 'week_outcomes_unavailable' };
+    const fact = { eventId, weekId: state.weekId, kind };
+    if (value !== undefined) fact.value = value;
+    const result = recordWeekFact(state, fact);
+    if (result.ok) {
+      saveExtensions.weekOutcomes = result.state;
+      store.set('weekOutcomes', result.state);
+    }
+    return result;
+  }
+  function recordWeekRelationshipFact(kind, eventId) {
+    const factKind = kind === 'help' ? 'help' : kind === 'betrayal' ? 'betrayal' : null;
+    return factKind && typeof eventId === 'string'
+      ? recordWeekOutcomeFact(factKind, `${eventId}:week-outcome`)
+      : null;
+  }
+  function recordWeekReprimandFact() {
+    const state = ensureWeekOutcomesExtension();
+    if (!state) return null;
+    return recordWeekOutcomeFact('reprimand', `${shiftId}:week-reprimand:${state.counts.reprimands + 1}`);
+  }
+  function createNextWeeklyOutcomeStates() {
+    if (!weekOutcomeModelAvailable()) return false;
+    const previousSecret = ensureTigranSecretExtension();
+    const weekId = nextWeekOutcomeId();
+    saveExtensions.weekOutcomes = createWeekOutcomes(weekId);
+    store.set('weekOutcomes', saveExtensions.weekOutcomes);
+    const reset = advanceTigranSecret(previousSecret, 'new_week', { weekId });
+    saveExtensions.tigranSecret = reset.ok ? reset.state : createTigranSecret(weekId);
+    store.set('tigranSecret', saveExtensions.tigranSecret);
+    return true;
+  }
+  function tigranSecretLegalAway() {
+    return AWAY.has(player.action) || player.action === 'daily' || !!eventIs('drill');
+  }
+  function tigranSecretBossThreat() {
+    return !boss || boss.seesPlayer || ['inspect', 'lecture', 'look', 'follow'].includes(boss.state)
+      || dist(boss, player) < 105;
+  }
+  function tigranSecretContext(eventId, overrides = {}) {
+    const zone = currentZone();
+    return Object.assign({
+      weekId: currentWeekOutcomeId(),
+      eventId,
+      tigranAvailable: (() => {
+        const tigran = coworkerById('tigran');
+        return !!tigran && !tigran.away && !tigran.remote;
+      })(),
+      playerAtArchive: !!zone && zone.type === 'archive',
+      bossThreat: tigranSecretBossThreat(),
+      legalAway: tigranSecretLegalAway(),
+      shiftEnded: mode === 'ended',
+      paused: mode === 'paused',
+      dt: 0,
+    }, overrides);
+  }
+  function tigranSecretEventId(action) {
+    const secret = peekTigranSecretExtension();
+    const transitionIndex = secret && Array.isArray(secret.processedEventIds) ? secret.processedEventIds.length : 0;
+    return `${shiftId}:tigran-secret:${action}:${Math.floor(shiftTime * 1000)}:${transitionIndex}`;
+  }
+  function tigranStoryMomentAvailable() {
+    const moments = ensureMomentsExtension();
+    return !moments.awards.some(item => item.id === 'story')
+      && summarizeMoments(moments).awarded + 3 <= MOMENTS_CAP;
+  }
+  function commitTigranSecretTransition(result, persist = true) {
+    if (!result || !result.ok) return false;
+    let moments = null;
+    const messages = [];
+    for (const effect of result.effects || []) {
+      if (effect.type === 'message') messages.push(effect);
+      else if (effect.type === 'awardMoment') {
+        moments = moments || ensureMomentsExtension();
+        const awarded = awardMoment(moments, effect.momentId, effect.sourceId);
+        if (!awarded.ok) return false;
+        moments = awarded.state;
+      } else return false;
+    }
+    saveExtensions.tigranSecret = result.state;
+    delete saveExtensionErrors.tigranSecret;
+    if (moments) saveExtensions.moments = moments;
+    if (persist) store.set('tigranSecret', result.state);
+    for (const effect of messages) {
+      const key = effect.lineId === 'tigran.secret_hint' ? 'hint'
+        : effect.lineId === 'tigran.secret_found' ? 'found'
+          : effect.lineId === 'tigran.secret_ending' ? 'ending' : null;
+      const message = key && LINES.tigranSecret && LINES.tigranSecret[key];
+      if (!message) continue;
+      say(effect.ownerId, message, 3.4);
+      addLog(message, 'good');
+    }
+    return true;
+  }
+  function advanceTigranSecretAdapter(action, eventId, overrides = {}) {
+    const state = ensureTigranSecretExtension();
+    if (!state) return { ok: false, state: null, effects: [], reason: 'secret_unavailable' };
+    const result = advanceTigranSecret(state, action, tigranSecretContext(eventId, overrides));
+    const persist = action !== 'search_tick' || result.state && result.state.phase !== state.phase;
+    if (result.ok && !commitTigranSecretTransition(result, persist)) {
+      return { ok: false, state, effects: [], reason: 'effect_application_failed' };
+    }
+    return result;
+  }
+  function tigranArchiveSearchAvailable() {
+    const state = peekTigranSecretExtension();
+    const zone = currentZone();
+    return !!state && state.phase === 'hinted' && mode === 'playing'
+      && !!zone && zone.type === 'archive' && !tigranSecretBossThreat() && !tigranSecretLegalAway();
+  }
+  function startTigranArchiveSearch() {
+    if (!tigranArchiveSearchAvailable()) return false;
+    const result = advanceTigranSecretAdapter('search_start', tigranSecretEventId('search-start'));
+    if (!result.ok) {
+      toast('Сейчас искать нельзя. Дождись, пока Д.Н. отвлечётся.', 2.2);
+      return false;
+    }
+    say('player', 'Тут всё старше внутреннего портала. Посмотрим…', 2.6);
+    return true;
+  }
+  function cancelTigranArchiveSearch(reason = 'cancel') {
+    const state = peekTigranSecretExtension();
+    if (!state || state.phase !== 'searching') return false;
+    const result = advanceTigranSecretAdapter('search_cancel', tigranSecretEventId(`search-${reason}`));
+    return !!result.ok;
+  }
+  function tickTigranSecretSearch(dt) {
+    const state = peekTigranSecretExtension();
+    if (!state || state.phase !== 'searching' || mode !== 'playing') return false;
+    return advanceTigranSecretAdapter('search_tick', null, { dt, paused: mode !== 'playing' });
+  }
+  function finishTigranConversation(coworker) {
+    if (!coworker || coworker.id !== 'tigran') return false;
+    const state = ensureTigranSecretExtension();
+    if (!state) return false;
+    const action = state.phase === 'found' ? 'return_talk_complete' : 'talk_complete';
+    const context = action === 'return_talk_complete'
+      ? { storyMomentAvailable: tigranStoryMomentAvailable() }
+      : {};
+    const result = advanceTigranSecretAdapter(action, tigranSecretEventId(action), context);
+    return !!result.ok;
+  }
+  function returnTigranSecret() {
+    const tigran = coworkerById('tigran');
+    const result = advanceTigranSecretAdapter('return_talk_complete', tigranSecretEventId('return'), {
+      tigranAvailable: !!tigran && !tigran.away && !tigran.remote,
+      storyMomentAvailable: tigranStoryMomentAvailable(),
+    });
+    if (!result.ok) return false;
+    return true;
+  }
+  function tickTigranSecretSearchAtShiftEnd() {
+    const state = peekTigranSecretExtension();
+    if (!state || state.phase !== 'searching') return false;
+    return cancelTigranArchiveSearch('shift-end');
+  }
+  function archiveHide() {
+    player.x = 70; player.y = Math.min(Math.max(player.y, 380), 470);
+    startAction('cabinet_hide', 0);
+    playSound('hide');
+    toast('Затаился между шкафами. Папки закрывают с головой.', 2.2);
+  }
+
   const BOSS_DISTRACTION_STATES = new Set(['distractionWalk', 'distractionWait']);
   function ensureDistractionsExtension() {
     const current = saveExtensions.distractions;
@@ -158,6 +422,7 @@
       if (effect.type !== 'awardMoment' || effect.momentId !== 'distraction') continue;
       const moments = awardMoment(ensureMomentsExtension(), effect.momentId, effect.sourceId);
       if (moments.ok) saveExtensions.moments = moments.state;
+      recordWeekOutcomeFact('distraction', `${effect.sourceId}:week-outcome`);
     }
     return true;
   }
@@ -450,10 +715,22 @@
         : 'Дверь Д.Н. Стучать без повода — плохая идея.',
       standup: eventIs('standup') ? 'E — встать на летучку и кивать' : 'Доска: «ПЛАН НА КВАРТАЛ: ВЫЖИТЬ»',
     };
+    if (z.type === 'archive') {
+      const secret = peekTigranSecretExtension();
+      if (secret && secret.phase === 'searching') {
+        return { prompt: 'Ищешь старый пропуск… 3 с · H — укрыться', target: z.id, zone: z };
+      }
+      if (secret && secret.phase === 'hinted' && tigranArchiveSearchAvailable()) {
+        return { prompt: 'E — найти старый пропуск (3 с, без кайфа) · H — спрятаться', target: z.id, zone: z };
+      }
+    }
     if (z.type === 'chat') {
       const c = coworkerById(z.coworker);
       if (c.away) return { prompt: c.remote ? `${c.name}: на удалёнке до четверга` : `${c.name}: место пустое — ушёл(ла)`, target: z.id, zone: z };
-      if (!unlocked('coworkers')) return { prompt: `${c.name}: «Понедельник, не до болтовни». Коллеги — со вторника`, target: z.id, zone: z };
+      if (!unlocked('coworkers') && c.id !== 'tigran') return { prompt: `${c.name}: «Понедельник, не до болтовни». Коллеги — со вторника`, target: z.id, zone: z };
+      if (c.id === 'tigran' && peekTigranSecretExtension()?.phase === 'found') {
+        return { prompt: 'E — отдать Тиграну старый пропуск', target: z.id, zone: z };
+      }
       if (c.id === 'sirgey' && eventIs('autoshka') && autoshkaModuleAvailable()) {
         if (c.remote) return { prompt: 'Сиргей на удалёнке — помочь с автошкой некому', target: z.id, zone: z };
         const story = autoshkaStateForActiveEvent();
@@ -626,6 +903,7 @@
     let relationshipsChanged = false;
     let momentsChanged = false;
     const messages = [];
+    const weeklyRelationshipFacts = [];
     for (const effect of result.effects || []) {
       if (effect.type === 'consumeFavor') {
         if (!yogurtBlebFavorAvailable()) return false;
@@ -645,6 +923,7 @@
         if (!applied.ok) return false;
         relationships = applied.state;
         relationshipsChanged = true;
+        weeklyRelationshipFacts.push({ kind: effect.kind, eventId: effect.eventId });
       } else if (effect.type === 'awardMoment') {
         moments = moments || ensureMomentsExtension();
         const awarded = awardMoment(moments, effect.momentId, effect.sourceId);
@@ -658,6 +937,7 @@
     if (!commitYogurtTransition(result, previous)) return false;
     if (relationshipsChanged) saveExtensions.relationships = relationships;
     if (momentsChanged) saveExtensions.moments = moments;
+    weeklyRelationshipFacts.forEach(fact => recordWeekRelationshipFact(fact.kind, fact.eventId));
     for (const effect of messages) {
       const key = typeof effect.lineId === 'string' ? effect.lineId.replace(/^yogurt\./, '') : '';
       const message = LINES.yogurt && LINES.yogurt[key];
@@ -1019,6 +1299,7 @@
     let relationshipsChanged = false;
     let momentsChanged = false;
     const effects = [];
+    const weeklyRelationshipFacts = [];
     for (const effect of result.effects || []) {
       if (effect.type === 'relationship') {
         relationships = relationships || ensureRelationshipsExtension();
@@ -1031,6 +1312,7 @@
         if (!applied.ok) return false;
         relationships = applied.state;
         relationshipsChanged = true;
+        weeklyRelationshipFacts.push({ kind: effect.kind, eventId: effect.eventId });
       } else if (effect.type === 'awardMoment') {
         moments = moments || ensureMomentsExtension();
         const awarded = awardMoment(moments, effect.momentId, effect.sourceId);
@@ -1048,6 +1330,7 @@
     delete saveExtensionErrors.autoshka;
     if (relationshipsChanged) saveExtensions.relationships = relationships;
     if (momentsChanged) saveExtensions.moments = moments;
+    weeklyRelationshipFacts.forEach(fact => recordWeekRelationshipFact(fact.kind, fact.eventId));
     for (const effect of effects) {
       if (effect.type === 'addWork') {
         addWork(effect.amount);
@@ -1253,7 +1536,11 @@
     let completedChat = false;
     if (a === 'chat') {
       const c = coworkerById(player.chatWith);
-      if (reason === 'done' && c) { grantPerk(c); completedChat = true; }
+      if (reason === 'done' && c) {
+        grantPerk(c);
+        completedChat = true;
+        if (c.id === 'tigran') finishTigranConversation(c);
+      }
       player.chatWith = null;
     }
     if (a === 'coffee') {
@@ -1500,10 +1787,12 @@
         addLog('Перекур на балконе. Горы, ветер, Кок-Тобе.', 'bad');
         break;
       case 'archive':
-        player.x = 70; player.y = Math.min(Math.max(player.y, 380), 470);
-        startAction('cabinet_hide', 0);
-        playSound('hide');
-        toast('Затаился между шкафами. Папки закрывают с головой.', 2.2);
+        if (peekTigranSecretExtension()?.phase === 'searching') return;
+        if (tigranArchiveSearchAvailable()) {
+          startTigranArchiveSearch();
+          return;
+        }
+        archiveHide();
         break;
       case 'feast':
         officeEvent.used = true;
@@ -1604,7 +1893,11 @@
       case 'chat': {
         const c = coworkerById(z.coworker);
         if (c.away) { toast(`${c.name} ушёл(ла). Стул ещё тёплый.`, 1.6); return; }
-        if (!unlocked('coworkers')) { say(c.id, 'Понедельник же, не до разговоров!', 2); return; }
+        if (!unlocked('coworkers') && c.id !== 'tigran') { say(c.id, 'Понедельник же, не до разговоров!', 2); return; }
+        if (c.id === 'tigran' && peekTigranSecretExtension()?.phase === 'found') {
+          returnTigranSecret();
+          return;
+        }
         if (c.id === 'sirgey' && eventIs('autoshka') && autoshkaModuleAvailable()) {
           if (c.remote) { toast('Сиргей на удалёнке — помочь некому.', 2); return; }
           openAutoshkaChoice();
@@ -1670,8 +1963,13 @@
     const z = currentZone();
     if (AWAY.has(player.action)) return;
     if (HIDDEN.has(player.action)) { interact(); return; }
+    if (z && z.type === 'archive' && peekTigranSecretExtension()?.phase === 'searching') {
+      cancelTigranArchiveSearch('hide');
+      archiveHide();
+      return;
+    }
     if (plant) { interact(); return; }
-    if (z && z.type === 'archive') { interact(); return; }
+    if (z && z.type === 'archive') { archiveHide(); return; }
     if (z && z.type === 'printer') {
       player.x = 430; player.y = 468;
       startAction('printer_hide', 0);

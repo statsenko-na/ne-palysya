@@ -542,5 +542,17 @@
   // Д.Н. проходит мимо стола Тиграна — духа он не видит, только чувствует
   const tigranDraft = ['Бр-р… Откуда сквозняк у пустого стола?', 'Кто тут рычит?.. Показалось.', 'Почему тут пахнет космосом?'];
 
-  window.NP_LINES = { banter, tigranDraft, boss, chat, perks, coworkerIdle, coworkerWarn, thoughts, distraction, disguise, yogurt, autoshka, autoclicker, bossMemory, dayTasks, excuses, majik, sb, nudge, arrfr, slack, whine, complaints, lunch, munich, toilet, pee, hideOut, bday, aljazira, adhoc, excelTasks, coffeeQueue };
+  const tigranSecret = {
+    hint: 'В архиве где-то лежит старый пропуск. Я бы поискал, если бы мог вставать.',
+    found: 'Пропуск старше некоторых сервисов, но в учёте он ещё жив.',
+    ending: 'Теперь у тебя тоже есть пропуск в историю. Не теряй.',
+  };
+  const weekOutcomes = {
+    departmentPillar: { title: 'Опора отдела', summary: 'На этой неделе Быкентий чаще чинил чужие проблемы, чем свои.' },
+    excuseMaster: { title: 'Мастер отмазок', summary: 'План горел, Д.Н. смотрел, а Быкентий всё равно находил выход.' },
+    bossFavorite: { title: 'Любимчик Д.Н.', summary: 'Ни одного выговора и три полных плана. Начальник подозрительно доволен.' },
+    neutral: { title: 'Без отдельного титула', summary: 'У этой недели не выделился один главный почерк.' },
+  };
+
+  window.NP_LINES = { banter, tigranDraft, tigranSecret, weekOutcomes, boss, chat, perks, coworkerIdle, coworkerWarn, thoughts, distraction, disguise, yogurt, autoshka, autoclicker, bossMemory, dayTasks, excuses, majik, sb, nudge, arrfr, slack, whine, complaints, lunch, munich, toilet, pee, hideOut, bday, aljazira, adhoc, excelTasks, coffeeQueue };
 })();
