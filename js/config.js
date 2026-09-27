@@ -38,6 +38,9 @@
     toiletPerPerson: 2.2,      // очередь в туалет: секунд на человека
     toiletSeconds: 6,
     toiletCooldown: 45,
+    peeCriticalDrain: 0.6,
+    peeQueueDrain: 0.2,
+    peeCriticalSpeed: 0.85,
     overtimeSeconds: 30,       // сверхурочные после плана: снять сегодняшний выговор (раз в смену)
     snusSeconds: 30,           // Д.Н. под снюсом: медленнее и добрее
     snusSpeed: 0.75,
@@ -48,7 +51,6 @@
     planMinShare: 0.5,         // к 19:30 нужна хотя бы половина плана, иначе выговор
     peeTimes: [2, 3],          // сколько раз за смену Быкентию приспичит
     peeRise: 1.8,              // рост «приспичило» в секунду (0–100): ~55 с до конфуза
-    peeFail: 15,               // −кайфа, если не дотерпел
     beerAt: 17 * 60 + 15,      // пятничное пиво после отъезда Д.Н.
     beerChance: 0.65,
     bdayFee: 10,               // сбор на ДР: минус кайф, KPI не даёт
@@ -103,6 +105,7 @@
   // С какого дня (индекс) открывается механика
   const UNLOCK = { coworkers: 1, events1: 1, lunch: 0, events2: 2, almaty: 2, row2: 3, standup: 3, events3: 3 };
   const EVENT_TIER = { food: 'events1', call: 'events1', internet: 'events1', jam: 'events1', bday: 'events2', heat: 'events2', noise: 'events2', drill: 'events2', standup: 'events3', majik: 'events3', autoshka: 'events3', arrfr: 'events3', sb: 'events3' };
+  const TASK_EVENT_PREREQUISITES = { majik: 'majik' };
 
-  window.NP_CONFIG = { CFG, DIFFICULTY, UPGRADES, DAYS, UNLOCK, EVENT_TIER };
+  window.NP_CONFIG = { CFG, DIFFICULTY, UPGRADES, DAYS, UNLOCK, EVENT_TIER, TASK_EVENT_PREREQUISITES };
 })();

@@ -185,6 +185,14 @@
   // Кастомизация стола Быкентия из магазина апгрейдов
   function drawDeskUpgrades() {
     const x = DESK.x, y = DESK.y, t = performance.now() / 1000;
+    if (equipmentHas('mirror')) {
+      R(x + 7, y - 15, 13, 11, '#b28748'); R(x + 9, y - 13, 9, 7, '#72d4dc');
+      R(x + 10, y - 12, 3, 2, '#e9ffff'); R(x + 13, y - 4, 3, 4, '#76533a');
+    }
+    if (equipmentHas('thermos')) {
+      R(x + 68, y + 14, 7, 9, '#c84b50'); R(x + 69, y + 11, 5, 3, '#e2c36b');
+      R(x + 75, y + 16, 2, 4, '#c84b50'); R(x + 69, y + 21, 5, 1, '#f4a07a');
+    }
     if (has('monitor')) { R(x + 30, y - 14, 24, 16, '#1d2124'); R(x + 32, y - 12, 20, 12, '#2f6a58'); R(x + 40, y + 2, 4, 3, '#1d2124'); }
     if (has('cactus')) { R(x + 16, y + 14, 7, 6, '#b8683a'); R(x + 18, y + 6, 3, 9, '#3f9a4a'); R(x + 16, y + 9, 2, 4, '#3f9a4a'); R(x + 21, y + 8, 2, 4, '#3f9a4a'); R(x + 19, y + 5, 1.5, 1.5, '#ff6a9a'); }
     if (has('lava')) { R(x + 70, y + 4, 6, 3, '#333'); R(x + 71, y - 8, 4, 12, 'rgba(255,120,60,0.85)'); E(x + 73, y - 5 + Math.sin(t * 1.5) * 3, 1.5, 2, '#ffd23a'); R(x + 70, y - 10, 6, 2, '#333'); }
@@ -202,6 +210,17 @@
       R(gx - 1, gy - 26, 2, 24, '#3a2618'); R(gx - 2, gy - 29, 4, 4, '#1a1a1a');
     }
     if (has('chair') && player.action !== 'work') { R(SEAT.x - 9, y - 30, 18, 6, '#2a5a8a'); R(SEAT.x - 9, y - 30, 18, 1.5, '#4a8aca'); }
+  }
+  function drawAutoclickerCursor() {
+    const clicker = saveExtensions.equipment && saveExtensions.equipment.autoclicker;
+    if (mode !== 'playing' || !equipmentHas('autoclicker') || !clicker || clicker.phase !== 'active' || clicker.activeRemaining <= 0) return;
+    const x = DESK.x, y = DESK.y, t = shiftTime * 2.3;
+    const cx = x + 56 + (Math.sin(t) + 1) * 4;
+    const cy = y - 14 + (Math.cos(t * 1.35) + 1) * 2;
+    R(cx, cy, 5, 14, '#10232a'); R(cx + 1, cy + 1, 2, 10, '#fff');
+    R(cx + 1, cy + 7, 7, 2, '#10232a'); R(cx + 2, cy + 7, 5, 1, '#fff');
+    R(cx + 4, cy + 9, 3, 4, '#10232a'); R(cx + 4, cy + 9, 1.5, 3, '#fff');
+    R(cx + 3, cy + 3, 1, 2, '#8de6ef');
   }
   // Защёлка «ЗАНЯТО/СВОБОДНО», приоткрытая дверь и вечная муха над кабинкой
   function drawCabinState() {

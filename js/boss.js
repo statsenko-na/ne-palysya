@@ -9,8 +9,158 @@
     boss.path = findPath(boss, target);
     boss.spotDesc = desc || boss.spotDesc;
   }
+  function bossIntelHasCountdown() {
+    return !onLunch() && !eventIs('call') && !eventIs('drill') &&
+      ['office', 'patrol', 'look', 'return'].includes(boss.state);
+  }
+  function bossIntelStatusText() {
+    if (bossIntelHasCountdown()) return `проверка через ${Math.max(0, Math.ceil(nextBossCheck))} с`;
+    if (onLunch()) return 'проверка после обеда';
+    if (eventIs('call')) return 'Д.Н. на созвоне';
+    if (eventIs('drill')) return 'Д.Н. на учениях';
+    const status = {
+      inspect: 'Д.Н. уже проверяет',
+      waitDesk: 'Д.Н. ждёт у стола',
+      lecture: 'Д.Н. читает нотацию',
+      standup: 'Д.Н. ведёт летучку',
+      leaving: 'Д.Н. уезжает на встречу',
+      gone: 'Д.Н. уехал',
+      goout: `Д.Н. уходит ${boss.spotDesc || 'из офиса'}`,
+      out: boss.outWhy === 'lunch' ? 'Д.Н. на обеде' : 'Д.Н. на улице',
+      scold: 'Д.Н. отчитывает коллегу',
+      distractionWalk: `Д.Н. идёт ${boss.spotDesc || 'к приманке'}`,
+      distractionWait: `Д.Н. отвлёкся ${boss.spotDesc || 'у приманки'}`,
+    }[boss.state];
+    return status || 'Д.Н. занят';
+  }
+  function youtubeServerApproach() {
+    return WD.patrolSpots.find(spot => spot.desc === 'серверную') || { x: 880, y: 432 };
+  }
+  function bossCanRouteToServer() {
+    if (!['office', 'patrol', 'look', 'return'].includes(boss.state) || onLunch() || eventIs('call') || eventIs('drill')) return false;
+    const target = youtubeServerApproach();
+    if (blocked(target.x, target.y, 6)) return false;
+    const path = findPath(boss, target);
+    return Array.isArray(path) && path.length > 0;
+  }
+  function routeBossToServer() {
+    if (!bossCanRouteToServer()) return false;
+    bossGoTo(youtubeServerApproach(), 'patrol', 'серверную');
+    return true;
+  }
+  const BOSS_MEMORY_OBSERVATION_RADIUS = 80;
+  function ensureBossMemoryExtension() {
+    if (!saveExtensions || typeof saveExtensions !== 'object' || Array.isArray(saveExtensions)) saveExtensions = {};
+    const current = saveExtensions.bossMemory;
+    if (!current || typeof current !== 'object' || Array.isArray(current) ||
+        (current.shiftId && current.shiftId !== shiftId)) {
+      saveExtensions.bossMemory = createBossMemory();
+      clearSaveExtensionError('bossMemory');
+    }
+    return saveExtensions.bossMemory;
+  }
+  function bossMemoryRoute(from, target) {
+    if (!from || !target || !Number.isFinite(target.x) || !Number.isFinite(target.y) || blocked(target.x, target.y, 6)) return null;
+    const path = findPath(from, target);
+    if (!Array.isArray(path) || !path.length) return null;
+    let previous = { x: from.x, y: from.y };
+    for (const point of path) {
+      if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y) || !segmentClear(previous, point, 5)) return null;
+      previous = point;
+    }
+    return path.map(point => ({ x: point.x, y: point.y }));
+  }
+  function bossMemorySafeSpotNear(origin) {
+    if (!origin || !Number.isFinite(origin.x) || !Number.isFinite(origin.y)) return null;
+    const candidates = [];
+    for (let i = 0; i < WD.navNodes.length; i++) {
+      const point = WD.navNodes[i];
+      const distance = dist(origin, point);
+      if (distance > BOSS_MEMORY_OBSERVATION_RADIUS || blocked(point.x, point.y, 6)) continue;
+      if (!bossMemoryRoute(boss, point)) continue;
+      candidates.push({ point, distance, index: i });
+    }
+    candidates.sort((a, b) => a.distance - b.distance || a.index - b.index);
+    return candidates.length ? { x: candidates[0].point.x, y: candidates[0].point.y } : null;
+  }
+  function recordBossMemoryIncident(incidentType, incidentId, origin, visible) {
+    if (mode !== 'playing' || !visible) return false;
+    const current = ensureBossMemoryExtension();
+    if (current.seenIncidentIds.includes(incidentId)) return false;
+    const safeSpot = bossMemorySafeSpotNear(origin);
+    if (!safeSpot) return false;
+    const result = observeBossIncident(current, { shiftId, incidentId, incidentType, visible: true, safeSpot });
+    if (!result.ok) return false;
+    saveExtensions.bossMemory = result.state;
+    return true;
+  }
+  function tickBossMemoryAdapter(dt) {
+    const current = ensureBossMemoryExtension();
+    if (Array.isArray(current.observations) && current.observations.length === 0) return;
+    const result = tickBossMemory(current, Math.max(0, Number(dt) || 0), { paused: mode !== 'playing' });
+    if (!result.ok) {
+      saveExtensions.bossMemory = createBossMemory();
+      clearSaveExtensionError('bossMemory');
+      return;
+    }
+    saveExtensions.bossMemory = result.state;
+  }
+  function chooseBossMemoryStrollSpot() {
+    const current = ensureBossMemoryExtension();
+    if (current.shiftId !== shiftId || !Array.isArray(current.observations) || !current.observations.length) return null;
+    const paths = new Map();
+    for (const observation of current.observations) {
+      if (!observation || observation.consumed || observation.remainingSeconds <= 0) continue;
+      const path = bossMemoryRoute(boss, observation);
+      if (path) paths.set(observation.id, path);
+    }
+    if (!paths.size) return null;
+    const result = chooseRememberedSpot(current, {
+      shiftId, normalStroll: true, availablePointIds: Array.from(paths.keys()), randomSample: rand(),
+    });
+    if (!result.ok || !result.chosen || !result.point) return null;
+    const routeEffect = result.effects.find(effect => effect.type === 'requestBossRoute');
+    const messageEffect = result.effects.find(effect => effect.type === 'message');
+    const path = routeEffect && paths.get(routeEffect.targetId);
+    if (!routeEffect || routeEffect.reasonId !== 'boss_memory' || !messageEffect ||
+        messageEffect.lineId !== 'bossRememberedSpot' || messageEffect.ownerId !== 'boss' || !path) return null;
+    return {
+      x: result.point.x, y: result.point.y, desc: 'к месту, где уже видел отдых',
+      bossMemoryChoice: result, bossMemoryPath: path,
+    };
+  }
+  function bossGoToStrollSpot(spot) {
+    if (!spot || !spot.bossMemoryChoice) {
+      bossGoTo(spot, 'patrol', spot && spot.desc);
+      return false;
+    }
+    const path = bossMemoryRoute(boss, spot);
+    if (!path) {
+      bossGoTo(pick(WD.patrolSpots), 'patrol');
+      return false;
+    }
+    saveExtensions.bossMemory = spot.bossMemoryChoice.state;
+    boss.state = 'patrol';
+    boss.path = path;
+    boss.spotDesc = spot.desc;
+    boss.quoteTimer = Math.max(boss.quoteTimer, 3.2);
+    say('boss', LINES.bossMemory.rememberedSpot, 2.8, '#e8e2d0');
+    saveProgress();
+    return true;
+  }
+  function rememberVisibleAutoclickerReveal() {
+    const clicker = saveExtensions.equipment && saveExtensions.equipment.autoclicker;
+    if (mode !== 'playing' || boss.state !== 'waitDesk' || boss.emptyDesk !== true || !clicker || clicker.phase !== 'revealed') return false;
+    const cursor = { x: DESK.x + 56, y: DESK.y - 14 };
+    const visible = dist(boss, cursor) <= 120 && lineOfSight({ x: boss.x, y: boss.y - 4 }, cursor);
+    const recorded = recordBossMemoryIncident('autoclicker_exposed', `${shiftId}:autoclicker-exposed`, cursor, visible);
+    if (recorded) saveProgress();
+    return recorded;
+  }
   // Куда Д.Н. идёт гулять: общие точки или к столу случайного коллеги
   function strollSpot() {
+    const remembered = chooseBossMemoryStrollSpot();
+    if (remembered) return remembered;
     const people = coworkers.filter(c => !c.away && !c.ghost);
     if (people.length && rand() < 0.45) {
       const c = pick(people);
@@ -22,8 +172,8 @@
     boss.warned = false;
     boss.silentCheck = false;
     const s = strollSpot();
-    bossGoTo(s, 'patrol', s.desc);
-    if (rand() < 0.5) say('boss', pick(LINES.boss.stroll), 2.4, '#e8e2d0');
+    const remembered = bossGoToStrollSpot(s);
+    if (!remembered && rand() < 0.5) say('boss', pick(LINES.boss.stroll), 2.4, '#e8e2d0');
     nextBossCheck = (CFG.checkInterval[0] + rand() * (CFG.checkInterval[1] - CFG.checkInterval[0])) * 0.6 * diff().check;
   }
   function startInspection(force = false) {
@@ -48,7 +198,8 @@
   function playerVisibleToBoss() {
     if (HIDDEN.has(player.action)) return false;
     const d = dist(boss, player);
-    if (boss.state === 'gone' || boss.state === 'out') return false;
+    const distractionKeepsSight = isBossDistractionState(boss.state);
+    if ((boss.state === 'gone' || boss.state === 'out') && !distractionKeepsSight) return false;
     const range = (boss.state === 'inspect' ? CFG.visionRangeInspect : CFG.visionRange) * (today().visionMul || 1) * diff().vision * (eventIs('arrfr') ? 1.2 : 1);
     if (d > range) return false;
     const eye = { x: boss.x, y: boss.y - 4 };
@@ -85,7 +236,7 @@
     if (coverTokens > 0) {
       coverTokens = 0;
       say('aimashyn', 'Директор Начальникович, он по моему поручению!', 3, '#ffd4c8');
-      setTimeout(() => { if (mode === 'playing') say('boss', 'Ну... ладно. Смотрите мне!', 2.6); }, 1200);
+      scheduleShiftCallback(() => { if (mode === 'playing') say('boss', 'Ну... ладно. Смотрите мне!', 2.6); }, 1200);
       addLog(`Аймашын отмазал Быкентия: «${short}» не засчитан.`, 'good');
       toast(`🛡 Аймашын прикрыл! Выговор за «${short}» не дали.`, 3);
       return false;
@@ -93,6 +244,7 @@
     reprimands++;
     weekReprimands++;
     store.set('weekReprimands', weekReprimands);
+    if (typeof recordWeekReprimandFact === 'function') recordWeekReprimandFact();
     flash = 0.9; shake = 0.5;
     playSound('caught');
     const dMax = diff().dayReprimandsMax;
@@ -120,6 +272,8 @@
   }
 
   function caught() {
+    const memoryRecorded = recordBossMemoryIncident('caught', `${shiftId}:caught:${(stats.catches || 0) + 1}`, { x: player.x, y: player.y }, playerVisibleToBoss());
+    const clickerResolved = resolveAutoclickerInspectionElsewhere();
     stats.catches++;
     const why = { smoke: 'курил на балконе', youtube: 'смотрел YouTube', fridge: 'шарил в холодильнике', chat: 'болтал', phone: 'сидел в телефоне', meme: 'смотрел мем Блеба' }[player.action];
     reprimand(why ? `Д.Н. видел, как ты ${why}` : 'на проверке ты был не в Excel', 'залёт');
@@ -134,6 +288,7 @@
     say('boss', pick(LINES.boss.caught), 3);
     floater(player.x, player.y - 70, 'СПАЛИЛИ! ВЫГОВОР', '#ff6a5a');
     if (player.action !== 'none' && player.action !== 'work') endAction('cancel');
+    if (clickerResolved || memoryRecorded) saveProgress();
   }
 
   function passDeskInspection() {
@@ -152,19 +307,30 @@
     // Стола пусто: Д.Н. ждёт у стола — есть шанс успеть вернуться
     boss.state = 'waitDesk';
     boss.waitT = diff().wait + (has('cactus') ? 1.5 : 0) + (boss.snus > 0 ? 2 : 0);
+    boss.emptyDesk = false;
+    const clickerWait = beginAutoclickerDeskInspection();
+    if (clickerWait.ok) {
+      boss.emptyDesk = true; // сохранённый маркер ожидания, начатого автокликером
+      boss.waitT += clickerWait.waitSeconds;
+      autoclickerSavePending = true;
+    }
     boss.moving = false;
     boss.facing = -Math.PI / 2;
-    say('boss', pick(LINES.boss.emptyDesk), 3);
+    say('boss', clickerWait.ok ? LINES.autoclicker.waiting : pick(LINES.boss.emptyDesk), 3);
     playSound('alarm');
     toast(`🚨 Д.Н. у твоего пустого стола! Успей сесть в Excel за ${Math.ceil(boss.waitT)} с`, 2.6);
     hint('waitDesk', 'Д.Н. ждёт у стола. Вернёшься в Excel до конца таймера — отмажешься. Не успеешь — «не застал на месте» +1, на лимите выговор.');
   }
 
   function endInspection() {
+    const clickerResolved = boss.emptyDesk === true;
+    if (clickerResolved) resolveAutoclickerInspectionElsewhere();
+    boss.emptyDesk = false;
     nextBossCheck = (CFG.checkInterval[0] + rand() * (CFG.checkInterval[1] - CFG.checkInterval[0])) * (today().checkMul || 1) * diff().check;
     boss.silentCheck = rand() < diff().surprise;
     if (rand() < 0.4) { bossGoTo(WD.bossHome, 'return', 'кабинет'); }
     else { bossGoTo(pick(WD.patrolSpots), 'patrol'); }
+    if (clickerResolved && mode === 'playing') saveProgress();
   }
 
   function followPath(dt, speed) {
@@ -195,6 +361,8 @@
   }
 
   function updateBoss(dt) {
+    tickBossMemoryAdapter(dt);
+    rememberVisibleAutoclickerReveal();
     // Снюс: раз в 1–2 минуты Д.Н. закидывается — медленнее ходит, подозрение растёт слабее, у стола ждёт дольше
     boss.snus = Math.max(0, (boss.snus || 0) - dt);
     boss.snusCd = (boss.snusCd === undefined ? 40 + rand() * 40 : boss.snusCd) - dt;
@@ -208,7 +376,7 @@
     boss.quoteTimer -= dt;
     boss.praiseTimer = Math.max(0, boss.praiseTimer - dt);
 
-    if (mode === 'playing' && !onLunch() && !['inspect', 'waitDesk', 'lecture', 'leaving', 'gone', 'goout', 'out', 'scold', 'standup'].includes(boss.state) && !eventIs('call') && !eventIs('drill')) {
+    if (mode === 'playing' && !onLunch() && !['inspect', 'waitDesk', 'lecture', 'leaving', 'gone', 'goout', 'out', 'scold', 'standup', 'distractionWalk', 'distractionWait'].includes(boss.state) && !eventIs('call') && !eventIs('drill')) {
       nextBossCheck -= dt;
       // Иногда проверка внезапная — без «Кхм-кхм» (зависит от сложности)
       if (nextBossCheck < diff().warn && !boss.warned && !boss.silentCheck && rand() < CFG.strollChance) startStroll();
@@ -221,6 +389,7 @@
     }
     // Пятница: после 17:00 Директор уезжает «на встречу»
     if (mode === 'playing' && today().bossLeaves && clockMinutes >= today().bossLeaves && boss.state !== 'gone') {
+      if (isBossDistractionState()) interruptBossDistraction('interrupted');
       if (boss.state === 'out' || boss.state === 'goout') { boss.state = 'gone'; boss.x = -100; addLog('Д.Н. так и не вернулся: «встреча». Пятница, детка!', 'good'); }
       else if (boss.state !== 'leaving') {
         boss.state = 'leaving';
@@ -235,7 +404,7 @@
         boss.moving = false;
         boss.facing = Math.PI / 2;
         if (boss.quoteTimer <= 0) { say('boss', pick(LINES.boss.office), 2.6, '#e8e2d0'); boss.quoteTimer = 10 + rand() * 6; }
-        if (boss.stateTimer <= 0) { const s = strollSpot(); bossGoTo(s, 'patrol', s.desc); }
+        if (boss.stateTimer <= 0) { const s = strollSpot(); bossGoToStrollSpot(s); }
         break;
       case 'patrol':
         if (followPath(dt, CFG.bossSpeed)) { boss.state = 'look'; boss.stateTimer = 2 + rand() * 2; boss.lookTimer = 0; }
@@ -245,11 +414,17 @@
         lookAround(dt);
         if (boss.stateTimer <= 0) {
           if (rand() < 0.22) bossGoTo(WD.bossHome, 'return', 'кабинет');
-          else { const s = strollSpot(); bossGoTo(s, 'patrol', s.desc); }
+          else { const s = strollSpot(); bossGoToStrollSpot(s); }
         }
         break;
       case 'return':
         if (followPath(dt, CFG.bossSpeed)) { boss.state = 'office'; boss.stateTimer = 7 + rand() * 6; boss.x = WD.bossHome.x; boss.y = WD.bossHome.y; }
+        break;
+      case 'distractionWalk':
+        if (followPath(dt, CFG.bossSpeed)) { boss.state = 'distractionWait'; boss.moving = false; }
+        break;
+      case 'distractionWait':
+        boss.moving = false;
         break;
       case 'inspect':
         // Страховка: проверка не тянется дольше 30 с (застрял в пути)
@@ -274,7 +449,7 @@
         boss.facing = -Math.PI / 2;
         if (playerIsWorking()) {
           say('player', pick(LINES.excuses), 2.6);
-          setTimeout(() => { if (mode === 'playing') say('boss', 'Ну-ну. Работай давай.', 2.2); }, 1300);
+          scheduleShiftCallback(() => { if (mode === 'playing') say('boss', 'Ну-ну. Работай давай.', 2.2); }, 1300);
           addLog('Быкентий успел к столу и отмазался.', 'info');
           endInspection();
           nextBossCheck *= 0.7; // Д.Н. насторожился — следующая проверка раньше
@@ -321,7 +496,7 @@
           boss.inspectTimer = 3.4;
           if (c) {
             say('boss', pick(LINES.boss.scold[c.id]), 3.2);
-            setTimeout(() => { if (mode === 'playing') say(c.id, pick(['Я работаю! Честно!', 'Это для отчёта!', 'Я на созвоне!', 'Уже убрал!']), 2.4, '#ffd4c8'); }, 1500);
+            scheduleShiftCallback(() => { if (mode === 'playing') say(c.id, pick(['Я работаю! Честно!', 'Это для отчёта!', 'Я на созвоне!', 'Уже убрал!']), 2.4, '#ffd4c8'); }, 1500);
             c.slack = null; c.slackTimer = 14 + rand() * 10; c.scoldCooldown = 45;
             stats.scolds++;
             addLog(`Д.Н. отчитывает: ${c.name}. У Быкентия — окно.`, 'good');
@@ -355,13 +530,18 @@
       }
     }
 
+    tickDisguiseAdapter(dt);
+
     // Подозрение
     const seen = mode === 'playing' && playerVisibleToBoss();
     boss.seesPlayer = seen;
     let rate = -CFG.suspicionDecay;
     const grace = boss.catchCooldown > 0 || (banner && banner.dur && shiftTime < banner.dur); // после выговора и пока читаешь баннер дня
     if (seen && !grace && boss.state !== 'lecture' && boss.state !== 'office') {
-      if ((boss.state === 'inspect' || boss.state === 'waitDesk') && !playerIsWorking()) rate = CFG.suspicionInspect;
+      if (boss.state === 'inspect' && disguiseFolderHeld() && dist(boss, player) <= 34) noteBossDisguiseQuestion();
+      if ((boss.state === 'inspect' || boss.state === 'waitDesk') && !playerIsWorking()) {
+        rate = boss.state === 'inspect' && disguiseCoverStatus().cover ? 0 : CFG.suspicionInspect;
+      }
       else if (SLACK.has(player.action)) rate = CFG.suspicionSlack * diff().slack;
       if (rate > 0 && eventIs('noise')) rate *= 0.6; // за перфоратором шорохов не слышно
       if (rate > 0 && boss.snus > 0) rate *= CFG.snusSuspicion; // под снюсом добрее
