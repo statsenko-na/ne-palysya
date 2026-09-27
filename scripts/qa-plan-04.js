@@ -94,7 +94,11 @@ const { loadPlaywright } = require('./pw');
     });
     await page.screenshot({ path: path.join(output, '04-pee-critical.png') });
     const critical = await page.evaluate(() => {
-      NP_DEBUG.skip(19.95);
+      // Измерительный отрезок идёт синхронно и отдельно от ожидания Canvas-снимка выше;
+      // иначе работающий requestAnimationFrame добавляет реальное игровое время между двумя skip.
+      NP_DEBUG.set({ fun: 50 });
+      NP_DEBUG.forcePee(100);
+      NP_DEBUG.skip(20);
       return { active: NP_DEBUG.pee.active, pee: NP_DEBUG.pee.pee, fun: NP_DEBUG.state.fun, told: NP_DEBUG.flags.peeCriticalTold };
     });
     assert.strictEqual(critical.active, true, '100% остаётся активным');
