@@ -358,7 +358,7 @@ body.is-playing {
 /* Магазин апгрейдов и кнопки в ряд */
 .btn-row { display: flex; flex-wrap: wrap; justify-content: center; gap: .6rem; }
 .pixel-btn-alt { background: #75c5c5; }
-.shop-card { width: min(100%, 44rem); padding: 1.2rem 1.3rem; text-align: center; }
+.shop-card { width: min(100%, 44rem); max-height: calc(100vh - 20px); max-height: calc(100dvh - 20px); overflow-y: auto; padding: 1.2rem 1.3rem; text-align: center; }
 .shop-note { color: #c8d6ca; font-size: .875rem; line-height: 1.5; margin: .4rem 0; }
 .shop-coins { color: var(--yellow); font-family: 'Press Start 2P', monospace; font-size: 1rem; margin: .5rem 0 .8rem; }
 .shop-list { display: grid; grid-template-columns: repeat(auto-fit, minmax(17rem, 1fr)); gap: .5rem; text-align: left; }
@@ -371,6 +371,23 @@ body.is-playing {
 .shop-item button:disabled { background: #4a5a5c; color: #aab; cursor: default; }
 .shop-item.owned { border-color: var(--green); }
 .shop-item.owned button { background: var(--green); color: #fff; }
+.equipment-slot-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: .5rem; margin: .6rem 0; text-align: left; }
+.equipment-slot { display: flex; align-items: center; justify-content: space-between; gap: .5rem; min-width: 0; padding: .55rem .65rem; border: 1px solid #416064; background: #102329; }
+.equipment-slot b { color: var(--yellow); font-size: .8125rem; white-space: nowrap; }
+.equipment-slot span { overflow: hidden; color: var(--text); font-size: .8125rem; text-overflow: ellipsis; }
+.equipment-slot button, .equipment-item button { min-height: 36px; padding: .35rem .5rem; border: 1px solid var(--paper); background: #26444a; color: var(--text); font-weight: 700; white-space: nowrap; cursor: pointer; }
+.equipment-slot button:disabled, .equipment-item button:disabled { opacity: .55; cursor: default; }
+.equipment-list { display: grid; gap: .5rem; text-align: left; }
+.equipment-item { display: flex; align-items: center; gap: .65rem; padding: .6rem; border: 1px solid #416064; background: #0f2024; }
+.equipment-item .ico { font-size: 1.5rem; }
+.equipment-item .txt { flex: 1 1 auto; min-width: 0; }
+.equipment-item b { display: block; color: #fff5d0; font-size: .875rem; }
+.equipment-item small { display: block; margin-top: 2px; color: var(--text-dim); font-size: .8rem; line-height: 1.35; }
+.equipment-item .equipment-actions { display: flex; flex-wrap: wrap; justify-content: flex-end; gap: .3rem; }
+.equipment-item button.equipment-buy { border: 2px solid var(--paper); background: var(--yellow); color: var(--ink); }
+.equipment-item.owned { border-color: var(--green); }
+.equipment-empty { margin: .6rem 0; color: var(--text-dim); font-size: .875rem; }
+@media (max-width: 600px) { .equipment-slot-grid { grid-template-columns: 1fr; } .equipment-item { align-items: flex-start; flex-wrap: wrap; } .equipment-item .equipment-actions { width: 100%; justify-content: flex-start; margin-left: 2.15rem; } }
 
 /* Ползунок скорости времени */
 .speed-row { display: flex; flex-wrap: wrap; align-items: center; justify-content: center; gap: .6rem; margin-top: .75rem; color: #c8d6ca; font-size: .8125rem; font-weight: 700; }

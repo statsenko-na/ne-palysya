@@ -5,6 +5,99 @@
 
   // ---------- МАГАЗИН АПГРЕЙДОВ ----------
   let shopOpen = false;
+  const EQUIPMENT_SHOP_AVAILABLE_IDS = new Set();
+  const EQUIPMENT_SHOP_ICONS = { thermos: '🫖', mirror: '🪞', autoclicker: '🖱️' };
+  let equipmentMenuState = createEquipmentState(store.get('equipmentLoadout', null));
+  function equipmentEditContext() {
+    return { phase: mode, paused: mode === 'paused' };
+  }
+  function persistEquipmentLoadout(state) {
+    equipmentMenuState = createEquipmentState({ ownedEquipment: state.ownedEquipment, loadout: state.loadout });
+    store.set('equipmentLoadout', { ownedEquipment: equipmentMenuState.ownedEquipment, loadout: equipmentMenuState.loadout });
+    return equipmentMenuState;
+  }
+  function equipmentSlotName(id) {
+    const item = EQUIPMENT_CATALOG.find(entry => entry.id === id);
+    return item ? item.name : 'Пусто';
+  }
+  function renderEquipmentShop() {
+    if (!ui.equipmentSlots || !ui.equipmentList) return;
+    equipmentMenuState = createEquipmentState(equipmentMenuState);
+    ui.equipmentSlots.innerHTML = equipmentMenuState.loadout.map((id, slot) =>
+      `<div class="equipment-slot"><b>СЛОТ ${slot + 1}</b><span>${equipmentSlotName(id)}</span><button data-clear-equipment-slot="${slot}" ${id === null ? 'disabled' : ''}>Снять</button></div>`
+    ).join('');
+    const items = EQUIPMENT_CATALOG.filter(item => EQUIPMENT_SHOP_AVAILABLE_IDS.has(item.id));
+    ui.equipmentList.innerHTML = items.length ? items.map(item => {
+      const ownedNow = equipmentMenuState.ownedEquipment.includes(item.id);
+      const equippedSlot = equipmentMenuState.loadout.indexOf(item.id);
+      const controls = ownedNow
+        ? `<div class="equipment-actions">${[0, 1].map(slot => {
+          const duplicate = equipmentMenuState.loadout[1 - slot] === item.id;
+          const installed = equippedSlot === slot;
+          return `<button data-equip-equipment="${item.id}" data-equipment-slot="${slot}" ${duplicate || installed ? 'disabled' : ''}>${installed ? `Слот ${slot + 1} ✓` : `В слот ${slot + 1}`}</button>`;
+        }).join('')}</div>`
+        : `<button class="equipment-buy" data-buy-equipment="${item.id}" ${coins < item.cost ? 'disabled' : ''}>Купить · ${item.cost} ₭</button>`;
+      return `<div class="equipment-item${ownedNow ? ' owned' : ''}"><span class="ico">${EQUIPMENT_SHOP_ICONS[item.id] || '🎒'}</span><span class="txt"><b>${item.name}</b><small>${item.description}</small></span>${controls}</div>`;
+    }).join('') : '<p class="equipment-empty">Пока нет доступных приспособлений.</p>';
+    ui.equipmentSlots.querySelectorAll('[data-clear-equipment-slot]').forEach(button => {
+      addTap(button, () => clearEquipmentSlot(Number(button.dataset.clearEquipmentSlot)));
+    });
+    ui.equipmentList.querySelectorAll('[data-buy-equipment]').forEach(button => {
+      addTap(button, () => buyEquipmentItem(button.dataset.buyEquipment));
+    });
+    ui.equipmentList.querySelectorAll('[data-equip-equipment]').forEach(button => {
+      addTap(button, () => equipOwnedEquipment(button.dataset.equipEquipment, Number(button.dataset.equipmentSlot)));
+    });
+  }
+  function buyEquipmentItem(id) {
+    if (!EQUIPMENT_SHOP_AVAILABLE_IDS.has(id)) return { ok: false, state: equipmentMenuState, coins, reason: 'equipment_unavailable' };
+    const result = purchaseEquipment(equipmentMenuState, id, coins, equipmentEditContext());
+    if (!result.ok) {
+      if (result.reason === 'insufficient_coins') toast('Не хватает KPI-коинов на этот предмет.', 1.8);
+      return result;
+    }
+    coins = result.coins;
+    store.set('coins', coins);
+    persistEquipmentLoadout(result.state);
+    playSound('coin');
+    renderShop();
+    return result;
+  }
+  function equipOwnedEquipment(id, slot) {
+    if (!EQUIPMENT_SHOP_AVAILABLE_IDS.has(id)) return { ok: false, state: equipmentMenuState, reason: 'equipment_unavailable' };
+    const result = equipItem(equipmentMenuState, id, slot, equipmentEditContext());
+    if (!result.ok) return result;
+    persistEquipmentLoadout(result.state);
+    renderShop();
+    return result;
+  }
+  function clearEquipmentSlot(slot) {
+    if (!['menu', 'ended'].includes(mode) || !Number.isInteger(slot) || slot < 0 || slot > 1) return false;
+    const loadout = equipmentMenuState.loadout.slice();
+    loadout[slot] = null;
+    const next = createEquipmentState({ ownedEquipment: equipmentMenuState.ownedEquipment, loadout });
+    if (!validateLoadout(next).valid) return false;
+    persistEquipmentLoadout(next);
+    renderShop();
+    return true;
+  }
+  function beginEquipmentForShift(loadResult) {
+    if (typeof beginEquipmentShift !== 'function') return false;
+    const saved = saveExtensions.equipment;
+    let result = loadResult.status === 'resumed' && saved
+      ? beginEquipmentShift(saved, { shiftId, resume: true })
+      : { ok: false, reason: 'new_shift' };
+    if (!result.ok) result = beginEquipmentShift(equipmentMenuState, { shiftId, newShift: true });
+    if (!result.ok) {
+      saveExtensionErrors.equipment = result.reason || 'equipment_state_invalid';
+      saveExtensions.equipment = createEquipmentState();
+      return false;
+    }
+    saveExtensions.equipment = result.state;
+    delete saveExtensionErrors.equipment;
+    persistEquipmentLoadout(result.state);
+    return true;
+  }
   function renderShop() {
     if (!ui.shopList) return;
     ui.shopCoins.textContent = `${coins} ₭`;
@@ -15,6 +108,7 @@
         `<button data-buy="${u.id}" ${own || !can ? 'disabled' : ''}>${own ? 'ЕСТЬ ✓' : `${u.cost} ₭`}</button></div>`;
     }).join('');
     ui.shopList.querySelectorAll('[data-buy]').forEach(b => addTap(b, () => buyUpgrade(b.dataset.buy)));
+    renderEquipmentShop();
     const achEl = $('ach-list');
     if (achEl) {
       $('ach-count').textContent = `${achCount()}/${ACHIEVEMENTS.length}`;
@@ -283,6 +377,7 @@
       weekReprimands = 0; store.set('weekReprimands', 0);
     }
     const loadResult = loadSavedProgress();
+    beginEquipmentForShift(loadResult);
     refreshPinnedObjective();
     lastLoadResult = { ...loadResult };
     prepareRelationshipsForShift(loadResult);

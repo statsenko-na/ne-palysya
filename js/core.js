@@ -342,6 +342,7 @@
     toast: $('toast'), endKicker: $('end-kicker'), endTitle: $('end-title'), endCopy: $('end-copy'), endResult: $('end-result'), endStats: $('end-stats'),
     grade: $('end-grade'),
     shop: $('shop-overlay'), shopList: $('shop-list'), shopCoins: $('shop-coins'), shopClose: $('shop-close'),
+    equipmentSlots: $('equipment-slots'), equipmentList: $('equipment-list'),
     shopBtns: document.querySelectorAll('.shop-open'), endCoins: $('end-coins'),
   };
 
