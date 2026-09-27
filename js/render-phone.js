@@ -4,13 +4,17 @@
 // Порядок подключения — в index.html.
 
   // ---------- ТЕЛЕФОН ----------
-  const PHONE_PAGES = Object.freeze(['todos', 'colleagues', 'reels']);
-  const PHONE_PAGE_LABELS = Object.freeze({ todos: 'ДЕЛА', colleagues: 'КОЛЛЕГИ', reels: 'РИЛСЫ' });
+  const PHONE_PAGES = Object.freeze(['todos', 'colleagues', 'reels', 'equipment']);
+  const PHONE_PAGE_LABELS = Object.freeze({ todos: 'ДЕЛА', colleagues: 'КОЛЛЕГИ', reels: 'РИЛСЫ', equipment: 'ВЕЩИ' });
   let phonePanelOpen = false;
   let phonePage = 'todos';
   let phoneHitboxes = [];
   let phoneHitScale = 1;
   let pinnedTaskId = typeof store.get('pinnedTaskId', null) === 'string' ? store.get('pinnedTaskId', null) : null;
+
+  function availablePhonePages() {
+    return PHONE_PAGES.filter(page => page !== 'equipment' || equipmentHas('thermos'));
+  }
 
   function pinTodoTask(id) {
     const task = todo.find(item => item.id === id && !item.done);
@@ -55,8 +59,8 @@
     return true;
   }
   function selectPhonePage(page) {
-    if (!PHONE_PAGES.includes(page) || mode !== 'playing') return false;
-    if (page === 'todos' && player.action === 'phone') finishPhoneScrolling();
+    if (!availablePhonePages().includes(page) || mode !== 'playing') return false;
+    if ((page === 'todos' || page === 'equipment') && player.action === 'phone') finishPhoneScrolling();
     if (page === 'reels' && player.action !== 'phone' && !startPhoneScrolling()) return false;
     phonePage = page;
     phonePanelOpen = true;
@@ -79,6 +83,7 @@
       const result = requestFavor(hit.id, 'distraction');
       if (!result.ok) toast(distractionReasonText(result.reason, 'colleague'), 2.2);
     }
+    else if (hit.type === 'thermos') activateThermosFromPhone();
     else if (hit.type === 'close') closePhonePanel();
     return true;
   }
@@ -128,7 +133,7 @@
     const k = uiK(1.5);
     phoneHitScale = k;
     const { VW, VH } = uiSpace(k);
-    const pageHeight = phonePage === 'todos' ? 235 : phonePage === 'colleagues' ? 280 : 260;
+    const pageHeight = phonePage === 'todos' ? 235 : phonePage === 'colleagues' ? 280 : phonePage === 'equipment' ? 235 : 260;
     const pw = 250, ph = Math.max(150, Math.min(pageHeight, VH - hudBottom() / k - 10));
     // на телефоне справа внизу сенсорные кнопки — сдвигаем телефон левее них
     const x = VW - pw - 18 - (coarsePointer ? 150 / (unitPx * k) : 0);
@@ -151,8 +156,9 @@
     if (phonePanelOpen && phoneAnim >= 0.75) phoneHitboxes.push({ type: 'close', x: x + pw - 25, y: y + 17, w: 16, h: 15 });
 
     const tabY = y + 38;
-    const tabW = (pw - 34) / PHONE_PAGES.length;
-    PHONE_PAGES.forEach((page, i) => {
+    const pages = availablePhonePages();
+    const tabW = (pw - 34) / pages.length;
+    pages.forEach((page, i) => {
       const bx = x + 12 + i * (tabW + 5);
       roundRect(bx, tabY, tabW, 19, 3);
       ctx.fillStyle = phonePage === page ? '#356046' : '#172b30'; ctx.fill();
@@ -224,6 +230,29 @@
           TE(`${icon} ${text}`, cx, cy + 4, 6.6, pw - 34, color, 'left', 700);
           cy += 9;
         }
+      }
+    } else if (phonePage === 'equipment') {
+      const gear = saveExtensions.equipment || createEquipmentState();
+      const chargeReady = gear.thermosCharge && !gear.usedCharges.thermos;
+      T('ТЕРМОС · ЗАПАСНОЙ КОФЕ', cx, cy, 8, '#f2bb38', 'left', 900, FONT_SANS);
+      cy += 15;
+      if (chargeReady) {
+        TE('Минимум 8 с. Действующий более долгий кофеин сохранится.', cx, cy + 4, 7, pw - 34, '#e8f2ee', 'left', 700);
+        cy += 31;
+        const bx = x + 18, by = cy, bw = pw - 36, bh = 22;
+        roundRect(bx, by, bw, bh, 4); ctx.fillStyle = '#356046'; ctx.fill();
+        ctx.strokeStyle = '#9fe0b0'; ctx.lineWidth = 1; ctx.stroke();
+        T('ИСПОЛЬЗОВАТЬ ЗАРЯД', bx + bw / 2, by + bh / 2, 7.2, '#fff5d0', 'center', 900, FONT_SANS);
+        if (phonePanelOpen && phoneAnim >= 0.75) phoneHitboxes.push({ type: 'thermos', x: bx, y: by, w: bw, h: bh });
+        cy += 31;
+        TE(`Кофеин сейчас: ${Math.ceil(player.coffeeBoost)} с. Кайф и счётчик чашек не изменятся.`, cx, cy + 4, 7, pw - 34, '#c8d6ca', 'left', 700);
+      } else {
+        const status = gear.usedCharges.thermos
+          ? 'Запасной кофе уже выпит; заряд вернётся в новой смене.'
+          : 'Завари и полностью закончи обычную чашку, чтобы получить заряд.';
+        TE(status, cx, cy + 4, 7, pw - 34, '#e8f2ee', 'left', 700);
+        cy += 30;
+        TE('Кофе для Хлада термос не наполняет. Один заряд за смену.', cx, cy + 4, 7, pw - 34, '#c8d6ca', 'left', 700);
       }
     } else {
       const scrolling = player.action === 'phone';

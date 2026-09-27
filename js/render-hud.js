@@ -95,9 +95,23 @@
     if (coverTokens) info.push('🛡 прикрытие');
     if (player.coffeeBoost > 0) info.push(`☕ ${Math.ceil(player.coffeeBoost)} с`);
     if (phoneSafe > 0) info.push(`📱 созвон ${Math.ceil(phoneSafe)} с`);
+    const mirrorDirection = equipmentMirrorDirection();
+    if (mirrorDirection) info.push(`🪞 ${mirrorDirection} к Д.Н.`);
     if (day.hungry) info.push('🍽 голоден');
     if (officeEvent && officeEvent.id !== 'call') info.push(`★ ${EVENTS[officeEvent.id].title.toLowerCase()} · ${Math.ceil(officeEvent.t)} с`);
     return info;
+  }
+
+  function equipmentMirrorDirection() {
+    if (mode !== 'playing' || ['office', 'gone', 'out'].includes(boss.state)) return null;
+    const distance = Math.hypot(boss.x - SEAT.x, boss.y - SEAT.y);
+    const atDesk = player.action === 'work' || Math.hypot(player.x - SEAT.x, player.y - SEAT.y) <= 28;
+    if (!equipmentMirrorVisible(saveExtensions.equipment, {
+      atDesk, distance, lineOfSight: lineOfSight(SEAT, boss),
+    })) return null;
+    const arrows = ['→', '↘', '↓', '↙', '←', '↖', '↑', '↗'];
+    const octant = (Math.round(Math.atan2(boss.y - SEAT.y, boss.x - SEAT.x) / (Math.PI / 4)) + 8) % 8;
+    return arrows[octant];
   }
 
   // Компактный HUD для небольших экранов: рисуется в UI-единицах, ширина VW = W / масштаб.

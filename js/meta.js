@@ -6,8 +6,14 @@
   // ---------- МАГАЗИН АПГРЕЙДОВ ----------
   let shopOpen = false;
   const EQUIPMENT_SHOP_AVAILABLE_IDS = new Set();
+  EQUIPMENT_SHOP_AVAILABLE_IDS.add('thermos');
+  EQUIPMENT_SHOP_AVAILABLE_IDS.add('mirror');
   const EQUIPMENT_SHOP_ICONS = { thermos: '🫖', mirror: '🪞', autoclicker: '🖱️' };
   let equipmentMenuState = createEquipmentState(store.get('equipmentLoadout', null));
+  function equipmentHas(id) {
+    const state = saveExtensions.equipment;
+    return !!state && Array.isArray(state.activeLoadout) && state.activeLoadout.includes(id);
+  }
   function equipmentEditContext() {
     return { phase: mode, paused: mode === 'paused' };
   }

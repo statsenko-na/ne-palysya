@@ -742,6 +742,41 @@
     saveExtensions.yogurt = next;
     return true;
   }
+  function recordThermosBrewOnCompletion() {
+    const current = saveExtensions.equipment;
+    if (!equipmentHas('thermos') || !current) return false;
+    const result = recordThermosBrew(current, {
+      paused: mode === 'paused', shiftEnded: mode === 'ended', completed: true,
+      coffeeForColleague: false, brewId: `${shiftId}:thermos-brew:${Math.floor(shiftTime * 1000)}`,
+    });
+    if (!result.ok) return false;
+    saveExtensions.equipment = result.state;
+    delete saveExtensionErrors.equipment;
+    addLog('Термос набрал один запасной заряд. Его можно использовать в телефоне.', 'good');
+    floater(player.x, player.y - 58, 'ТЕРМОС ЗАРЯЖЕН', '#e8b070');
+    return true;
+  }
+  function activateThermosFromPhone() {
+    if (!phonePanelOpen || mode !== 'playing') return { ok: false, reason: 'phone_unavailable' };
+    const current = saveExtensions.equipment;
+    if (!current) return { ok: false, reason: 'equipment_unavailable' };
+    const result = useThermos(current, {
+      currentBoost: player.coffeeBoost, paused: mode === 'paused', shiftEnded: mode === 'ended', viaPhone: true,
+    });
+    if (!result.ok) {
+      const message = result.reason === 'thermos_charge_unavailable' ? 'Запасной заряд термоса уже использован или ещё не готов.' : 'Термос сейчас недоступен.';
+      toast(message, 2.2);
+      return result;
+    }
+    saveExtensions.equipment = result.state;
+    delete saveExtensionErrors.equipment;
+    player.coffeeBoost = result.coffeeBoost;
+    playSound('coffee');
+    floater(player.x, player.y - 58, 'ЗАПАСНОЙ КОФЕ · 8 С', '#e8b070');
+    addLog('Использован запасной кофе из термоса. Кайф и статистика чашек не меняются.', 'good');
+    saveProgress();
+    return result;
+  }
   function autoshkaModuleAvailable() {
     return typeof createAutoshkaChoice === 'function' && typeof isAutoshkaState === 'function'
       && typeof startAutoshkaRepair === 'function' && typeof tickAutoshkaRepair === 'function'
@@ -1075,6 +1110,8 @@
   }
   function endAction(reason, finishedActivity = null) {
     const a = player.action;
+    const coffeeForColleague = a === 'coffee' && !!(saveExtensions.yogurt && saveExtensions.yogurt.pendingCoffee);
+    let thermosChargeStored = false;
     const startPrinterDistraction = a === 'printer-distraction-prep' && reason === 'done';
     if (a === 'autoshka-repair' && reason !== 'done') {
       cancelAutoshkaHelp(reason);
@@ -1105,8 +1142,12 @@
       if (reason === 'done' && c) { grantPerk(c); completedChat = true; }
       player.chatWith = null;
     }
-    if (a === 'coffee' && finishYogurtCoffeeBrew(reason) && reason === 'done') {
-      addLog('Новый кофе приготовлен. Кайф и ускорение от этой чашки не начисляются.', 'info');
+    if (a === 'coffee') {
+      const yogurtCoffeeFinished = finishYogurtCoffeeBrew(reason);
+      if (yogurtCoffeeFinished && reason === 'done') {
+        addLog('Новый кофе приготовлен. Кайф и ускорение от этой чашки не начисляются.', 'info');
+      }
+      if (reason === 'done' && !coffeeForColleague) thermosChargeStored = recordThermosBrewOnCompletion();
     }
     if (a === 'yogurt-coffee-gift' && reason === 'done') {
       if (!yogurtAtHladDesk()) {
@@ -1188,6 +1229,7 @@
     player.actionTimer = 0;
     player.hideSpot = null;
     checkTodo();
+    if (thermosChargeStored) saveProgress();
     if (reason === 'done' && a === 'smoke' && activityVariant !== 'smoke-listening') offerSmokeListeningChoice();
     if (startPrinterDistraction) {
       const result = beginBossDistraction('printer');
