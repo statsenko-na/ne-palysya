@@ -6,7 +6,7 @@ const fs = require('node:fs');
 const path = require('node:path');
 
 const root = path.join(__dirname, '..');
-const release = '0.27.0';
+const release = '0.27.1';
 const read = file => fs.readFileSync(path.join(root, file), 'utf8');
 const sources = new Map();
 const source = file => {

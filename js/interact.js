@@ -75,6 +75,38 @@
   }
   function coworkerById(id) { return coworkers.find(c => c.id === id); }
 
+  // Демо-смена ведёт недельные итоги и секрет Тиграна только в памяти и не портит личный прогресс.
+  let demoWeekStore = {};
+  function weekStoreGet(key, fallback) {
+    if (auto.demo && Object.prototype.hasOwnProperty.call(demoWeekStore, key)) return demoWeekStore[key];
+    return store.get(key, fallback);
+  }
+  function weekStoreSet(key, value) {
+    if (auto.demo) demoWeekStore[key] = value;
+    else store.set(key, value);
+  }
+  // Снимок недельных итогов на начало дня: переигровка того же дня восстанавливает факты, как отношения из dayStart.
+  function prepareWeekOutcomesForShift(loadResult) {
+    demoWeekStore = {};
+    if (auto.demo || !loadResult || loadResult.status !== 'new' || !weekOutcomeModelAvailable()) return;
+    const weekId = currentWeekOutcomeId();
+    const saved = store.get('weekOutcomes.dayStart', null);
+    if (saved && saved.dayIndex === dayIndex && saved.weekId === weekId) {
+      if (saved.weekOutcomes) store.set('weekOutcomes', saved.weekOutcomes);
+      if (saved.tigranSecret) store.set('tigranSecret', saved.tigranSecret);
+      delete saveExtensions.weekOutcomes;
+      delete saveExtensions.tigranSecret;
+    } else {
+      store.set('weekOutcomes.dayStart', {
+        dayIndex, weekId,
+        weekOutcomes: ensureWeekOutcomesExtension(),
+        tigranSecret: ensureTigranSecretExtension(),
+      });
+    }
+    ensureWeekOutcomesExtension();
+    ensureTigranSecretExtension();
+  }
+
   function weekOutcomeModelAvailable() {
     return typeof createWeekOutcomes === 'function' && typeof recordWeekFact === 'function'
       && typeof selectWeekTitle === 'function' && typeof createTigranSecret === 'function'
@@ -84,30 +116,30 @@
     return (typeof value === 'string' && !!value) || (Number.isInteger(value) && value >= 0);
   }
   function rememberWeekOutcomeId(weekId) {
-    store.set('weekOutcomeWeekId', weekId);
+    weekStoreSet('weekOutcomeWeekId', weekId);
     const match = typeof weekId === 'string' ? weekId.match(/^week-\d+-(\d+)$/) : null;
     if (!match) return;
-    const currentEpoch = store.get('weekOutcomeEpoch', 0);
+    const currentEpoch = weekStoreGet('weekOutcomeEpoch', 0);
     const epoch = Number(match[1]);
-    if (!Number.isInteger(currentEpoch) || currentEpoch <= epoch) store.set('weekOutcomeEpoch', epoch + 1);
+    if (!Number.isInteger(currentEpoch) || currentEpoch <= epoch) weekStoreSet('weekOutcomeEpoch', epoch + 1);
   }
   function nextWeekOutcomeId() {
-    let epoch = store.get('weekOutcomeEpoch', 0);
+    let epoch = weekStoreGet('weekOutcomeEpoch', 0);
     if (!Number.isInteger(epoch) || epoch < 0) epoch = 0;
     const weekId = `week-${weekNumber}-${epoch}`;
-    store.set('weekOutcomeEpoch', epoch + 1);
-    store.set('weekOutcomeWeekId', weekId);
+    weekStoreSet('weekOutcomeEpoch', epoch + 1);
+    weekStoreSet('weekOutcomeWeekId', weekId);
     return weekId;
   }
   function currentWeekOutcomeId() {
     if (!weekOutcomeModelAvailable()) return null;
-    const storedId = store.get('weekOutcomeWeekId', null);
+    const storedId = weekStoreGet('weekOutcomeWeekId', null);
     if (isWeeklyModelId(storedId)) return storedId;
     const candidates = [
       saveExtensions.weekOutcomes,
-      store.get('weekOutcomes', null),
+      weekStoreGet('weekOutcomes', null),
       saveExtensions.tigranSecret,
-      store.get('tigranSecret', null),
+      weekStoreGet('tigranSecret', null),
     ];
     const outcome = candidates.find(state => state && isWeeklyModelId(state.weekId) && selectWeekTitle(state).ok);
     const secret = candidates.find(state => state && isWeeklyModelId(state.weekId)
@@ -137,18 +169,18 @@
   function ensureWeekOutcomesExtension() {
     if (!weekOutcomeModelAvailable()) return null;
     const weekId = currentWeekOutcomeId();
-    const candidates = [store.get('weekOutcomes', null), saveExtensions.weekOutcomes];
+    const candidates = [weekStoreGet('weekOutcomes', null), saveExtensions.weekOutcomes];
     const state = candidates.find(candidate => candidate && candidate.weekId === weekId && selectWeekTitle(candidate).ok)
       || createWeekOutcomes(weekId);
     saveExtensions.weekOutcomes = state;
     delete saveExtensionErrors.weekOutcomes;
-    store.set('weekOutcomes', state);
+    weekStoreSet('weekOutcomes', state);
     return state;
   }
   function ensureTigranSecretExtension() {
     if (!weekOutcomeModelAvailable()) return null;
     const weekId = currentWeekOutcomeId();
-    const persisted = store.get('tigranSecret', null);
+    const persisted = weekStoreGet('tigranSecret', null);
     const candidates = [saveExtensions.tigranSecret, persisted];
     let state = latestTigranSecretState(saveExtensions.tigranSecret, persisted, weekId);
     if (!state) {
@@ -157,9 +189,9 @@
         ? advanceTigranSecret(previous, 'new_week', { weekId })
         : null;
       state = reset && reset.ok ? reset.state : createTigranSecret(weekId);
-      store.set('tigranSecret', state);
+      weekStoreSet('tigranSecret', state);
     } else if (!tigranSecretForWeek(persisted, weekId) || persisted.weekId !== weekId || persisted.phase !== state.phase) {
-      if (state.phase !== 'searching') store.set('tigranSecret', state);
+      if (state.phase !== 'searching') weekStoreSet('tigranSecret', state);
     }
     saveExtensions.tigranSecret = state;
     delete saveExtensionErrors.tigranSecret;
@@ -167,10 +199,10 @@
   }
   function peekTigranSecretExtension() {
     if (!weekOutcomeModelAvailable()) return null;
-    const storedId = store.get('weekOutcomeWeekId', null);
+    const storedId = weekStoreGet('weekOutcomeWeekId', null);
     const weekId = isWeeklyModelId(storedId) ? storedId : null;
-    if (weekId !== null) return latestTigranSecretState(saveExtensions.tigranSecret, store.get('tigranSecret', null), weekId);
-    const candidates = [saveExtensions.tigranSecret, store.get('tigranSecret', null)];
+    if (weekId !== null) return latestTigranSecretState(saveExtensions.tigranSecret, weekStoreGet('tigranSecret', null), weekId);
+    const candidates = [saveExtensions.tigranSecret, weekStoreGet('tigranSecret', null)];
     return candidates.find(state => state && isWeeklyModelId(state.weekId)
       && advanceTigranSecret(state, 'new_week', { weekId: state.weekId }).ok) || null;
   }
@@ -182,7 +214,7 @@
     const result = recordWeekFact(state, fact);
     if (result.ok) {
       saveExtensions.weekOutcomes = result.state;
-      store.set('weekOutcomes', result.state);
+      weekStoreSet('weekOutcomes', result.state);
     }
     return result;
   }
@@ -202,10 +234,10 @@
     const previousSecret = ensureTigranSecretExtension();
     const weekId = nextWeekOutcomeId();
     saveExtensions.weekOutcomes = createWeekOutcomes(weekId);
-    store.set('weekOutcomes', saveExtensions.weekOutcomes);
+    weekStoreSet('weekOutcomes', saveExtensions.weekOutcomes);
     const reset = advanceTigranSecret(previousSecret, 'new_week', { weekId });
     saveExtensions.tigranSecret = reset.ok ? reset.state : createTigranSecret(weekId);
-    store.set('tigranSecret', saveExtensions.tigranSecret);
+    weekStoreSet('tigranSecret', saveExtensions.tigranSecret);
     return true;
   }
   function tigranSecretLegalAway() {
@@ -258,7 +290,7 @@
     saveExtensions.tigranSecret = result.state;
     delete saveExtensionErrors.tigranSecret;
     if (moments) saveExtensions.moments = moments;
-    if (persist) store.set('tigranSecret', result.state);
+    if (persist) weekStoreSet('tigranSecret', result.state);
     for (const effect of messages) {
       const key = effect.lineId === 'tigran.secret_hint' ? 'hint'
         : effect.lineId === 'tigran.secret_found' ? 'found'

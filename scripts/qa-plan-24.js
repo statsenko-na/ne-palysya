@@ -430,6 +430,35 @@ const { loadPlaywright } = require('./pw');
     assert.equal(shiftEnd.mode, 'ended');
     assert.equal(shiftEnd.phase, 'hinted', 'ending the shift cancels search without completing it');
 
+    // Переигровка дня восстанавливает недельные факты из снимка начала дня, как отношения.
+    await reset(1, 0, 2409);
+    const retry = await page.evaluate(() => {
+      const helped = () => (store.get('weekOutcomes', null) || { counts: {} }).counts.helped || 0;
+      const help = () => ['aimashyn', 'hlad', 'shurik'].forEach(id =>
+        NP_DEBUG.recordRelationshipEvent(id, 'help', `${NP_DEBUG.persistence.shiftId}:qa24-retry:${id}`));
+      help();
+      const first = helped();
+      NP_DEBUG.finish('fired');
+      NP_DEBUG.restart(2410);
+      const restored = helped();
+      help();
+      return { first, restored, second: helped() };
+    });
+    assert.deepEqual(retry, { first: 3, restored: 0, second: 3 }, 'retry day does not accumulate weekly facts');
+
+    // Демо-автопилот не пишет недельные факты в постоянное хранилище.
+    await reset(1, 0, 2411);
+    const demo = await page.evaluate(() => {
+      NP_DEBUG.startAutopilot(2412);
+      const demoOn = NP_DEBUG.auto.demo;
+      ['aimashyn', 'hlad'].forEach(id =>
+        NP_DEBUG.recordRelationshipEvent(id, 'help', `${NP_DEBUG.persistence.shiftId}:qa24-demo:${id}`));
+      const inMemory = saveExtensions.weekOutcomes.counts.helped;
+      NP_DEBUG.stopAutopilot();
+      return { demoOn, inMemory, stored: ((store.get('weekOutcomes', null) || { counts: {} }).counts.helped || 0) };
+    });
+    assert.deepEqual(demo, { demoOn: true, inMemory: 2, stored: 0 }, 'demo keeps weekly facts in memory only');
+
     assert.deepEqual(errors, [], `ошибки страницы: ${errors.join('; ')}`);
     process.stdout.write('qa-plan-24: титулы, пиво, выговоры, секрет Тиграна, сохранение/отмена и недельный сброс — OK\n');
   } finally {

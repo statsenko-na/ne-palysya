@@ -672,6 +672,7 @@
     refreshPinnedObjective();
     lastLoadResult = { ...loadResult };
     prepareRelationshipsForShift(loadResult);
+    prepareWeekOutcomesForShift(loadResult);
     const hasSavedShift = loadResult.status !== 'new';
     if (!hasSavedShift && has('lava')) addFun(3);
     addLog(`${today().name}: ${today().mod}.`);
