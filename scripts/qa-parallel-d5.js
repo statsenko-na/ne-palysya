@@ -4,7 +4,7 @@ const assert = require('assert');
 const fs = require('fs');
 const vm = require('vm');
 
-const context = {};
+const context = { structuredClone };
 vm.runInNewContext(fs.readFileSync('js/week-scenarios.js', 'utf8'), context, { filename: 'js/week-scenarios.js' });
 const json = value => JSON.parse(JSON.stringify(value));
 const baseContext = overrides => Object.assign({

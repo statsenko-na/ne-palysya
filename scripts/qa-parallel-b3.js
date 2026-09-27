@@ -4,7 +4,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const source = fs.readFileSync(path.join(__dirname, '..', 'js', 'equipment.js'), 'utf8');
-const sandbox = {};
+const sandbox = { structuredClone };
 vm.runInNewContext(`${source}\n;globalThis.api = { createEquipmentState, validateLoadout, purchaseEquipment, equipItem, beginEquipmentShift, recordThermosBrew, useThermos, equipmentMirrorVisible, activateAutoclicker, beginAutoclickerInspection, tickEquipment };`, sandbox);
 const api = sandbox.api;
 const menu = { phase: 'menu' };

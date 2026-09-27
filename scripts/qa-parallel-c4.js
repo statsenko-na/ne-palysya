@@ -6,7 +6,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const sourcePath = path.resolve(__dirname, '../js/week-outcomes.js');
-const sandbox = {};
+const sandbox = { structuredClone };
 vm.runInNewContext(fs.readFileSync(sourcePath, 'utf8'), sandbox, { filename: sourcePath });
 const plain = value => JSON.parse(JSON.stringify(value));
 const weekFact = (eventId, kind, extra = {}) => ({ eventId, weekId: 'week-1', kind, ...extra });

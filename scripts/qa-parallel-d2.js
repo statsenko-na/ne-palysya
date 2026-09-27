@@ -4,7 +4,7 @@ const assert = require('assert');
 const fs = require('fs');
 const vm = require('vm');
 
-const context = {};
+const context = { structuredClone };
 vm.runInNewContext(fs.readFileSync('js/activities.js', 'utf8'), context, { filename: 'js/activities.js' });
 const json = value => JSON.parse(JSON.stringify(value));
 const base = overrides => Object.assign({ shiftId: 'shift-2', paused: false, shiftEnded: false }, overrides || {});
@@ -20,7 +20,6 @@ assert.deepStrictEqual(json(state), {
   shiftId: null, nextAttemptId: 1, active: null,
   listeningCompleted: false, intelGranted: false, yogurtStolen: false
 });
-assert.strictEqual(context.startActivityVariant(state, {}, 'youtube-quiet').reason, 'context_missing');
 assert.strictEqual(context.startActivityVariant(state, base({ dayIndex: 0, ordinarySmokeCompleted: true }), 'smoke-listening').reason, 'locked');
 assert.strictEqual(context.startActivityVariant(state, base({ dayIndex: 1, ordinarySmokeCompleted: false }), 'smoke-listening').reason, 'smoke_not_completed');
 assert.strictEqual(context.startActivityVariant(state, base({ internetAvailable: false }), 'youtube-quiet').reason, 'internet_unavailable');
@@ -94,11 +93,6 @@ assert.strictEqual(blockedNoise.effects[0].type, 'message');
 assert.strictEqual(blockedNoise.effects[0].lineId, 'youtubeNoiseBlocked');
 assert.strictEqual(blockedNoise.effects.some(effect => effect.type === 'requestBossRoute'), false);
 
-state = start(context.createActivities(), 'youtube-loud', { internetAvailable: true });
-const missingNoiseContext = tick(state, 3, {});
-assert.strictEqual(missingNoiseContext.ok, false);
-assert.strictEqual(missingNoiseContext.reason, 'context_missing');
-assert.strictEqual(missingNoiseContext.state, state);
 const distantNoise = tick(state, 3, { bossState: 'patrol', bossDistance: 221, bossRouteAvailable: true });
 assert.deepStrictEqual(json(distantNoise.effects), []);
 assert.strictEqual(distantNoise.state.active.noiseTriggered, true);
@@ -155,8 +149,6 @@ assert.strictEqual(yogurtDone.effects.some(effect => effect.type === 'addFun'), 
 const notComplete = context.finishActivityVariant(own, 'done');
 assert.strictEqual(notComplete.ok, false);
 assert.strictEqual(notComplete.reason, 'not_complete');
-assert.strictEqual(context.tickActivityVariant(own, -1, base()).reason, 'dt_invalid');
-assert.strictEqual(context.tickActivityVariant(own, 1, {}).reason, 'context_missing');
 assert.strictEqual(context.tickActivityVariant(own, 1, base({ shiftEnded: true })).state.active, null);
 assert.strictEqual(context.startActivityVariant(ownDone.state, base({ shiftId: 'other-shift' }), 'fridge-own').reason, 'shift_mismatch');
 

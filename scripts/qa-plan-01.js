@@ -6,7 +6,7 @@ const path = require('path');
 const vm = require('vm');
 
 const source = fs.readFileSync(path.join(__dirname, '..', 'js', 'save-schema.js'), 'utf8');
-const context = vm.createContext({ module: { exports: {} } });
+const context = vm.createContext({ structuredClone, module: { exports: {} } });
 vm.runInContext(`${source}\nmodule.exports = { makeSaveSnapshot, validateSaveSnapshot, migrateSaveV2 };`, context);
 const api = context.module.exports;
 

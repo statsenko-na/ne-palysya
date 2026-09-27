@@ -3,7 +3,6 @@ const MOMENTS_CATALOG = [
   { id: 'distraction', label: 'Отвлечение', points: 3 },
   { id: 'colleagueHelp', label: 'Помощь коллеги', points: 3 },
   { id: 'story', label: 'История', points: 3 },
-  { id: 'groupSmoke', label: 'Общий перекур', points: 3 },
 ];
 const MOMENTS_CAP = 12;
 const MOMENTS_REST_TYPES = ['smoke', 'youtube', 'fridge', 'chat', 'phone'];
