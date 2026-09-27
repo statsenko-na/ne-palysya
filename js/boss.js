@@ -226,6 +226,10 @@
     }
   }
   const planDone = () => usefulness >= planTarget;
+  // Без кайфа работа не идёт: от CFG.burnoutFun до нуля кайфа скорость плана падает до CFG.burnoutKpi
+  function burnoutKpiMult() {
+    return fun >= CFG.burnoutFun ? 1 : CFG.burnoutKpi + (1 - CFG.burnoutKpi) * Math.max(0, fun) / CFG.burnoutFun;
+  }
   const planMinDone = () => usefulness >= planTarget * CFG.planMinShare; // половина — минимум, чтобы не было выговора
 
   // ---------- ВЫГОВОРЫ ----------

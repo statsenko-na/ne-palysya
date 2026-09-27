@@ -94,6 +94,7 @@ const { loadPlaywright } = require('./pw');
   const deskFront = await page.evaluate(() => {
     NP_DEBUG.clearEvents();
     NP_DEBUG.teleport(500, 250);
+    document.getElementById('toast').classList.remove('show'); // старые подсказки (например, про нулевой кайф) не в счёт
     NP_DEBUG.interact();
     const emptyToast = document.getElementById('toast').classList.contains('show');
     NP_DEBUG.teleport(728, 215);
@@ -107,6 +108,13 @@ const { loadPlaywright } = require('./pw');
     return { emptyToast, sitAction, standY, toastTop };
   });
   check('стол доступен из прохода и пустое E не спамит тостом', !deskFront.emptyToast && deskFront.sitAction === 'work' && deskFront.standY > 200 && deskFront.toastTop <= 60, JSON.stringify(deskFront));
+  const putAway = await page.evaluate(() => {
+    NP_DEBUG.startPhoneScrolling(); const on = NP_DEBUG.state.player.action;
+    NP_DEBUG.togglePhonePanel(); const off = NP_DEBUG.state.player.action;
+    NP_DEBUG.teleport(728, 150); NP_DEBUG.interact();
+    return { on, off };
+  });
+  check('убрал телефон (Q) — рилсы прекращаются', putAway.on === 'phone' && putAway.off !== 'phone', JSON.stringify(putAway));
 
   // 7. Начальник смотрит, как работаешь — KPI растёт быстрее (детерминированно: одинаковые отрезки через skip)
   const kpiW = await page.evaluate(() => {

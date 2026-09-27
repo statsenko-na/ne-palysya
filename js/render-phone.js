@@ -52,8 +52,14 @@
     if (immediate) phoneAnim = 0;
     return true;
   }
+  // Игрок убрал телефон (Q, Esc, крестик) — рилсы тоже заканчиваются
+  function putAwayPhone() {
+    closePhonePanel();
+    if (player.action === 'phone') finishPhoneScrolling();
+    return true;
+  }
   function togglePhonePanel() {
-    if (phonePanelOpen) return closePhonePanel();
+    if (phonePanelOpen) return putAwayPhone();
     if (!openPhonePanel()) return false;
     playSound('click');
     return true;
@@ -84,7 +90,7 @@
       if (!result.ok) toast(distractionReasonText(result.reason, 'colleague'), 2.2);
     }
     else if (hit.type === 'thermos') activateThermosFromPhone();
-    else if (hit.type === 'close') closePhonePanel();
+    else if (hit.type === 'close') putAwayPhone();
     return true;
   }
   function phoneRelationshipLine(id, entry) {
