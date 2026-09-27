@@ -107,15 +107,15 @@
       news: 'Новое: события — ДР, жара, перфоратор, учения. Алматинские дни: смог и пробка на Аль-Фараби.',
       tasks: ['coffee2', 'smoke3', 'toilet2', 'lunch', 'reportTurlo'] },
     { name: 'ЧЕТВЕРГ', daily: true, short: 'ЧТ', plan: 80, mod: 'Аудит из головного офиса: Д.Н. видит дальше', visionMul: 1.15,
-      news: 'Новое: второй ряд (Д.Н. отвлекается на бездельников), летучка с выбором, Маджикистан, камеры СБ.',
+      news: 'Новое: второй ряд (Д.Н. отвлекается на бездельников), Маджикистан, камеры СБ.',
       tasks: ['coffee1', 'smoke1a', 'toilet', 'lunchVilka', 'majik', 'scold', 'hideAudit'] },
     { name: 'ПЯТНИЦА', short: 'ПТ', plan: 60, mod: 'Пятница! Д.Н. уедет «на встречу» в 17:00', funMul: 1.2, bossLeaves: 17 * 60,
       news: 'Пятница: в 17:00 Д.Н. уезжает, иногда коллеги зовут в «Мюнхен» на пиво. Итог недели по Маджикистану.',
       tasks: ['coffee3', 'smoke4', 'toilet', 'lunch', 'cleanFriday', 'planEarly', 'yogurt', 'praise2'] },
   ];
   // С какого дня (индекс) открывается механика
-  const UNLOCK = { coworkers: 1, events1: 1, lunch: 0, events2: 2, almaty: 2, row2: 3, standup: 3, events3: 3 };
-  const EVENT_TIER = { food: 'events1', call: 'events1', internet: 'events1', jam: 'events1', bday: 'events2', heat: 'events2', noise: 'events2', drill: 'events2', standup: 'events3', majik: 'events3', autoshka: 'events3', arrfr: 'events3', sb: 'events3' };
+  const UNLOCK = { coworkers: 1, events1: 1, lunch: 0, events2: 2, almaty: 2, row2: 3, events3: 3 };
+  const EVENT_TIER = { food: 'events1', call: 'events1', internet: 'events1', jam: 'events1', bday: 'events2', heat: 'events2', noise: 'events2', drill: 'events2', majik: 'events3', autoshka: 'events3', arrfr: 'events3', sb: 'events3' };
   const TASK_EVENT_PREREQUISITES = { majik: 'majik' };
 
   window.NP_CONFIG = { CFG, DIFFICULTY, UPGRADES, DAYS, UNLOCK, EVENT_TIER, TASK_EVENT_PREREQUISITES };

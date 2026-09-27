@@ -96,7 +96,7 @@ function openActionChoice(request) {
     else if (!actionChoiceState) actionChoiceLastCloseReason = 'unknown_handler';
     return false;
   }
-  if (mode !== 'playing' || actionChoiceState || (choice && choice.asked && !choice.done)) return false;
+  if (mode !== 'playing' || actionChoiceState) return false;
   if (typeof request.owner !== 'string' || !actionChoiceOwnerAvailable(request.owner)) {
     actionChoiceLastCloseReason = 'owner_unavailable';
     return false;
@@ -119,7 +119,6 @@ function selectActionChoice(index) {
   const state = actionChoiceState;
   const definition = ACTION_CHOICE_HANDLERS[state.id];
   if (!definition) { closeActionChoice('unknown_handler'); return false; }
-  if (choice && choice.asked && !choice.done) { closeActionChoice('standup_priority'); return false; }
   if (!actionChoiceOwnerAvailable(state.owner)) { closeActionChoice('owner_unavailable'); return false; }
   if (!Number.isInteger(index) || index < 0 || index >= state.options.length) return false;
   const optionId = state.options[index];
@@ -138,7 +137,6 @@ function updateActionChoice(dt) {
   const state = actionChoiceState;
   const definition = ACTION_CHOICE_HANDLERS[state.id];
   if (!definition) { closeActionChoice('unknown_handler'); return; }
-  if (choice && choice.asked && !choice.done) { closeActionChoice('standup_priority'); return; }
   if (!actionChoiceOwnerAvailable(state.owner)) { closeActionChoice('owner_unavailable'); return; }
   if (definition.closeOnMove && player.moving) { closeActionChoice('movement'); return; }
   if (!Number.isFinite(dt) || dt <= 0) return;

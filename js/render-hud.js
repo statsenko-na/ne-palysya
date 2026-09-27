@@ -86,7 +86,6 @@
       goout: `Д.Н. уходит ${boss.spotDesc}`,
       out: boss.outWhy === 'lunch' ? `Д.Н. на обеде в «Мюнхене» · ${Math.max(0, Math.ceil(boss.outTimer))} с` : 'Д.Н. на улице: учения',
       scold: `Д.Н. отчитывает: ${(coworkerById(boss.scoldTarget) || {}).name || 'кого-то'}`,
-      standup: 'Д.Н. ведёт летучку у доски',
     }[boss.state] || '';
   }
   function hudInfo() {

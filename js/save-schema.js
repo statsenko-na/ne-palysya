@@ -2,9 +2,9 @@
 // JSON-схема снимка смены. Модуль не обращается к игровому состоянию, DOM или хранилищу.
 
 const SAVE_SCHEMA_VERSION = 3;
-const SAVE_SCHEMA_EVENTS = new Set(['food', 'call', 'internet', 'jam', 'bday', 'heat', 'noise', 'drill', 'standup', 'majik', 'arrfr', 'sb', 'autoshka']);
+const SAVE_SCHEMA_EVENTS = new Set(['food', 'call', 'internet', 'jam', 'bday', 'heat', 'noise', 'drill', 'majik', 'arrfr', 'sb', 'autoshka']);
 const SAVE_SCHEMA_NPCS = new Set(['aimashyn', 'hlad', 'shurik', 'bleb', 'sirgey', 'asel', 'aljazira', 'stazy', 'tigran']);
-const SAVE_SCHEMA_EXTENSIONS = new Set(['moments', 'relationships', 'activities', 'distractions', 'disguise', 'equipment', 'bossMemory', 'yogurt', 'autoshka', 'weekScenario', 'weekOutcomes', 'tigranSecret', 'phone', 'daily', 'groupSmoke']);
+const SAVE_SCHEMA_EXTENSIONS = new Set(['moments', 'relationships', 'activities', 'distractions', 'disguise', 'equipment', 'bossMemory', 'yogurt', 'autoshka', 'weekScenario', 'weekOutcomes', 'tigranSecret', 'phone']);
 const SAVE_SCHEMA_EXTENSION_ERROR_KEYS = new Set([...SAVE_SCHEMA_EXTENSIONS, '$root']);
 const SAVE_SCHEMA_DAY_FIELDS = [
   'misses', 'lunchCalled', 'lunchOpen', 'fed', 'hungry', 'bossLunch', 'beer', 'toiletCd', 'queue', 'queueTotal',
@@ -24,7 +24,7 @@ const SAVE_SCHEMA_BOSS_FIELDS = [
   'catchCooldown', 'quoteTimer', 'praiseTimer', 'lookTimer', 'inspectTimer', 'visitedSpots', 'warned',
   'alarm', 'caught', 'coworker', 'emptyDesk', 'gaveUp', 'heat', 'inspectAge', 'lunchBack', 'noise',
   'office', 'patrol', 'praise', 'scold', 'scoldTarget', 'seesPlayer', 'silentCheck', 'snus', 'snusCd',
-  'standupTalk', 'stroll', 'suspicious', 'waitT', 'watchingWork', 'outTimer', 'outWhy', 'path',
+  'stroll', 'suspicious', 'waitT', 'watchingWork', 'outTimer', 'outWhy', 'path',
 ];
 const SAVE_SCHEMA_COWORKER_FIELDS = [
   'id', 'x', 'y', 'cooldown', 'talkTimer', 'idleTimer', 'alert', 'remote', 'away', 'slack', 'slackTimer',
@@ -252,7 +252,7 @@ function saveSchemaProject(source) {
   if (!saveSchemaIsRecord(source)) return { ok: false, reason: 'invalid_source' };
   if (source.rulesetId !== undefined && (typeof source.rulesetId !== 'string' || !/^[a-z0-9][a-z0-9._-]{0,63}$/i.test(source.rulesetId))) return { ok: false, reason: 'invalid_ruleset_id' };
   const out = { v: SAVE_SCHEMA_VERSION };
-  const direct = ['shiftId', 'rulesetId', 'dayIndex', 'diffKey', 'clockMinutes', 'usefulness', 'fun', 'reprimands', 'weekReprimands', 'planTarget', 'majikArc', 'rngSeed', 'nextBossCheck', 'intelTimer', 'coverTokens', 'phoneSafe', 'nextDrill', 'eventQueue', 'nextEvent', 'choice', 'banner', 'tutorial', 'nudge', 'banterT', 'autoUsed', 'recoveryGraceUsed', 'migratedFromV2', 'demo'];
+  const direct = ['shiftId', 'rulesetId', 'dayIndex', 'diffKey', 'clockMinutes', 'usefulness', 'fun', 'reprimands', 'weekReprimands', 'planTarget', 'majikArc', 'rngSeed', 'nextBossCheck', 'intelTimer', 'coverTokens', 'phoneSafe', 'nextDrill', 'eventQueue', 'nextEvent', 'banner', 'tutorial', 'nudge', 'banterT', 'autoUsed', 'recoveryGraceUsed', 'migratedFromV2', 'demo'];
   const fields = {
     day: saveSchemaDay,
     player: saveSchemaPlayer,

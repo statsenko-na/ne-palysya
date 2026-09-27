@@ -416,10 +416,10 @@
   function canStartBossDistraction(kind) {
     const state = ensureDistractionsExtension();
     if (mode !== 'playing') return { ok: false, reason: mode === 'paused' ? 'paused' : 'shift_ended' };
-    if (player.action !== 'none' || (choice && choice.asked && !choice.done) || auto.on) return { ok: false, reason: 'busy' };
+    if (player.action !== 'none' || auto.on) return { ok: false, reason: 'busy' };
     const target = bossDistractionTarget(kind);
     const path = bossDistractionPath(target);
-    const priorityBlocksRoute = eventIs('call') || eventIs('drill') || eventIs('standup') || day.bossLunch ||
+    const priorityBlocksRoute = eventIs('call') || eventIs('drill') || day.bossLunch ||
       clockMinutes >= CFG.lunchOpen + 12 || (today().bossLeaves && clockMinutes >= today().bossLeaves);
     const routeAvailable = !!path && !priorityBlocksRoute;
     const context = bossDistractionContext(routeAvailable);
@@ -685,7 +685,7 @@
     const coworker = coworkerById(npcId);
     if (!coworker || coworker.away || coworker.remote) return { ok: false, reason: 'npc_unavailable' };
     if (!unlocked('coworkers')) return { ok: false, reason: 'mechanic_locked' };
-    if (player.action !== 'none' || actionChoiceState || (choice && choice.asked && !choice.done)
+    if (player.action !== 'none' || actionChoiceState
       || coworker.cooldown > 0 || (coworker.slack && coworker.slackTimer > 0)) {
       return { ok: false, reason: 'busy' };
     }
@@ -716,7 +716,6 @@
     if (player.action === 'toilet') return { prompt: 'В синей кабинке. Единственное место без Д.Н.', target: 'toilet' };
     if (player.action === 'lunch') return { prompt: day.vilka ? 'Обед в «Вилке»: стейк, медиум, счастье…' : 'Обед в «Мюнхене»: жуёшь хрючево дня…', target: 'exit' };
     if (player.action === 'evac') return { prompt: 'Стоишь на улице с коллегами. Свежий воздух!', target: 'exit' };
-    if (player.action === 'standup') return { prompt: 'Летучка: киваешь с умным видом…', target: 'standup' };
     const plant = nearestPlant();
     if (plant) return { prompt: `E / H — спрятаться: ${plant.label}`, target: plant.id, plant };
     if ((eventIs('food') || eventIs('bday')) && !officeEvent.used && rectContains(FEAST_ZONE, player.x, player.y)) {
@@ -748,7 +747,6 @@
       complain: eventIs('heat') || eventIs('noise')
         ? (boss.state === 'office' ? `E — пожаловаться Д.Н. на ${eventIs('heat') ? 'жару' : 'шум'}` : 'Д.Н. нет в кабинете — жаловаться некому')
         : 'Дверь Д.Н. Стучать без повода — плохая идея.',
-      standup: eventIs('standup') ? 'E — встать на летучку и кивать' : 'Доска: «ПЛАН НА КВАРТАЛ: ВЫЖИТЬ»',
     };
     if (z.type === 'archive') {
       const secret = peekTigranSecretExtension();
@@ -1725,7 +1723,7 @@
       toast('Быкентий вылез из укрытия.', 1.4);
       return;
     }
-    if (player.action === 'chat' || AWAY.has(player.action) || player.action === 'queue' || player.action === 'standup') return;
+    if (player.action === 'chat' || AWAY.has(player.action) || player.action === 'queue') return;
     if (!info) return;
 
     if (info.plant) {
@@ -1920,13 +1918,6 @@
         }
         return;
       }
-      case 'standup':
-        if (!eventIs('standup')) { say('player', 'План на квартал: выжить. Согласен.', 2.4); return; }
-        startAction('standup', 0);
-        player.facingX = 1;
-        say('player', 'Я здесь! Слушаю внимательно.', 2.2);
-        choice = { t: 0, asked: false, done: false };
-        return;
       case 'chat': {
         const c = coworkerById(z.coworker);
         if (c.away) { toast(`${c.name} ушёл(ла). Стул ещё тёплый.`, 1.6); return; }

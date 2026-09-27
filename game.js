@@ -80,7 +80,6 @@
     if (e.repeat && (key === 'e' || key === 'h')) return;
     if (key === 'e') { interact(); return; }
     if (key === 'o') { if (!e.repeat) toggleAutopilot(); return; }
-    if (key === '1' || key === '2' || key === '3') { answerStandup(Number(key) - 1); return; }
     if (key === 'h') { quickHide(); return; }
     if (key === 'q') { if (!e.repeat) togglePhonePanel(); return; }
     if (MOVE_KEYS.includes(key)) keys.add(key);
@@ -256,7 +255,7 @@
     skip(seconds) { for (let i = 0; i < seconds * 20 && mode === 'playing'; i++) update(0.05); },
     setDay(d) { dayIndex = clampDay(d); },
     set(v) { if ('usefulness' in v) usefulness = v.usefulness; if ('reprimands' in v) reprimands = v.reprimands; if ('weekReprimands' in v) { weekReprimands = v.weekReprimands; store.set('weekReprimands', weekReprimands); } if ('misses' in v) day.misses = v.misses; if ('fun' in v) fun = Math.min(100, Math.max(0, v.fun)); if ('phoneSafe' in v) phoneSafe = Math.max(0, v.phoneSafe); if ('waterCups' in v) day.waterCups = v.waterCups; if ('waterRecharge' in v) day.waterRecharge = v.waterRecharge; if ('coffeeJammed' in v) day.coffeeJammed = !!v.coffeeJammed; if ('coffeeQueueTimer' in v && day) day.coffeeQueueTimer = v.coffeeQueueTimer; if ('overtimeWork' in v) day.overtimeWork = v.overtimeWork; if ('adhocDone' in v) day.adhocDone = !!v.adhocDone; if ('fed' in v) day.fed = !!v.fed; if ('lunchCalled' in v) day.lunchCalled = !!v.lunchCalled; if ('lunchOpen' in v) day.lunchOpen = !!v.lunchOpen; if ('lunchAway' in v) day.lunchAway = !!v.lunchAway; if ('noPee' in v) { day.peeActive = false; day.pee = 0; day.peeLeft = 0; } },
-    interact, quickHide, togglePhone, togglePhonePanel, openPhonePanel, closePhonePanel, selectPhonePage, pinTodoTask, refreshPinnedObjective, startPhoneScrolling, finishPhoneScrolling, endAction, goMunichBeer, startInspection, autoArrivePhoneForTest() { auto.goal = { kind: 'phone', pt: { x: player.x, y: player.y } }; autoArrive(); }, blocked, findPath, nav, startEvent, answerStandup,
+    interact, quickHide, togglePhone, togglePhonePanel, openPhonePanel, closePhonePanel, selectPhonePage, pinTodoTask, refreshPinnedObjective, startPhoneScrolling, finishPhoneScrolling, endAction, goMunichBeer, startInspection, autoArrivePhoneForTest() { auto.goal = { kind: 'phone', pt: { x: player.x, y: player.y } }; autoArrive(); }, blocked, findPath, nav, startEvent,
     requestFavor,
     recordRelationshipEvent,
     setNudge(seconds = 6) { nudge = { t: seconds }; },
@@ -289,14 +288,12 @@
     setDailyEnabled(v) { dailyTestOff = !v; },
     setCoins(v) { coins = v; store.set('coins', v); },
     buyUpgrade, startAutopilot, stopAutopilot,
-    get choice() { return choice && { ...choice }; },
     get actionChoice() { return actionChoiceState && { ...actionChoiceState, options: actionChoiceState.options.slice() }; },
     get actionChoiceView() { return getActionChoiceView(); },
     get actionChoiceHitboxes() { return actionChoiceHitboxDebug(); },
     get actionChoiceResult() { return { optionId: actionChoiceDebugResult, calls: actionChoiceDebugCalls, closeReason: actionChoiceLastCloseReason }; },
     openActionChoice, openDebugActionChoice, closeActionChoice, selectActionChoice,
     setActionChoiceDebugBlocked(value) { actionChoiceDebugBlocked = !!value; },
-    setStandupChoice(value) { choice = value && { ...value }; },
     setUpgrades(o) { owned = { ...o }; },
     deskCheck() { finishDeskInspection(); },
     restart(seed) { resetGame(seed); },

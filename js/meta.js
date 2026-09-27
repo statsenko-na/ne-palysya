@@ -640,7 +640,7 @@
     requiredEvent = requiredEventForTodo(todo);
     ensureRequiredEventQueue();
     Object.assign(player, { x: SEAT.x, y: WD.ROW1_Y + 62, action: 'none', actionTimer: 0, actionTotal: 0, coffeeBoost: 0, speed: CFG.playerSpeed, chatWith: null, chatPair: null, chatReplied: false, hideSpot: null, hideT: 0, queueTarget: null, workFromFront: false, bumpCooldown: 0, walkTimer: 0, moving: false, facingX: -1 });
-    for (const key of ['alarm', 'caught', 'coworker', 'emptyDesk', 'gaveUp', 'heat', 'lunchBack', 'noise', 'office', 'patrol', 'praise', 'scold', 'scoldTarget', 'seesPlayer', 'silentCheck', 'snus', 'snusCd', 'standupTalk', 'stroll', 'suspicious', 'waitT', 'watchingWork', 'outTimer', 'outWhy']) delete boss[key];
+    for (const key of ['alarm', 'caught', 'coworker', 'emptyDesk', 'gaveUp', 'heat', 'lunchBack', 'noise', 'office', 'patrol', 'praise', 'scold', 'scoldTarget', 'seesPlayer', 'silentCheck', 'snus', 'snusCd', 'stroll', 'suspicious', 'waitT', 'watchingWork', 'outTimer', 'outWhy']) delete boss[key];
     Object.assign(boss, { x: WD.bossHome.x, y: WD.bossHome.y, state: 'office', stateTimer: 5, path: [], mode: 'patrol', spotDesc: 'кабинет', suspicion: 0, catchCooldown: 0, quoteTimer: 4, praiseTimer: 0, lookTimer: 0, inspectTimer: 0, visitedSpots: 0, warned: false, facing: Math.PI / 2, walkTimer: 0, moving: false });
     coworkers.forEach(c => { c.cooldown = 0; c.talkTimer = 0; c.idleTimer = 2 + rand() * 12; c.alert = 0; c.slack = null; c.slackTimer = 10 + rand() * 12; c.scoldCooldown = 0; c.rocketAt = 660 + rand() * 360; c.draftCd = 0; c.path = null; });
     banterT = 10 + rand() * 12; pendingSays.length = 0; ambientQueue.length = 0; ambientGap = 0;
@@ -664,7 +664,7 @@
     day.traffic = unlocked('almaty') && !auto.on && rand() < 0.25;
     coworkers.forEach(c => { c.remote = c.extra && !c.ghost && !c.statist && !unlocked('row2'); c.away = c.remote; });
     walkers = [];
-    choice = null; nudge = null;
+    nudge = null;
     shownThisShift.clear();
     phoneSafe = 0;
     if (dayIndex === 0 && !store.get('currentSave', null)) {

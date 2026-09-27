@@ -96,7 +96,7 @@
       shiftId, rulesetId: shiftRulesetId, dayIndex, diffKey, clockMinutes, usefulness, fun, reprimands, weekReprimands, planTarget, majikArc, rngSeed,
       day, player, boss, coworkers, nextBossCheck, intelTimer, coverTokens, phoneSafe, nextDrill, todo,
       stats: { ...stats, chatted: Array.from(stats.chatted || []) }, officeEvent, eventQueue, nextEvent, requiredEvent,
-      choice, actionChoice: actionChoiceState, banner, tutorial, nudge, banterT, autoUsed, demo: !!auto.demo,
+      actionChoice: actionChoiceState, banner, tutorial, nudge, banterT, autoUsed, demo: !!auto.demo,
       recoveryGraceUsed, extensions: saveExtensions, extensionErrors,
     });
     if (!result.ok) return result;
@@ -220,10 +220,9 @@
     coverTokens = s.coverTokens || 0;
     phoneSafe = s.phoneSafe || 0;
     nextDrill = s.nextDrill || 0;
-    eventQueue = s.eventQueue.slice();
+    eventQueue = s.eventQueue.filter(id => EVENTS[id]); // старые сохранения могут помнить удалённую летучку
     ensureRequiredEventQueue();
     nextEvent = s.nextEvent;
-    choice = s.choice || null;
     actionChoiceState = s.actionChoice || null;
     banner = s.banner || null;
     tutorial = s.tutorial || tutorial;
@@ -512,7 +511,6 @@
   let phoneSafe = 0;          // бонус Сиргея: телефон не палево
   let nextDrill = 0;          // тик перфоратора
   let walkers = [];           // люди, выходящие из биотуалета
-  let choice = null;          // выбор ответа на летучке { t, asked, done }
   let nudge = null;           // Блеб отвлекает, пока ты в Excel
 
   function resetStats() {

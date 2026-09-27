@@ -105,7 +105,6 @@
     drawObjective();
     drawDailyHud();
     drawAutoBadge();
-    drawChoice();
     drawPhone();
     drawBanner();
     drawActionChoice();

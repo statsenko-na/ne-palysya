@@ -1,5 +1,5 @@
 'use strict';
-// «Не пались» — обучение, выбор ответа на летучке, значок автопилота, строка задания.
+// «Не пались» — обучение, значок автопилота, строка задания.
 // Общие переменные и функции объявлены на верхнем уровне и видны из других скриптов игры (без обёртки и модулей).
 // Порядок подключения — в index.html.
 
@@ -45,29 +45,6 @@
     ctx.setTransform(S, 0, 0, S, 0, 0);
   }
 
-  // Выбор ответа на летучке: 1 / 2 / 3 или тап
-  const choiceRects = [];
-  function drawChoice() {
-    choiceRects.length = 0;
-    if (!choice || !choice.asked || choice.done || player.action !== 'standup' || mode !== 'playing') return;
-    const k = uiK(1.65);
-    choiceK = k;
-    const { VW, VH } = uiSpace(k);
-    const w = 420, h = 74, x = VW / 2 - w / 2, y = Math.min(VH - 150, VH - h - 40);
-    ctx.fillStyle = 'rgba(8,16,20,0.94)'; roundRect(x, y, w, h, 4); ctx.fill();
-    ctx.strokeStyle = '#f2bb38'; ctx.lineWidth = 1; ctx.stroke();
-    T('Д.Н.: «Что по твоему направлению?» — выбери ответ', W / 2, y + 10, 9, '#f2bb38', 'center', 700, FONT_SANS);
-    STANDUP_CHOICES.forEach((c, i) => {
-      const bx = x + 10 + i * 134, by = y + 22, bw = 126, bh = 44;
-      choiceRects.push({ x: bx, y: by, w: bw, h: bh, i });
-      ctx.fillStyle = '#16303a'; roundRect(bx, by, bw, bh, 3); ctx.fill();
-      T(c.key, bx + 12, by + bh / 2, 14, '#f2bb38', 'center', 900);
-      const lines = wrap(c.text, bw - 30, 8.5);
-      lines.forEach((l, n) => T(l, bx + 24, by + bh / 2 - (lines.length - 1) * 5 + n * 10, 8.5, '#fff', 'left', 700, FONT_SANS));
-    });
-    ctx.setTransform(S, 0, 0, S, 0, 0);
-  }
-  let choiceK = 1;
   let autoBadgeRect = null;
   canvas.addEventListener('pointerdown', e => {
     const r = canvasBox();
@@ -83,10 +60,6 @@
       const b = autoBadgeRect;
       if (ax >= b.x && ax <= b.x + b.w && ay >= b.y - 3 && ay <= b.y + b.h + 3) { e.preventDefault(); toggleAutopilot(); return; }
     }
-    if (!choiceRects.length) return;
-    const gx = (e.clientX - r.left) / r.width * W / choiceK, gy = (e.clientY - r.top) / r.height * H / choiceK;
-    const hit = choiceRects.find(c => gx >= c.x && gx <= c.x + c.w && gy >= c.y && gy <= c.y + c.h);
-    if (hit) { e.preventDefault(); answerStandup(hit.i); }
   });
   let autoBadgeK = 1;
   function drawAutoBadge() {
@@ -110,7 +83,7 @@
     TE(text, 13, y + 7.8, 8.5, w - 12, auto.on ? '#f5edd9' : '#c8d6ca');
     ctx.setTransform(S, 0, 0, S, 0, 0);
   }
-  const AUTO_LABELS = { desk: 'идёт работать', coffee: 'за кофе', smoke: 'на перекур', server: 'в серверную', fridge: 'к холодильнику', water: 'к кулеру', printer: 'печатать мем', toilet: 'в биотуалет', phone: 'залипает в телефон', chat: 'болтать', hide: 'прячется!', exit: 'к выходу', standup: 'на летучку', feast: 'за едой' };
+  const AUTO_LABELS = { desk: 'идёт работать', coffee: 'за кофе', smoke: 'на перекур', server: 'в серверную', fridge: 'к холодильнику', water: 'к кулеру', printer: 'печатать мем', toilet: 'в биотуалет', phone: 'залипает в телефон', chat: 'болтать', hide: 'прячется!', exit: 'к выходу', feast: 'за едой' };
   function drawObjective() {
     screenRects.obj = null;
     if (mode !== 'playing' || player.action === 'phone' || phonePanelOpen) return;

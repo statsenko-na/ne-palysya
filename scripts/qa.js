@@ -236,17 +236,6 @@ const { loadPlaywright } = require('./pw');
   check('сбор на ДР: −кайф, 0 KPI', bd.fun === 40 && bd.kpi === 50, JSON.stringify(bd));
   await page.screenshot({ path: path.join(outDir, '12-bday.png') });
 
-  // Летучка: стоишь у доски — +KPI
-  await page.evaluate(() => { NP_DEBUG.setBoss(706, 446, 'office'); NP_DEBUG.clearEvents(); NP_DEBUG.set({ usefulness: 40, adhocDone: true }); NP_DEBUG.startEvent('standup'); NP_DEBUG.teleport(306, 420); });
-  await page.keyboard.press('KeyE');
-  st = await page.evaluate(() => NP_DEBUG.state);
-  check('летучка: встал у доски', st.player.action === 'standup', st.player.action);
-  await page.evaluate(() => NP_DEBUG.skip(6));
-  await page.screenshot({ path: path.join(outDir, '13-standup.png') });
-  await page.evaluate(() => NP_DEBUG.skip(16));
-  st = await page.evaluate(() => NP_DEBUG.state);
-  check('летучка даёт KPI', st.usefulness > 44, st.usefulness.toFixed(1));
-
   // Пожарная тревога: эвакуация у выхода
   await page.evaluate(() => { NP_DEBUG.startEvent('drill'); NP_DEBUG.teleport(40, 302); });
   await page.keyboard.press('KeyE');
@@ -292,19 +281,6 @@ const { loadPlaywright } = require('./pw');
     return { a1, a2, choiceId, a3, a4, noBossKey: !('bossKey' in NP_DEBUG) };
   });
   check('русская раскладка: У — Excel и выбор YouTube, Щ — автопилот вкл/выкл посреди смены; альт-таба нет', rus.a1 === 'work' && rus.a2 === 'youtube' && rus.choiceId === 'youtube-risk' && rus.a3 && !rus.a4 && rus.noBossKey, JSON.stringify(rus));
-
-  // Летучка: выбор ответа клавишей 2
-  const su = await page.evaluate(() => {
-    NP_DEBUG.setClock(11 * 60); NP_DEBUG.set({ reprimands: 0, misses: 0, usefulness: 20 }); NP_DEBUG.clearEvents();
-    NP_DEBUG.setBoss(706, 446, 'office'); NP_DEBUG.skip(5); NP_DEBUG.startEvent('standup'); NP_DEBUG.teleport(306, 420); NP_DEBUG.interact();
-    for (let i = 0; i < 30 && !(NP_DEBUG.choice && NP_DEBUG.choice.asked); i++) NP_DEBUG.skip(0.5);
-    return { ...NP_DEBUG.choice, mode: NP_DEBUG.state.mode, clock: NP_DEBUG.state.clockMinutes, rep: NP_DEBUG.state.reprimands, k: NP_DEBUG.state.usefulness, boss: NP_DEBUG.state.boss.state };
-  });
-  await page.screenshot({ path: path.join(outDir, '20-standup-choice.png') });
-  await page.keyboard.press('Digit2');
-  const su2 = await page.evaluate(() => NP_DEBUG.choice);
-  check('летучка: вопрос и ответ клавишей 2', su && su.asked && su2 && su2.done, JSON.stringify([su, su2]));
-  await page.evaluate(() => NP_DEBUG.skip(20));
 
   // Стукача больше нет
   check('стукач вырезан', await page.evaluate(() => !window.NP_LINES.snitch));
@@ -497,7 +473,7 @@ const { loadPlaywright } = require('./pw');
     return { mon, thu };
   });
   check('понедельник: ядро + обед (без событий, коллег, второго ряда)', prog.mon.q === 0 && !prog.mon.u.coworkers && prog.mon.u.lunch && prog.mon.todo.includes('lunch') && prog.mon.remote === 1 && prog.mon.statists === 3 && prog.mon.todo.includes('coffee1'), JSON.stringify(prog.mon));
-  check('четверг: второй ряд, летучка, события открыты', prog.thu.u.row2 && prog.thu.u.standup && prog.thu.q > 3 && prog.thu.away === 0 && prog.thu.todo.includes('majik'), JSON.stringify(prog.thu));
+  check('четверг: второй ряд, события открыты', prog.thu.u.row2 && prog.thu.q > 3 && prog.thu.away === 0 && prog.thu.todo.includes('majik'), JSON.stringify(prog.thu));
   await page.screenshot({ path: path.join(outDir, '24-thursday-card.png') });
 
   // Тигран — дух офиса: сидит всегда, не отвлекается, «Поехали!» обнуляет подозрение

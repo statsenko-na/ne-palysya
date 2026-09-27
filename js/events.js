@@ -20,7 +20,6 @@
     heat: { dur: 32, title: 'ЖАРА: КОНДИЦИОНЕР СДОХ' },
     noise: { dur: 28, title: 'ПЕРФОРАТОР У СОСЕДЕЙ' },
     drill: { dur: 22, title: 'УЧЕНИЯ: ЗЕМЛЕТРЯСЕНИЕ' },
-    standup: { dur: 20, title: 'ЛЕТУЧКА У ДОСКИ' },
     majik: { dur: 26, title: 'МАДЖИКИСТАН ЛЁГ' },
     arrfr: { dur: 26, title: 'ПРОВЕРКА АРРФР' },
     sb: { dur: 24, title: 'СБ СМОТРИТ В КАМЕРЫ' },
@@ -56,7 +55,7 @@
   }
   function shuffleEvents(requirements = requiredEventEntries()) {
     const open = id => unlocked(EVENT_TIER[id]);
-    const pool = ['call', 'internet', 'jam', 'bday', 'heat', 'noise', 'drill', 'standup', 'majik', 'autoshka', 'arrfr'].filter(open);
+    const pool = ['call', 'internet', 'jam', 'bday', 'heat', 'noise', 'drill', 'majik', 'autoshka', 'arrfr'].filter(open);
     if (!open('food')) return []; // понедельник: только ядро, без событий
     for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
     let ids = pool.slice(0, 5);
@@ -120,11 +119,6 @@
       day.drillAwayTimer = 0.6;
       day.drillAwayIndex = 0;
     }
-    if (id === 'standup') {
-      text = 'Д.Н. собирает всех у доски (архив, слева внизу). Встань рядом и жми E!';
-      if (!bossBusy()) { bossGoTo(WD.standupSpot, 'standup', 'летучка'); boss.stateTimer = def.dur; }
-      say('boss', pick(LINES.boss.standup), 3);
-    }
     if (id === 'sb') {
       text = 'Красные конусы камер — взгляд СБ. Не прокрастинируй в них: СБ доложит Д.Н. Работа и укрытия — безопасно.';
       officeEvent.watch = 0;
@@ -146,7 +140,7 @@
       text = 'Сиргей в панике, Д.Н. бежит к нему разбираться — у тебя окно!';
       if (c && !c.away) {
         say('sirgey', pick(LINES.majik.autoshka), 3, '#ffd4c8');
-        if (!bossBusy() && boss.state !== 'standup') {
+        if (!bossBusy()) {
           boss.scoldTarget = c.id; boss.inspectTimer = 0;
           bossGoTo({ x: c.desk.seatX, y: c.desk.y + WD.DESK_DEPTH + 14 }, 'scold', 'к Сиргею: автошка');
         }
@@ -186,20 +180,6 @@
       say('boss', 'Маджикистан так и лежит! Быкентий, объяснительную!', 3);
       majikArc--; store.set('majikArc', majikArc); day.majikFail = true;
       reprimand('Маджикистан пролежал весь день, а ты за него отвечаешь', 'Маджикистан');
-    }
-    if (ev.id === 'standup') {
-      if (player.action === 'standup') {
-        endAction('done');
-        addWork(8); stats.praise++;
-        floater(player.x, player.y - 64, 'ЛЕТУЧКА +8 К ПЛАНУ', '#57d08a');
-        say('boss', 'Вот! Быкентий хоть слушал. Свободны!', 2.8);
-        addLog('Летучка: Быкентий кивал в нужных местах. +8 к плану.', 'good');
-      } else if (mode === 'playing' && !onLunch()) {
-        say('boss', 'А где Быкентий?! Опять пропустил летучку!', 3);
-        missAtDesk('Пропустил летучку');
-      }
-      if (boss.state === 'standup') endInspection();
-      checkTodo();
     }
   }
   function updateDrillAway(dt) {
@@ -288,8 +268,6 @@
         nextDrill -= dt;
         if (nextDrill <= 0) { playSound('drill'); shake = Math.max(shake, 0.12); nextDrill = 1.2 + rand() * 2.4; }
       }
-      // Летучка: если Д.Н. был занят проверкой, он придёт к доске позже
-      if (officeEvent.id === 'standup' && !bossBusy() && boss.state !== 'standup') { bossGoTo(WD.standupSpot, 'standup', 'летучка'); }
       if (officeEvent.id === 'sb') updateCameras(dt);
       if (officeEvent.id === 'majik' && !officeEvent.used && player.action === 'work') {
         officeEvent.work += dt;
@@ -416,41 +394,7 @@
   const lunchTime = () => clockMinutes >= CFG.lunchOpen - 5 && clockMinutes < CFG.lunchOpen + 60;
   const onLunch = () => player.action === 'lunch'; // Быкентий на обеде: час спокойствия, Д.Н. ничего не делает
   const canLunch = () => clockMinutes >= CFG.lunchOpen && clockMinutes < CFG.lunchClose && !day.fed;
-  const STANDUP_CHOICES = [
-    { key: '1', text: 'Всё под контролем!' },
-    { key: '2', text: 'Маджикистан опять всё...' },
-    { key: '3', text: 'Это Сиргей виноват!' },
-  ];
-  function answerStandup(i) {
-    if (!choice || !choice.asked || choice.done || player.action !== 'standup') return false;
-    choice.done = true;
-    const opt = STANDUP_CHOICES[i];
-    say('player', opt.text, 2.6);
-    if (i === 0) {
-      if (day.majikFail) { boss.suspicion = clamp(boss.suspicion + 30, 0, 99); scheduleShiftCallback(() => say('boss', 'Под контролем?! А Маджикистан?!', 2.8), 1200); }
-      else { addWork(4); floater(player.x, player.y - 70, '+4 К ПЛАНУ', '#57d08a'); scheduleShiftCallback(() => say('boss', 'Вот это я понимаю, уверенность!', 2.6), 1200); }
-    } else if (i === 1) {
-      nextBossCheck += 15;
-      floater(player.x, player.y - 70, 'ЧЕСТНО: ПРОВЕРКА НА 15 С ПОЗЖЕ', '#f2bb38');
-      scheduleShiftCallback(() => say('boss', 'Хоть честно. Чини давай.', 2.6), 1200);
-    } else {
-      fun += 6;
-      const c = coworkerById('sirgey');
-      if (c) { c.cooldown = 120; scheduleShiftCallback(() => say('sirgey', 'Я?! У меня автошка лежит, я вообще ни при чём!', 3, '#ffd4c8'), 1400); }
-      recordRelationshipEvent('sirgey', 'betrayal', `${shiftId}:relationships:sirgey:standup-blame`);
-      floater(player.x, player.y - 70, '+6 КАЙФ · СИРГЕЙ ОБИДЕЛСЯ', '#e0a0f0');
-    }
-    playSound('click');
-    return true;
-  }
   function updateSocial(dt) {
-    // Летучка: через пару секунд Д.Н. задаёт вопрос
-    if (choice && player.action === 'standup' && !choice.done) {
-      choice.t += dt;
-      if (!choice.asked && choice.t > 2 && boss.state === 'standup' && !boss.moving) { choice.asked = true; say('boss', 'Быкентий! Что по твоему направлению?', 3); }
-      if (choice.asked && choice.t > 14) choice.done = true; // промолчал
-    }
-    if (player.action !== 'standup' && choice && !eventIs('standup')) choice = null;
     // Блеб отвлекает соседа, пока тот в Excel
     const bleb = coworkerById('bleb');
     if (unlocked('coworkers') && player.action === 'work' && bleb && !bleb.away && !nudge && bleb.cooldown <= 0 && boss.state !== 'inspect' && rand() < dt * 0.03) {
@@ -602,7 +546,7 @@
     }
     // Д.Н. тоже уходит на обед — отвлечение уступает месту расписанию.
     const diversion = isBossDistractionState();
-    if (!day.bossLunch && m >= CFG.lunchOpen + 12 && (!bossBusy() || diversion) && boss.state !== 'standup') {
+    if (!day.bossLunch && m >= CFG.lunchOpen + 12 && (!bossBusy() || diversion)) {
       if (diversion) interruptBossDistraction('interrupted');
       day.bossLunch = true;
       bossGoOut(22 + rand() * 6, 'lunch');

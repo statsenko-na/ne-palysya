@@ -188,9 +188,8 @@ const { loadPlaywright } = require('./pw');
     assert.strictEqual(busy.game.reprimands, 0, 'шум не наказывает сквозь состояние ухода');
     await page.screenshot({ path: path.join(output, '12-youtube-noise-busy-960x540.png') });
 
-    for (const [index, state] of ['inspect', 'waitDesk', 'lecture', 'gone', 'out', 'standup', 'daily'].entries()) {
+    for (const [index, state] of ['inspect', 'waitDesk', 'lecture', 'gone', 'out', 'daily'].entries()) {
       await reset(1212 + index);
-      if (state === 'standup') await page.evaluate(() => NP_DEBUG.startEvent('standup'));
       await page.evaluate(bossState => NP_DEBUG.setBoss(706, 446, bossState), state);
       await openChoice();
       const blockedState = await page.evaluate(() => {
