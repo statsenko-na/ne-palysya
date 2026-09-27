@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>Не пались — банковский офисный симулятор</title>
-    <link rel="stylesheet" href="style.css?v=0.27.1" />
+    <link rel="stylesheet" href="style.css?v=0.27.2" />
   </head>
   <body>
     <main class="cabinet">
@@ -56,6 +56,7 @@
                 <button class="pixel-btn pixel-btn-alt shop-open">🛒 АПГРЕЙДЫ <span>U</span></button>
                 <button class="pixel-btn pixel-btn-alt auto-open">🍿 АВТОПИЛОТ</button>
                 <button class="pixel-btn pixel-btn-alt onb-open">❓ КАК ИГРАТЬ <span>I</span></button>
+                <button class="pixel-btn pixel-btn-alt onb-news">✨ ЧТО НОВОГО</button>
               </div>
               <div class="diff-row">Сложность:
                 <button class="diff-btn" data-diff="easy" title="Проверки реже, план ниже, выговор за «не застал» — на 3-й раз">🐣 СТАЖЁР</button>
@@ -65,7 +66,7 @@
               <div class="audio-row"><button class="audio-btn music-toggle">🎵 Музыка: вкл (N)</button><button class="audio-btn sound-toggle">🔊 Звуки: вкл (M)</button><button class="audio-btn text-toggle" title="Крупнее текст в меню и в игре">🔠 Текст: обычный</button><button class="audio-btn reduced-effects-toggle" type="button" aria-pressed="false">Меньше вспышек и тряски: выкл</button></div>
               <label class="speed-row">⏱ Скорость времени <input class="speed-range" type="range" min="0.5" max="3" step="0.25" value="1" /> <b class="speed-val">×1</b></label>
               <div class="vol-row"><label>🔊 Звуки <input class="vol-range vol-sfx" type="range" min="0" max="1" step="0.05" value="1" /></label><label>🎵 Музыка <input class="vol-range vol-music" type="range" min="0" max="1" step="0.05" value="1" /></label><button class="audio-btn keys-open">⌨ Клавиши</button></div>
-              <div class="controls-mini">WASD / стрелки — ходить · E / Пробел — действие · H — спрятаться · Tab / Q — телефон · O — автопилот · P / Esc — пауза · 1/2/3 — ответ на летучке · U — апгрейды · N — музыка · I — как играть</div>
+              <div class="controls-mini">WASD / стрелки — ходить · E / Пробел — действие · H — спрятаться · Tab / Q — телефон · O — автопилот · P / Esc — пауза · 1/2/3 — выбор варианта · U — апгрейды · N — музыка · I — как играть</div>
               <div class="disclaimer">Пародийная игра. Персонажи, события и «Фирдом Банк» вымышлены; игра не связана ни с одним реальным банком, эмблема нарисована для игры.</div>
             </div>
           </div>
@@ -114,7 +115,7 @@
           </div>
           <div id="onboarding" class="screen-overlay hidden">
             <div class="onb-card">
-              <div class="onb-top"><span class="eyebrow">КАК ИГРАТЬ · <b id="onb-num">1/3</b></span><button id="onb-skip" class="onb-skip">ПРОПУСТИТЬ ✕</button></div>
+              <div class="onb-top"><span class="eyebrow"><span id="onb-title">КАК ИГРАТЬ</span> · <b id="onb-num">1/3</b></span><button id="onb-skip" class="onb-skip">ПРОПУСТИТЬ ✕</button></div>
               <div class="onb-slides">
                 <section class="onb-slide" data-core="1">
                   <div class="onb-art"><div class="spr spr-vik"></div></div>
@@ -184,7 +185,7 @@
                       <tr><td>▶️ YouTube в серверной</td><td>+5 кайфа/с</td><td class="bad">палево</td></tr>
                       <tr><td>🧊 Чужой холодильник</td><td>+3 кайфа/с</td><td class="bad">палево</td></tr>
                       <tr><td>💬 Болтовня с коллегой (со вторника)</td><td>+3 кайфа/с и бонус</td><td class="bad">палево</td></tr>
-                      <tr><td>📱 Телефон (Tab)</td><td>+1.2 кайфа/с, можно ходить</td><td class="bad">палево</td></tr>
+                      <tr><td>📱 Рилсы в телефоне (Tab → «Рилсы»)</td><td>+1.2 кайфа/с, можно ходить</td><td class="bad">палево</td></tr>
                       <tr><td>🍲 Обед 12:30–14:00</td><td>+8 кайфа (в ЧТ стейки +20), час покоя</td><td class="ok">не палево</td></tr>
                       <tr><td>💻 Excel</td><td>план, но кайф −1/с (заявки дают +4)</td><td class="ok">не палево</td></tr>
                     </table>
@@ -241,11 +242,45 @@
                   <div class="onb-art onb-emoji">📱🛒🍿</div>
                   <div class="onb-text">
                     <h3>Телефон, апгрейды, настройки</h3>
-                    <p><b>Телефон (Tab / Q):</b> 5 дел на смену (первые — задачи дня), план, текущие очки, бонусы и чат отдела.</p>
+                    <p><b>Телефон (Tab / Q)</b> — панель, игра при этом идёт. «Дела» — задачи дня (клик закрепляет цель), «Коллеги» — кто тебе должен и просьбы, «Вещи» — оснащение. Эти вкладки не палево. «Рилсы» — отдых, это палево.</p>
                     <p><b>Апгрейды (U):</b> KPI-коины = очки смены / 10. На них покупаются кресло, второй монитор, кактус (Д.Н. дольше ждёт у стола) и прочее. Там же <b>🏆 достижения</b>.</p>
                     <p><b>В меню:</b> сложность (Стажёр / Сотрудник / Ветеран), 🎵 музыка (N), 🔊 звуки (M), ⏱ скорость времени, 🍿 автопилот.</p>
                     <p><b>🍿 Автопилот (O)</b> включается в любой момент смены — Быкентий играет сам, а ты смотришь. WASD или O — вернуть управление.</p>
-                    <p class="onb-keys"><b>WASD</b> ходить · <b>E</b> действие · <b>H</b> спрятаться · <b>O</b> автопилот · <b>1/2/3</b> ответ на летучке · <b>Tab</b> телефон · <b>P</b> пауза · <b>N</b> музыка · <b>M</b> звук · <b>U</b> апгрейды · <b>I</b> эта справка · всё работает и на русской раскладке</p>
+                    <p class="onb-keys"><b>WASD</b> ходить · <b>E</b> действие · <b>H</b> спрятаться · <b>O</b> автопилот · <b>1/2/3</b> выбор варианта · <b>Tab</b> телефон · <b>P</b> пауза · <b>N</b> музыка · <b>M</b> звук · <b>U</b> апгрейды · <b>I</b> эта справка · всё работает и на русской раскладке</p>
+                  </div>
+                </section>
+                <section class="onb-slide" data-news="1">
+                  <div class="onb-art onb-emoji">🔀📁🥛🚗</div>
+                  <div class="onb-text">
+                    <h3>Новое: выбор у точек</h3>
+                    <p>У многих мест теперь несколько вариантов: жми <b>1 / 2 / 3</b> или тапни по плашке. Там же видно, сколько это стоит и чем рискуешь.</p>
+                    <ul class="onb-list">
+                      <li><b>Серверная:</b> тихий ролик (дольше, безопасно) или громкий (быстрее кайф, но Д.Н. может услышать и прийти).</li>
+                      <li><b>Ксерокс:</b> мем; <b>приманка</b> — Д.Н. идёт к ксероксу и залипает там на 6 с, отдыхай; <b>папка</b> — 12 с можно ходить с ней во время рейда, если не стоишь и не подходишь к Д.Н. вплотную.</li>
+                      <li><b>Холодильник:</b> свой перекус или <b>йогурт Хлада</b>. Хлад заметит: признайся с новой чашкой кофе, попроси Блеба прикрыть — или молчи, и он обидится.</li>
+                      <li><b>Балкон:</b> после перекура можно <b>подслушать</b> — 20 с знаешь, когда проверка.</li>
+                      <li><b>Автошка Сиргея</b> (ЧТ): помочь надёжно (6 с, +план, Сиргей должен) или костыль за 3 с с риском −6 плана позже.</li>
+                    </ul>
+                  </div>
+                </section>
+                <section class="onb-slide" data-news="1">
+                  <div class="onb-art"><div class="spr spr-cw3"></div><div class="spr spr-boss"></div></div>
+                  <div class="onb-text">
+                    <h3>Новое: коллеги помнят, Д.Н. тоже</h3>
+                    <p><b>Отношения.</b> Досмотрел мем Блеба, починил ксерокс, поднял Маджикистан, помог Сиргею — коллега тебе должен. Долг Блеба тратится в телефоне (вкладка «Коллеги»): он отвлечёт Д.Н. к своему столу. Свалишь всё на Сиргея на летучке — обидится до конца следующего дня. Отношения переходят на следующий день.</p>
+                    <p><b>Д.Н. запоминает.</b> Поймал тебя в каком-то месте — минуту может снова туда заглянуть. Меняй места отдыха.</p>
+                    <p><b>Моменты</b> — +3 очка за разный отдых, помощь коллеге, удачное отвлечение и закрытую историю (до +12 за смену). В финале видно, откуда взялись очки.</p>
+                    <p><b>Тигран</b> после разговора намекнёт на секрет в архиве.</p>
+                  </div>
+                </section>
+                <section class="onb-slide" data-news="1">
+                  <div class="onb-art onb-emoji">📱🎒🏆💾</div>
+                  <div class="onb-text">
+                    <h3>Новое: телефон, вещи, неделя</h3>
+                    <p><b>Телефон (Tab / Q)</b> — панель, игра не останавливается. «Дела»: клик по делу закрепляет его как цель. «Коллеги», «Вещи» — не палево. Палево только <b>«Рилсы»</b>.</p>
+                    <p><b>Оснащение (U, два слота):</b> термос — запасная чашка кофе раз в смену; зеркало — стрелка на Д.Н., пока ты у стола; автокликер — курсор 10 с изображает работу, Д.Н. раскусит его за 2 с, успей вернуться.</p>
+                    <p><b>Неделя:</b> после победной пятницы — титул недели. Дальше бывают «Неделя отчётов» и «Неделя техработ».</p>
+                    <p><b>Имя и 🏆 рекорды</b> — в меню, топ-10 в этом браузере. <b>Автосохранение:</b> закрыл вкладку — продолжишь с того же места. В настройках есть «Меньше вспышек и тряски».</p>
                   </div>
                 </section>
               </div>
@@ -312,40 +347,40 @@
         <p>Для комфортной смены в БЦ «Угар» переверни устройство горизонтально.</p>
       </div>
     </div>
-    <script src="js/world.js?v=0.27.1"></script>
-    <script src="js/lines.js?v=0.27.1"></script>
-    <script src="js/art.js?v=0.27.1"></script>
-    <script src="js/config.js?v=0.27.1"></script>
-    <script src="js/core.js?v=0.27.1"></script>
-    <script src="js/accessibility.js?v=0.27.1"></script>
-    <script src="js/equipment.js?v=0.27.1"></script>
-    <script src="js/save-schema.js?v=0.27.1"></script>
-    <script src="js/moments.js?v=0.27.1"></script>
-    <script src="js/relationships.js?v=0.27.1"></script>
-    <script src="js/activities.js?v=0.27.1"></script>
-    <script src="js/story-yogurt.js?v=0.27.1"></script>
-    <script src="js/event-autoshka.js?v=0.27.1"></script>
-    <script src="js/distractions.js?v=0.27.1"></script>
-    <script src="js/disguise.js?v=0.27.1"></script>
-    <script src="js/boss-memory.js?v=0.27.1"></script>
-    <script src="js/week-scenarios.js?v=0.27.1"></script>
-    <script src="js/week-outcomes.js?v=0.27.1"></script>
-    <script src="js/records.js?v=0.27.1"></script>
-    <script src="js/meta.js?v=0.27.1"></script>
-    <script src="js/events.js?v=0.27.1"></script>
-    <script src="js/action-choice.js?v=0.27.1"></script>
-    <script src="js/interact.js?v=0.27.1"></script>
-    <script src="js/boss.js?v=0.27.1"></script>
-    <script src="js/autopilot.js?v=0.27.1"></script>
-    <script src="js/player.js?v=0.27.1"></script>
-    <script src="js/render.js?v=0.27.1"></script>
-    <script src="js/render-office.js?v=0.27.1"></script>
-    <script src="js/render-actors.js?v=0.27.1"></script>
-    <script src="js/render-fx.js?v=0.27.1"></script>
-    <script src="js/render-hud.js?v=0.27.1"></script>
-    <script src="js/render-phone.js?v=0.27.1"></script>
-    <script src="js/render-choice.js?v=0.27.1"></script>
-    <script src="js/render-guide.js?v=0.27.1"></script>
-    <script src="game.js?v=0.27.1"></script>
+    <script src="js/world.js?v=0.27.2"></script>
+    <script src="js/lines.js?v=0.27.2"></script>
+    <script src="js/art.js?v=0.27.2"></script>
+    <script src="js/config.js?v=0.27.2"></script>
+    <script src="js/core.js?v=0.27.2"></script>
+    <script src="js/accessibility.js?v=0.27.2"></script>
+    <script src="js/equipment.js?v=0.27.2"></script>
+    <script src="js/save-schema.js?v=0.27.2"></script>
+    <script src="js/moments.js?v=0.27.2"></script>
+    <script src="js/relationships.js?v=0.27.2"></script>
+    <script src="js/activities.js?v=0.27.2"></script>
+    <script src="js/story-yogurt.js?v=0.27.2"></script>
+    <script src="js/event-autoshka.js?v=0.27.2"></script>
+    <script src="js/distractions.js?v=0.27.2"></script>
+    <script src="js/disguise.js?v=0.27.2"></script>
+    <script src="js/boss-memory.js?v=0.27.2"></script>
+    <script src="js/week-scenarios.js?v=0.27.2"></script>
+    <script src="js/week-outcomes.js?v=0.27.2"></script>
+    <script src="js/records.js?v=0.27.2"></script>
+    <script src="js/meta.js?v=0.27.2"></script>
+    <script src="js/events.js?v=0.27.2"></script>
+    <script src="js/action-choice.js?v=0.27.2"></script>
+    <script src="js/interact.js?v=0.27.2"></script>
+    <script src="js/boss.js?v=0.27.2"></script>
+    <script src="js/autopilot.js?v=0.27.2"></script>
+    <script src="js/player.js?v=0.27.2"></script>
+    <script src="js/render.js?v=0.27.2"></script>
+    <script src="js/render-office.js?v=0.27.2"></script>
+    <script src="js/render-actors.js?v=0.27.2"></script>
+    <script src="js/render-fx.js?v=0.27.2"></script>
+    <script src="js/render-hud.js?v=0.27.2"></script>
+    <script src="js/render-phone.js?v=0.27.2"></script>
+    <script src="js/render-choice.js?v=0.27.2"></script>
+    <script src="js/render-guide.js?v=0.27.2"></script>
+    <script src="game.js?v=0.27.2"></script>
   </body>
 </html>

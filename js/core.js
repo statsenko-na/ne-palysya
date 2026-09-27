@@ -19,7 +19,7 @@
   canvas.height = H * S;
 
   // Версия в URL сбрасывает кэш браузера, когда спрайт заменён под тем же именем файла
-  const ASSET_V = '0.27.1';
+  const ASSET_V = '0.27.2';
   function loadImage(src) { const i = new Image(); i.src = `${src}?v=${ASSET_V}`; return i; }
   const img = {
     vik: loadImage('assets/bykentiy-walk-v4.png'),
@@ -535,10 +535,44 @@
     ui.toast.classList.add('show');
     toastTimer = seconds;
   }
+  // Сколько держать реплику, чтобы её успели прочитать: длинные висят дольше
+  function readDur(text) { return Math.min(6.5, 1.4 + String(text).length * 0.06); }
   function say(owner, text, dur = 3.2, color = '#fffaf0') {
     bubbles = bubbles.filter(b => b.owner !== owner);
-    bubbles.push({ owner, text, t: 0, dur, color });
+    const b = { owner, text, t: 0, dur: Math.max(dur, readDur(text)), color };
+    bubbles.push(b);
     if (mode === 'playing') playSound(owner === 'boss' ? 'bossBlip' : 'blip');
+    return b;
+  }
+  // Фоновая болтовня офиса (скука, перепалки, жалобы, отвлечения второго ряда) идёт по одной реплике
+  // с паузой между ними; важные реплики (Д.Н., Быкентий, разговоры, предупреждения) идут через say() как раньше.
+  const AMBIENT_GAP = 1.8;
+  let ambientGap = 0;
+  const ambientQueue = [];
+  function ambientBusy() {
+    return ambientGap > 0 || pendingSays.length > 0 || bubbles.length >= 2 || bubbles.some(b => b.amb);
+  }
+  function sayAmbient(owner, text, color = '#eef6f4', force = false) {
+    if (!force && (ambientBusy() || bubbles.some(b => b.owner === owner))) return false;
+    say(owner, text, 2.6, color).amb = true;
+    return true;
+  }
+  // Реплика, которую не жалко пропустить, но лучше сказать чуть позже: ждёт своей очереди до ttl секунд
+  function queueAmbient(owner, text, color, cond = () => true) {
+    if (ambientQueue.length < 3) ambientQueue.push({ owner, text, color, cond, ttl: 10 });
+  }
+  function updateAmbientTalk(dt) {
+    if (bubbles.some(b => b.amb)) ambientGap = AMBIENT_GAP;
+    else ambientGap = Math.max(0, ambientGap - dt);
+    for (let i = ambientQueue.length - 1; i >= 0; i--) {
+      const q = ambientQueue[i];
+      q.ttl -= dt;
+      if (q.ttl <= 0 || !q.cond()) ambientQueue.splice(i, 1);
+    }
+    if (ambientQueue.length && !ambientBusy()) {
+      const q = ambientQueue.shift();
+      sayAmbient(q.owner, q.text, q.color);
+    }
   }
   // Подсказки «почему»: каждая показывается максимум дважды за всё время, чтобы не надоедать
   let hintsSeen = store.get('hints', {}) || {};

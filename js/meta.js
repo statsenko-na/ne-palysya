@@ -402,8 +402,10 @@
   function isLocalRecordsOpen() { return recordsDialogOpen; }
   // ---------- ОНБОРДИНГ «КАК ИГРАТЬ» ----------
   const onb = { open: false, i: 0, thenStart: false, el: $('onboarding') };
+  // Слайды «Что нового» (data-news) один раз показываются вернувшимся игрокам перед сменой; меняй id с новой волной
+  const NEWS_ID = '0.27';
   // Первый запуск — только 3 ключевых слайда (цель, правила, Д.Н.); по I — полная справка
-  const onbSlides = () => onb.el ? [...onb.el.querySelectorAll(onb.coreOnly ? '.onb-slide[data-core]' : '.onb-slide')] : [];
+  const onbSlides = () => onb.el ? [...onb.el.querySelectorAll(onb.set === 'core' ? '.onb-slide[data-core]' : onb.set === 'news' ? '.onb-slide[data-news]' : '.onb-slide')] : [];
   function renderSlide() {
     const slides = onbSlides();
     onb.el.querySelectorAll('.onb-slide').forEach(sl => sl.classList.remove('active'));
@@ -414,10 +416,11 @@
     const last = onb.i === slides.length - 1;
     $('onb-next').innerHTML = last ? (onb.thenStart ? 'НАЧАТЬ СМЕНУ ↵' : 'ПОНЯТНО ✓') : 'ДАЛЕЕ →';
   }
-  function openOnboarding(thenStart = false) {
+  function openOnboarding(thenStart = false, set = thenStart ? 'core' : 'all') {
     if (!onb.el) return;
     if (mode === 'playing') setMode('paused');
-    onb.open = true; onb.i = 0; onb.thenStart = thenStart; onb.coreOnly = thenStart;
+    onb.open = true; onb.i = 0; onb.thenStart = thenStart; onb.set = set;
+    $('onb-title').textContent = set === 'news' ? 'ЧТО НОВОГО' : 'КАК ИГРАТЬ';
     onb.el.classList.remove('hidden');
     ui.overlay.classList.add('hidden');
     renderSlide();
@@ -428,6 +431,7 @@
     onb.el.classList.add('hidden');
     ui.overlay.classList.toggle('hidden', mode !== 'menu');
     store.set('onboardingDone', true);
+    store.set('newsSeen', NEWS_ID); // новичок видел основную справку, вернувшийся — «Что нового»
     if (start && onb.thenStart) resetGame();
   }
   function onbStep(d) {
@@ -639,7 +643,7 @@
     for (const key of ['alarm', 'caught', 'coworker', 'emptyDesk', 'gaveUp', 'heat', 'lunchBack', 'noise', 'office', 'patrol', 'praise', 'scold', 'scoldTarget', 'seesPlayer', 'silentCheck', 'snus', 'snusCd', 'standupTalk', 'stroll', 'suspicious', 'waitT', 'watchingWork', 'outTimer', 'outWhy']) delete boss[key];
     Object.assign(boss, { x: WD.bossHome.x, y: WD.bossHome.y, state: 'office', stateTimer: 5, path: [], mode: 'patrol', spotDesc: 'кабинет', suspicion: 0, catchCooldown: 0, quoteTimer: 4, praiseTimer: 0, lookTimer: 0, inspectTimer: 0, visitedSpots: 0, warned: false, facing: Math.PI / 2, walkTimer: 0, moving: false });
     coworkers.forEach(c => { c.cooldown = 0; c.talkTimer = 0; c.idleTimer = 2 + rand() * 12; c.alert = 0; c.slack = null; c.slackTimer = 10 + rand() * 12; c.scoldCooldown = 0; c.rocketAt = 660 + rand() * 360; c.draftCd = 0; c.path = null; });
-    banterT = 10 + rand() * 12; pendingSays.length = 0;
+    banterT = 10 + rand() * 12; pendingSays.length = 0; ambientQueue.length = 0; ambientGap = 0;
     day = {
       misses: 0, lunchCalled: false, lunchOpen: false, fed: false, hungry: false, bossLunch: false, beer: null,
       toiletCd: 0, queue: 0, queueTotal: 0, qShift: 0, knock: 3, cabinDoor: 0, npcInside: 0, npcTimer: 20,
@@ -726,6 +730,8 @@
     enterFullscreen();
     // Первый запуск: сначала подробный онбординг, потом смена
     if (!store.get('onboardingDone', false) && mode === 'menu') { openOnboarding(true); return; }
+    // Вернувшийся игрок: один раз коротко о новом (автотесты в headless-браузере это окно пропускают)
+    if (store.get('newsSeen', '') !== NEWS_ID && mode === 'menu' && !navigator.webdriver) { openOnboarding(true, 'news'); return; }
     resetGame();
   }
   function pauseGame() {

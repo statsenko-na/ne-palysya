@@ -192,20 +192,23 @@
       if (p.t > 0) continue;
       pendingSays.splice(i, 1);
       const c = coworkerById(p.owner);
-      if (c && !c.away) say(p.owner, p.text, 3, '#eef6f4');
+      if (c && !c.away) sayAmbient(p.owner, p.text, '#eef6f4', true);
     }
     banterT -= dt;
     if (banterT > 0) return;
+    if (ambientBusy()) { banterT = 3; return; }
     banterT = 14 + rand() * 16;
     const here = id => { const c = coworkerById(id); return c && !c.away && !c.remote; };
     const opts = LINES.banter.filter(([a, , b]) => here(a) && here(b));
     if (!opts.length) return;
     const [a, la, b, lb] = pick(opts);
-    say(a, la, 3, '#eef6f4');
-    pendingSays.push({ owner: b, text: lb, t: 1.2 + rand() * 0.8 });
+    if (!sayAmbient(a, la)) return;
+    // ответ — когда первую реплику уже дочитали
+    pendingSays.push({ owner: b, text: lb, t: readDur(la) + 0.5 });
   }
 
   function updateCoworkers(dt) {
+    updateAmbientTalk(dt);
     updateBanter(dt);
     for (const c of coworkers) {
       if (c.remote) { c.away = true; c.slack = null; continue; }
@@ -230,10 +233,9 @@
       if (Math.hypot(boss.x - c.x, boss.y - c.y) < 90) c.alert = 1;
       if (c.idleTimer <= 0) {
         const line = rand() < 0.3 ? pick(LINES.whine) : pick(LINES.coworkerIdle[c.id]);
-        if (!c.talkTimer && !bubbles.some(b => b.owner === c.id) && rand() < 0.6) say(c.id, line, 2.6, '#eef6f4');
-        c.idleTimer = (c.extra ? 9 : 12) + rand() * 14;
-        // иногда сосед подхватывает почти одновременно — офис говорит вразнобой, а не по очереди
-        if (rand() < 0.3) { const o = pick(coworkers.filter(x => x !== c && !x.away)); if (o) o.idleTimer = Math.min(o.idleTimer, 0.3 + rand() * 1.2); }
+        const spoke = !c.talkTimer && rand() < 0.6 && sayAmbient(c.id, line);
+        // офис занят другой репликой — попробовать чуть позже, а не перебивать
+        c.idleTimer = spoke || !ambientBusy() ? (c.extra ? 9 : 12) + rand() * 14 : 3 + rand() * 5;
       }
       // Второй ряд: то работают, то отвлекаются (телефон, сон, танчики, чипсы)
       if (c.extra && !c.ghost && (!c.statist || unlocked('row2'))) {
@@ -245,7 +247,7 @@
             const kinds = Object.keys(LINES.slack[c.id]);
             c.slack = kinds[Math.floor(rand() * kinds.length)];
             c.slackTimer = 9 + rand() * 7;
-            if (!bubbles.some(b => b.owner === c.id)) say(c.id, pick(LINES.slack[c.id][c.slack]), 2.6, '#f4ecff');
+            sayAmbient(c.id, pick(LINES.slack[c.id][c.slack]), '#f4ecff');
           } else c.slackTimer = 3;
         }
       }
