@@ -123,6 +123,7 @@
     if (id === 'standup') {
       text = 'Д.Н. собирает всех у доски (архив, слева внизу). Встань рядом и жми E!';
       if (!bossBusy()) { bossGoTo(WD.standupSpot, 'standup', 'летучка'); boss.stateTimer = def.dur; }
+      day.standupDeadline = clockMinutes + STANDUP_GRACE_MINUTES; day.standupLate = false;
       say('boss', pick(LINES.boss.standup), 3);
     }
     if (id === 'sb') {
@@ -194,7 +195,7 @@
         floater(player.x, player.y - 64, 'ЛЕТУЧКА +8 К ПЛАНУ', '#57d08a');
         say('boss', 'Вот! Быкентий хоть слушал. Свободны!', 2.8);
         addLog('Летучка: Быкентий кивал в нужных местах. +8 к плану.', 'good');
-      } else if (mode === 'playing' && !onLunch()) {
+      } else if (mode === 'playing' && !onLunch() && !day.standupLate) {
         say('boss', 'А где Быкентий?! Опять пропустил летучку!', 3);
         missAtDesk('Пропустил летучку');
       }
@@ -443,7 +444,14 @@
     playSound('click');
     return true;
   }
+  const STANDUP_GRACE_MINUTES = 30;
   function updateSocial(dt) {
+    // Летучка: 30 игровых минут на опоздание, потом выговор сразу
+    if (eventIs('standup') && player.action !== 'standup' && !day.standupLate && day.standupDeadline && clockMinutes >= day.standupDeadline && mode === 'playing' && !onLunch()) {
+      day.standupLate = true;
+      say('boss', 'Полчаса ждём Быкентия! Записываю опоздание!', 3);
+      missAtDesk('Опоздал на летучку больше чем на 30 минут');
+    }
     // Летучка: через пару секунд Д.Н. задаёт вопрос
     if (choice && player.action === 'standup' && !choice.done) {
       choice.t += dt;
