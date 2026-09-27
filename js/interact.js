@@ -9,6 +9,7 @@
   const AWAY = new Set(['toilet', 'lunch', 'evac']); // Быкентия нет в опенспейсе — не рисуем
   const SLACK_BASE = new Set(['smoke', 'youtube', 'fridge', 'chat', 'phone', 'meme', 'yogurt-coffee-gift', 'autoshka-repair']);
   const SLACK = { has: a => SLACK_BASE.has(a) && !(a === 'phone' && phoneSafe > 0) };
+  let autoclickerSavePending = false;
   // Склонения имён: родительный, дательный, творительный
   const NAME_CASES = { 'Асель': ['Асель', 'Асель', 'Асель'], 'Сиргей': ['Сиргея', 'Сиргею', 'Сиргеем'] };
   const nameCase = (n, i) => (NAME_CASES[n] ? NAME_CASES[n][i] : n + ['а', 'у', 'ом'][i]);
@@ -428,7 +429,8 @@
     if (!z) return null;
     const yogurt = yogurtStoryModuleAvailable() ? ensureYogurtExtension() : null;
     const prompts = {
-      desk: player.action === 'work' ? 'E — встать из-за стола' : 'E — сесть за стол и открыть Excel',
+      desk: player.action === 'work' ? 'E — встать из-за стола'
+        : (autoclickerCanOfferDeskChoice() ? 'E — выбрать: Excel или автокликер' : 'E — сесть за стол и открыть Excel'),
       coffee: day.coffeeJammed ? 'E — очистить кофемашину от жмыха (+3 KPI)'
         : ((day.coffeeQueueTimer || 0) > 0 ? `Очередь у кофемашины (~${Math.ceil(day.coffeeQueueTimer)} с)`
         : (yogurt && yogurt.pendingCoffee ? 'E — отменить варку кофе для Хлада'
@@ -520,6 +522,7 @@
     return result;
   }
   function startAction(action, seconds) {
+    if (player.action === 'autoclicker-install' && action !== 'autoclicker-install') endAction('cancel');
     if (player.action === 'coffee' && action !== 'coffee' && saveExtensions.yogurt && saveExtensions.yogurt.pendingCoffee) {
       endAction('cancel');
     }
@@ -776,6 +779,116 @@
     addLog('Использован запасной кофе из термоса. Кайф и статистика чашек не меняются.', 'good');
     saveProgress();
     return result;
+  }
+  function autoclickerInstallDisabledReason() {
+    const current = saveExtensions.equipment;
+    if (mode !== 'playing') return mode === 'paused' ? 'Игра на паузе' : 'Смена уже закончилась';
+    if (auto.on) return 'Автопилот управляет Быкентием';
+    if (player.action !== 'none') return 'Сначала закончи текущее действие';
+    if (!equipmentHas('autoclicker')) return 'Автокликер не установлен в активный набор';
+    if (!current || !current.autoclicker || !current.usedCharges) return 'Оснащение сейчас недоступно';
+    if (current.usedCharges.autoclicker || current.autoclicker.placementUsed || current.autoclicker.phase !== 'idle') return 'Автокликер уже использован или недоступен';
+    const zone = currentZone();
+    if (!zone || zone.id !== 'desk') return 'Поставить автокликер можно только у своего стола';
+    return '';
+  }
+  function autoclickerCanOfferDeskChoice() {
+    return equipmentHas('autoclicker') && !autoclickerInstallDisabledReason();
+  }
+  function sitAtOwnDesk() {
+    const zone = currentZone();
+    if (mode !== 'playing' || player.action !== 'none' || !zone || zone.id !== 'desk') return false;
+    player.workFromFront = player.y > (WD.ROW1_Y + 10);
+    player.x = SEAT.x; player.y = SEAT.y;
+    day.excelWorkAcc = 0;
+    startAction('work', 0);
+    playSound('click');
+    addLog('Быкентий открыл Excel. Пальцы стучат по формулам.', 'good');
+    return true;
+  }
+  function installAutoclickerAtDesk() {
+    const disabled = autoclickerInstallDisabledReason();
+    if (disabled) { toast(disabled + '.', 1.8); return false; }
+    const current = saveExtensions.equipment;
+    const result = activateAutoclicker(current, {
+      atDesk: true, paused: mode === 'paused', shiftEnded: mode === 'ended' || clockMinutes >= CFG.shiftEnd,
+    });
+    if (!result.ok) { toast('Автокликер сейчас недоступен.', 1.8); return false; }
+    saveExtensions.equipment = result.state;
+    delete saveExtensionErrors.equipment;
+    player.workFromFront = player.y > (WD.ROW1_Y + 10);
+    player.x = SEAT.x; player.y = SEAT.y;
+    startAction('autoclicker-install', 2);
+    say('player', LINES.autoclicker.install, 2.2);
+    addLog('Быкентий ставит автокликер. Заряд потрачен; устройство не выполняет работу.', 'info');
+    playSound('click');
+    saveProgress();
+    return true;
+  }
+  function beginAutoclickerDeskInspection() {
+    const current = saveExtensions.equipment;
+    if (!current || !equipmentHas('autoclicker')) return { ok: false, reason: 'autoclicker_not_equipped', waitSeconds: 0 };
+    const result = beginAutoclickerInspection(current, {
+      inspectionId: `${shiftId}:autoclicker-empty-desk`, emptyDesk: true,
+      paused: mode === 'paused', shiftEnded: mode === 'ended' || clockMinutes >= CFG.shiftEnd,
+    });
+    if (!result.ok) return result;
+    saveExtensions.equipment = result.state;
+    delete saveExtensionErrors.equipment;
+    return result;
+  }
+  function tickAutoclickerAdapter(dt) {
+    if (mode !== 'playing' || !saveExtensions.equipment) return null;
+    const current = saveExtensions.equipment;
+    const clicker = current.autoclicker || {};
+    const pending = clicker.inspectionWait;
+    const previousPhase = clicker.phase;
+    const returnedToExcel = !!pending && boss.state === 'waitDesk' && boss.emptyDesk === true && playerIsWorking();
+    const result = tickEquipment(current, {
+      dt: Math.max(0, Number(dt) || 0), paused: false, shiftEnded: false,
+      installationInterrupted: false,
+      ...(pending ? { inspectionId: pending.inspectionId, returnedToExcel } : {}),
+    });
+    if (!result.ok) return null;
+    saveExtensions.equipment = result.state;
+    delete saveExtensionErrors.equipment;
+    if (result.inspectionOutcome === 'missAtDesk' && boss.state === 'waitDesk' && boss.emptyDesk === true) {
+      say('boss', LINES.autoclicker.revealed, 3);
+      toast('Автокликер раскрыт: Д.Н. продолжает ждать у стола.', 2.8);
+      addLog('Д.Н. понял, что курсор не настоящий. Обычный таймер ожидания стола продолжается.', 'bad');
+    }
+    if (result.inspectionOutcome || previousPhase !== result.state.autoclicker.phase) autoclickerSavePending = true;
+    return result;
+  }
+  function resolveAutoclickerInspectionElsewhere() {
+    const hadClickerDeskWait = boss && boss.emptyDesk === true;
+    const current = saveExtensions.equipment;
+    const pending = current && current.autoclicker && current.autoclicker.inspectionWait;
+    let changed = false;
+    if (pending) {
+      const result = tickEquipment(current, {
+        dt: 0, paused: false, shiftEnded: false,
+        inspectionId: pending.inspectionId, inspectionResolved: true,
+      });
+      if (result.ok) {
+        saveExtensions.equipment = result.state;
+        delete saveExtensionErrors.equipment;
+        changed = true;
+      }
+    }
+    if (hadClickerDeskWait) boss.emptyDesk = false;
+    return changed || hadClickerDeskWait;
+  }
+  function interruptAutoclickerInstallation() {
+    const current = saveExtensions.equipment;
+    if (!current || !current.autoclicker || current.autoclicker.phase !== 'installing') return false;
+    const result = tickEquipment(current, {
+      dt: 0, paused: false, shiftEnded: false, installationInterrupted: true,
+    });
+    if (!result.ok) return false;
+    saveExtensions.equipment = result.state;
+    delete saveExtensionErrors.equipment;
+    return true;
   }
   function autoshkaModuleAvailable() {
     return typeof createAutoshkaChoice === 'function' && typeof isAutoshkaState === 'function'
@@ -1110,6 +1223,7 @@
   }
   function endAction(reason, finishedActivity = null) {
     const a = player.action;
+    if (a === 'autoclicker-install' && reason !== 'done') interruptAutoclickerInstallation();
     const coffeeForColleague = a === 'coffee' && !!(saveExtensions.yogurt && saveExtensions.yogurt.pendingCoffee);
     let thermosChargeStored = false;
     const startPrinterDistraction = a === 'printer-distraction-prep' && reason === 'done';
@@ -1230,6 +1344,7 @@
     player.hideSpot = null;
     checkTodo();
     if (thermosChargeStored) saveProgress();
+    if (a === 'autoclicker-install' && reason !== 'done' && mode === 'playing') saveProgress();
     if (reason === 'done' && a === 'smoke' && activityVariant !== 'smoke-listening') offerSmokeListeningChoice();
     if (startPrinterDistraction) {
       const result = beginBossDistraction('printer');
@@ -1271,6 +1386,11 @@
       toast('Помощь Сиргею прервана.', 1.6);
       return;
     }
+    if (player.action === 'autoclicker-install') {
+      endAction('cancel');
+      toast('Установку автокликера прервал.', 1.6);
+      return;
+    }
     const info = getActionInfo();
     if (player.action === 'plant_hide' || player.action === 'cabinet_hide' || player.action === 'printer_hide') {
       playSound('hide');
@@ -1302,12 +1422,11 @@
           player.y = player.workFromFront ? (WD.ROW1_Y + WD.DESK_DEPTH + 6) : (WD.FLOOR_TOP + 20);
           return;
         }
-        player.workFromFront = player.y > (WD.ROW1_Y + 10);
-        player.x = SEAT.x; player.y = SEAT.y;
-        day.excelWorkAcc = 0;
-        startAction('work', 0);
-        playSound('click');
-        addLog('Быкентий открыл Excel. Пальцы стучат по формулам.', 'good');
+        if (autoclickerCanOfferDeskChoice()) {
+          openActionChoice({ id: 'autoclicker-desk', owner: 'player', options: ['excel', 'install'], expiresIn: 10 });
+          return;
+        }
+        sitAtOwnDesk();
         break;
       case 'coffee':
         if (player.action === 'coffee') {
@@ -1674,5 +1793,16 @@
       meme: () => startPrinterMeme(),
       distraction: () => startPrinterDistractionPrep(),
       folder: () => startDisguisePrep(),
+    },
+  });
+  registerActionChoiceHandler('autoclicker-desk', {
+    title: 'У своего стола: выбрать действие',
+    options: [
+      { id: 'excel', label: 'Открыть Excel', detail: 'Обычная работа по прежним правилам' },
+      { id: 'install', label: 'Поставить автокликер', detail: '2 с установки · до 10 с курсора · не выполняет работу', disabledReason: autoclickerInstallDisabledReason },
+    ],
+    handlers: {
+      excel: () => sitAtOwnDesk(),
+      install: () => installAutoclickerAtDesk(),
     },
   });

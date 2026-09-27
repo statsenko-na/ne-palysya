@@ -511,6 +511,12 @@
     ],
   };
 
+  const autoclicker = {
+    install: 'Надеюсь, эта мышка продержится дольше моего терпения.',
+    waiting: 'Курсор шевелится…',
+    revealed: 'Мышка работает. А Быкентий где?',
+  };
+
   // Закрытие микрозадач в Excel (приносит дофамин/кайф)
   const excelTasks = [
     'Заявка №814: одобрен кредит на Камри-2005 под 54% годовых',
@@ -532,5 +538,5 @@
   // Д.Н. проходит мимо стола Тиграна — духа он не видит, только чувствует
   const tigranDraft = ['Бр-р… Откуда сквозняк у пустого стола?', 'Кто тут рычит?.. Показалось.', 'Почему тут пахнет космосом?'];
 
-  window.NP_LINES = { banter, tigranDraft, boss, chat, perks, coworkerIdle, coworkerWarn, thoughts, distraction, disguise, yogurt, autoshka, dayTasks, excuses, majik, sb, nudge, arrfr, slack, whine, complaints, lunch, munich, toilet, pee, hideOut, bday, aljazira, adhoc, excelTasks, coffeeQueue };
+  window.NP_LINES = { banter, tigranDraft, boss, chat, perks, coworkerIdle, coworkerWarn, thoughts, distraction, disguise, yogurt, autoshka, autoclicker, dayTasks, excuses, majik, sb, nudge, arrfr, slack, whine, complaints, lunch, munich, toilet, pee, hideOut, bday, aljazira, adhoc, excelTasks, coffeeQueue };
 })();

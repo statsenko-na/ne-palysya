@@ -8,7 +8,11 @@
   const EQUIPMENT_SHOP_AVAILABLE_IDS = new Set();
   EQUIPMENT_SHOP_AVAILABLE_IDS.add('thermos');
   EQUIPMENT_SHOP_AVAILABLE_IDS.add('mirror');
+  EQUIPMENT_SHOP_AVAILABLE_IDS.add('autoclicker');
   const EQUIPMENT_SHOP_ICONS = { thermos: '🫖', mirror: '🪞', autoclicker: '🖱️' };
+  const EQUIPMENT_SHOP_DESCRIPTIONS = {
+    autoclicker: 'Установка занимает 2 с; до 10 игровых секунд курсора. Один раз за смену оттянет одну проверку пустого стола на 2 с, затем Д.Н. поймёт подмену. Если не вернуться в Excel до конца обычного ожидания — будет промах. Курсор не выполняет работу и не добавляет план или заявки.',
+  };
   let equipmentMenuState = createEquipmentState(store.get('equipmentLoadout', null));
   function equipmentHas(id) {
     const state = saveExtensions.equipment;
@@ -43,7 +47,8 @@
           return `<button data-equip-equipment="${item.id}" data-equipment-slot="${slot}" ${duplicate || installed ? 'disabled' : ''}>${installed ? `Слот ${slot + 1} ✓` : `В слот ${slot + 1}`}</button>`;
         }).join('')}</div>`
         : `<button class="equipment-buy" data-buy-equipment="${item.id}" ${coins < item.cost ? 'disabled' : ''}>Купить · ${item.cost} ₭</button>`;
-      return `<div class="equipment-item${ownedNow ? ' owned' : ''}"><span class="ico">${EQUIPMENT_SHOP_ICONS[item.id] || '🎒'}</span><span class="txt"><b>${item.name}</b><small>${item.description}</small></span>${controls}</div>`;
+      const description = EQUIPMENT_SHOP_DESCRIPTIONS[item.id] || item.description;
+      return `<div class="equipment-item${ownedNow ? ' owned' : ''}"><span class="ico">${EQUIPMENT_SHOP_ICONS[item.id] || '🎒'}</span><span class="txt"><b>${item.name}</b><small>${description}</small></span>${controls}</div>`;
     }).join('') : '<p class="equipment-empty">Пока нет доступных приспособлений.</p>';
     ui.equipmentSlots.querySelectorAll('[data-clear-equipment-slot]').forEach(button => {
       addTap(button, () => clearEquipmentSlot(Number(button.dataset.clearEquipmentSlot)));

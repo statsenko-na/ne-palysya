@@ -275,12 +275,17 @@
     }
 
     updatePlayer(dt);
+    tickAutoclickerAdapter(dt);
     updateActionChoice(dt);
     updateBoss(dt);
     updateBossDistraction(dt);
     updateCoworkers(dt);
     updateAmbient(dt);
     updateEvents(dt);
+    if (autoclickerSavePending) {
+      autoclickerSavePending = false;
+      saveProgress();
+    }
     updateMusic(dt);
     updateTutorial(dt);
 
@@ -352,6 +357,8 @@
     interruptBossDistraction('interrupted');
     tickYogurtStoryAdapter(0, true);
     tickAutoshkaAdapter(0, true);
+    resolveAutoclickerInspectionElsewhere();
+    if (player.action === 'autoclicker-install') endAction('shift_ended');
     if (player.action === 'autoshka-repair') endAction('shift_ended');
     cancelActiveActivitiesAtShiftEnd();
     // Конец смены: меньше половины плана — выговор (на лимите — увольнение); от половины — без выговора, но и без бонуса

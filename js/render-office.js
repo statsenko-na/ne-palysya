@@ -211,6 +211,17 @@
     }
     if (has('chair') && player.action !== 'work') { R(SEAT.x - 9, y - 30, 18, 6, '#2a5a8a'); R(SEAT.x - 9, y - 30, 18, 1.5, '#4a8aca'); }
   }
+  function drawAutoclickerCursor() {
+    const clicker = saveExtensions.equipment && saveExtensions.equipment.autoclicker;
+    if (mode !== 'playing' || !equipmentHas('autoclicker') || !clicker || clicker.phase !== 'active' || clicker.activeRemaining <= 0) return;
+    const x = DESK.x, y = DESK.y, t = shiftTime * 2.3;
+    const cx = x + 56 + (Math.sin(t) + 1) * 4;
+    const cy = y - 14 + (Math.cos(t * 1.35) + 1) * 2;
+    R(cx, cy, 5, 14, '#10232a'); R(cx + 1, cy + 1, 2, 10, '#fff');
+    R(cx + 1, cy + 7, 7, 2, '#10232a'); R(cx + 2, cy + 7, 5, 1, '#fff');
+    R(cx + 4, cy + 9, 3, 4, '#10232a'); R(cx + 4, cy + 9, 1.5, 3, '#fff');
+    R(cx + 3, cy + 3, 1, 2, '#8de6ef');
+  }
   // Защёлка «ЗАНЯТО/СВОБОДНО», приоткрытая дверь и вечная муха над кабинкой
   function drawCabinState() {
     const busy = player.action === 'toilet' || player.action === 'queue' || day.npcInside > 0;

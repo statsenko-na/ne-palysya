@@ -36,8 +36,8 @@ const { loadPlaywright } = require('./pw');
     assert.strictEqual(await page.locator('#equipment-slots .equipment-slot').count(), 2);
     assert.deepStrictEqual(
       await page.locator('#equipment-list [data-buy-equipment]').evaluateAll(nodes => nodes.map(node => node.dataset.buyEquipment)),
-      ['thermos', 'mirror'],
-      'видны подключённые предметы 20, автокликер остаётся закрыт до 21',
+      ['thermos', 'mirror', 'autoclicker'],
+      'видны все подключённые предметы карточек 20 и 21',
     );
     await page.screenshot({ path: path.join(output, '19-equipment-shop-960x540.png') });
 

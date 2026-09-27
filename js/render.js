@@ -89,6 +89,7 @@
     drawCameraBodies();
     drawDanger();
     drawOverheads();
+    drawAutoclickerCursor();
     drawBubbles();
     ctx.setTransform(S, 0, 0, S, 0, 0);
     drawHUD();

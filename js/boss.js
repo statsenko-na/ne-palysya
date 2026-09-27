@@ -160,6 +160,7 @@
   }
 
   function caught() {
+    const clickerResolved = resolveAutoclickerInspectionElsewhere();
     stats.catches++;
     const why = { smoke: 'курил на балконе', youtube: 'смотрел YouTube', fridge: 'шарил в холодильнике', chat: 'болтал', phone: 'сидел в телефоне', meme: 'смотрел мем Блеба' }[player.action];
     reprimand(why ? `Д.Н. видел, как ты ${why}` : 'на проверке ты был не в Excel', 'залёт');
@@ -174,6 +175,7 @@
     say('boss', pick(LINES.boss.caught), 3);
     floater(player.x, player.y - 70, 'СПАЛИЛИ! ВЫГОВОР', '#ff6a5a');
     if (player.action !== 'none' && player.action !== 'work') endAction('cancel');
+    if (clickerResolved) saveProgress();
   }
 
   function passDeskInspection() {
@@ -192,19 +194,30 @@
     // Стола пусто: Д.Н. ждёт у стола — есть шанс успеть вернуться
     boss.state = 'waitDesk';
     boss.waitT = diff().wait + (has('cactus') ? 1.5 : 0) + (boss.snus > 0 ? 2 : 0);
+    boss.emptyDesk = false;
+    const clickerWait = beginAutoclickerDeskInspection();
+    if (clickerWait.ok) {
+      boss.emptyDesk = true; // сохранённый маркер ожидания, начатого автокликером
+      boss.waitT += clickerWait.waitSeconds;
+      autoclickerSavePending = true;
+    }
     boss.moving = false;
     boss.facing = -Math.PI / 2;
-    say('boss', pick(LINES.boss.emptyDesk), 3);
+    say('boss', clickerWait.ok ? LINES.autoclicker.waiting : pick(LINES.boss.emptyDesk), 3);
     playSound('alarm');
     toast(`🚨 Д.Н. у твоего пустого стола! Успей сесть в Excel за ${Math.ceil(boss.waitT)} с`, 2.6);
     hint('waitDesk', 'Д.Н. ждёт у стола. Вернёшься в Excel до конца таймера — отмажешься. Не успеешь — «не застал на месте» +1, на лимите выговор.');
   }
 
   function endInspection() {
+    const clickerResolved = boss.emptyDesk === true;
+    if (clickerResolved) resolveAutoclickerInspectionElsewhere();
+    boss.emptyDesk = false;
     nextBossCheck = (CFG.checkInterval[0] + rand() * (CFG.checkInterval[1] - CFG.checkInterval[0])) * (today().checkMul || 1) * diff().check;
     boss.silentCheck = rand() < diff().surprise;
     if (rand() < 0.4) { bossGoTo(WD.bossHome, 'return', 'кабинет'); }
     else { bossGoTo(pick(WD.patrolSpots), 'patrol'); }
+    if (clickerResolved && mode === 'playing') saveProgress();
   }
 
   function followPath(dt, speed) {

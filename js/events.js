@@ -306,6 +306,9 @@
       playSound('alarm');
       say('player', pick(LINES.sb.caught), 2.6);
       addLog('🎥 СБ: «Сотрудник Быкентий, 7 этаж, прокрастинирует». Доложили Д.Н.', 'bad');
+      if (boss.state === 'waitDesk' && boss.emptyDesk === true) {
+        endInspection();
+      }
       if (boss.state !== 'gone' && boss.state !== 'out') {
         boss.suspicion = clamp(boss.suspicion + 40, 0, 99);
         if (!bossBusy()) bossGoTo({ x: player.x, y: player.y }, 'patrol', 'по звонку СБ');
