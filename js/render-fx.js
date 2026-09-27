@@ -156,8 +156,28 @@
     // Шкала «приспичило»
     if (day.peeActive && !AWAY.has(player.action)) {
       const head = entityHead('player');
-      const urgent = day.pee >= 70, jig = urgent ? Math.sin(performance.now() / 33) : 0;
-      around(head.x + jig, head.y - 16, k, () => {
+      const urgent = day.pee >= 70, jig = urgent && !reducedEffects ? Math.sin(performance.now() / 33) : 0;
+      if (day.pee >= 100) {
+        // 100%: красный треугольник вниз и что именно просело — штраф должен быть понятен без справки
+        const now = performance.now();
+        const bob = reducedEffects ? 0 : Math.sin(now / 180) * 1.2;
+        const drain = player.action === 'queue' ? CFG.peeQueueDrain : CFG.peeCriticalDrain;
+        const l1 = '🚽 100% · БЕГИ В ТУАЛЕТ';
+        const l2 = `кайф −${drain}/с · шаг −${Math.round((1 - CFG.peeCriticalSpeed) * 100)}% · Excel −30%`;
+        around(head.x + jig, head.y - 16, k, () => {
+          ctx.font = `700 7px ${FONT_SANS}`;
+          const tw = Math.max(ctx.measureText(l1).width, ctx.measureText(l2).width);
+          const w = tw + 26, x0 = -w / 2;
+          R(x0, -17, w, 20, 'rgba(40,6,6,0.94)'); R(x0, -17, w, 1, '#e8433e'); R(x0, 2, w, 1, '#e8433e');
+          // красный треугольник вниз слева: «характеристики снижены»
+          ctx.globalAlpha = reducedEffects ? 1 : 0.8 + 0.2 * Math.sin(now / 150);
+          ctx.fillStyle = '#ff4a3a';
+          ctx.beginPath(); ctx.moveTo(x0 + 3, -12 + bob); ctx.lineTo(x0 + 17, -12 + bob); ctx.lineTo(x0 + 10, -2 + bob); ctx.closePath(); ctx.fill();
+          ctx.globalAlpha = 1;
+          T(l1, x0 + 21, -10.5, 7, '#ffd0c8', 'left', 700, FONT_SANS);
+          T(l2, x0 + 21, -2.5, 7, '#ff8a7a', 'left', 700, FONT_SANS);
+        });
+      } else around(head.x + jig, head.y - 16, k, () => {
         R(-17, -9, 34, 12, 'rgba(10,16,20,0.92)'); R(-17, -9, 2, 12, urgent ? '#e8433e' : '#8fd0f0');
         T(`🚽${Math.round(day.pee)}%`, 0, -3, 7, urgent ? '#ff8a7a' : '#8fd0f0', 'center', 700, FONT_SANS);
         R(-15, 3, 30 * day.pee / 100, 1.5, urgent ? '#e8433e' : '#8fd0f0');

@@ -161,7 +161,7 @@
     const pool = coworkers.filter(c => !c.away);
     for (let i = 0; i < 3; i++) {
       const c = pool[Math.floor(rand() * pool.length)];
-      scheduleShiftCallback(() => { if (eventIs(kind) && !c.away) say(c.id, pick(LINES.complaints[kind]), 2.8, '#ffe6c8'); }, 400 + i * 1500);
+      scheduleShiftCallback(() => { if (eventIs(kind) && !c.away) queueAmbient(c.id, pick(LINES.complaints[kind]), '#ffe6c8', () => eventIs(kind) && !c.away); }, 400 + i * 1500);
     }
     scheduleShiftCallback(() => { if (eventIs(kind)) say('player', pick(LINES.thoughts[kind]), 2.8); }, 5200);
   }
@@ -305,7 +305,7 @@
           playSound('success');
         }
       }
-      if (officeEvent.id === 'heat' && rand() < dt * 0.12) { const c = pick(coworkers.filter(k => !k.away)); if (c) say(c.id, pick(LINES.complaints.heat), 2.4, '#ffe6c8'); }
+      if (officeEvent.id === 'heat' && rand() < dt * 0.12) { const c = pick(coworkers.filter(k => !k.away)); if (c) sayAmbient(c.id, pick(LINES.complaints.heat), '#ffe6c8'); }
       if (officeEvent.t <= 0) endEvent();
     } else if (dispatchRequiredEvent()) {
       // Гарантированное событие не ждёт свободного начальника.

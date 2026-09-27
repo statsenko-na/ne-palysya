@@ -98,6 +98,7 @@
     const mirrorDirection = equipmentMirrorDirection();
     if (mirrorDirection) info.push(`🪞 ${mirrorDirection} к Д.Н.`);
     if (day.hungry) info.push('🍽 голоден');
+    if (day.peeActive && day.pee >= 100) info.push('🚽 приспичило: кайф, шаг, Excel ↓');
     if (officeEvent && officeEvent.id !== 'call') info.push(`★ ${EVENTS[officeEvent.id].title.toLowerCase()} · ${Math.ceil(officeEvent.t)} с`);
     return info;
   }

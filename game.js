@@ -212,6 +212,7 @@
   const resumeOnAuto = () => { if (mode === 'paused') { setMode('playing'); if (!auto.on) toggleAutopilot(); } };
   document.querySelectorAll('.auto-resume').forEach(b => addTap(b, resumeOnAuto));
   document.querySelectorAll('.onb-open').forEach(b => addTap(b, () => openOnboarding(false)));
+  document.querySelectorAll('.onb-news').forEach(b => addTap(b, () => openOnboarding(false, 'news')));
   addTap($('onb-next'), () => onbStep(1));
   addTap($('onb-prev'), () => onbStep(-1));
   addTap($('onb-skip'), () => closeOnboarding(true));
@@ -269,7 +270,12 @@
     },
     saveProgress, clearSavedProgress, clearSaveExtensionError,
     say(owner, text, dur = 4) { say(owner, text, dur); },
-    banterNow() { banterT = 0; updateBanter(0); updateBanter(2.1); return bubbles.map(b => b.owner); },
+    banterNow() { // реплика и ответ после паузы на чтение
+      bubbles = []; ambientGap = 0; banterT = 0; updateBanter(0);
+      const owners = bubbles.map(b => b.owner);
+      bubbles = []; updateBanter(8);
+      return owners.concat(bubbles.map(b => b.owner));
+    },
     get zones() { return WD.zones.map(z => z.id); },
     hideBanner() { banner = null; },
     get ui() { return { UI, unitPx, compact: compactHud(), hudBottom: hudBottom(), bigText }; },

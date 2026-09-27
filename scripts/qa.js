@@ -516,6 +516,24 @@ const { loadPlaywright } = require('./pw');
   });
   check('Асель, Альджазира и Штази — статисты без болтовни', stat.noChat && stat.sirgeyChat, JSON.stringify(stat));
   check('перепалка соседей: реплика и ответ', stat.banter >= 10 && stat.talk.length >= 2, JSON.stringify(stat.talk));
+  // Фоновая болтовня: не больше одной реплики за раз, пауза между ними, время на чтение
+  const chatter = await page.evaluate(() => {
+    NP_DEBUG.setDay(3); NP_DEBUG.restart(); NP_DEBUG.clearEvents();
+    bubbles = [];
+    let maxAmb = 0, lines = 0, minGap = 99, lastEnd = -99, minDur = 99, t = 0;
+    const seen = new Set();
+    for (let i = 0; i < 1200; i++, t += 0.1) {
+      updateCoworkers(0.1);
+      bubbles.forEach(b => { b.t += 0.1; });
+      const amb = bubbles.filter(b => b.amb);
+      for (const b of amb) if (!seen.has(b)) { seen.add(b); lines++; minDur = Math.min(minDur, b.dur); if (lastEnd > -99) minGap = Math.min(minGap, t - lastEnd); }
+      maxAmb = Math.max(maxAmb, amb.length);
+      if (bubbles.some(b => b.amb && b.t >= b.dur)) lastEnd = t;
+      bubbles = bubbles.filter(b => b.t < b.dur);
+    }
+    return { maxAmb, lines, minGap: +minGap.toFixed(1), minDur: +minDur.toFixed(1) };
+  });
+  check('болтовня офиса: по одной реплике, с паузой и временем на чтение', chatter.maxAmb === 1 && chatter.lines >= 5 && chatter.minGap >= 0.4 && chatter.minDur >= 2.5, JSON.stringify(chatter));
 
   // Проверки по замечаниям код-ревью (P1/P2):
   // 1. Лимит кайфа 100 (включая пятничное пиво)
