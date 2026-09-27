@@ -226,6 +226,7 @@
   document.querySelectorAll('[data-diff]').forEach(b => addTap(b, () => { playSound('click'); setDifficulty(b.dataset.diff); }));
   setDifficulty(diffKey);
   document.querySelectorAll('.music-toggle').forEach(b => addTap(b, toggleMusic));
+  document.querySelectorAll('.reduced-effects-toggle').forEach(b => addTap(b, toggleReducedEffects));
   document.querySelectorAll('.text-toggle').forEach(b => addTap(b, () => { bigText = !bigText; store.set('bigText', bigText); updateUiScale(); syncAudioButtons(); toast(bigText ? '🔠 Крупный текст включён' : '🔠 Обычный размер текста', 1.4); }));
   window.addEventListener('resize', updateUiScale);
   window.addEventListener('orientationchange', () => setTimeout(updateUiScale, 250));

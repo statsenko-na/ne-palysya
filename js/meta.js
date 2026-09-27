@@ -150,6 +150,40 @@
   }
 
   // Ползунок скорости времени (меню и пауза)
+  const REDUCED_EFFECTS_KEY = 'reducedEffects';
+  const reducedEffectsMedia = typeof window.matchMedia === 'function'
+    ? window.matchMedia('(prefers-reduced-motion: reduce)')
+    : null;
+  let reducedEffects = resolveReducedEffects(
+    store.get(REDUCED_EFFECTS_KEY, null),
+    !!(reducedEffectsMedia && reducedEffectsMedia.matches),
+  );
+  function syncReducedEffectsButtons() {
+    document.querySelectorAll('.reduced-effects-toggle').forEach(button => {
+      button.textContent = `Меньше вспышек и тряски: ${reducedEffects ? 'вкл' : 'выкл'}`;
+      button.setAttribute('aria-pressed', String(reducedEffects));
+      button.classList.toggle('off', !reducedEffects);
+    });
+  }
+  function toggleReducedEffects() {
+    reducedEffects = !reducedEffects;
+    store.set(REDUCED_EFFECTS_KEY, reducedEffects);
+    syncReducedEffectsButtons();
+  }
+  function syncReducedEffectsFromMedia() {
+    const saved = store.get(REDUCED_EFFECTS_KEY, null);
+    if (saved === true || saved === false) return;
+    reducedEffects = resolveReducedEffects(saved, !!(reducedEffectsMedia && reducedEffectsMedia.matches));
+    syncReducedEffectsButtons();
+  }
+  if (reducedEffectsMedia) {
+    if (typeof reducedEffectsMedia.addEventListener === 'function') {
+      reducedEffectsMedia.addEventListener('change', syncReducedEffectsFromMedia);
+    } else if (typeof reducedEffectsMedia.addListener === 'function') {
+      reducedEffectsMedia.addListener(syncReducedEffectsFromMedia);
+    }
+  }
+
   function syncAudioButtons() {
     document.querySelectorAll('.music-toggle').forEach(b => { b.textContent = musicOn ? '🎵 Музыка: вкл (N)' : '🔇 Музыка: выкл (N)'; b.classList.toggle('off', !musicOn); });
     document.querySelectorAll('.sound-toggle').forEach(b => { b.textContent = muted ? '🔇 Звуки: выкл (M)' : '🔊 Звуки: вкл (M)'; b.classList.toggle('off', muted); });
@@ -157,6 +191,7 @@
     document.querySelectorAll('.vol-sfx').forEach(r => { r.value = String(sfxVol); });
     document.querySelectorAll('.vol-music').forEach(r => { r.value = String(musicVol); });
     document.querySelectorAll('.text-toggle').forEach(b => { b.textContent = bigText ? '🔠 Текст: крупный' : '🔠 Текст: обычный'; });
+    syncReducedEffectsButtons();
   }
   function toggleMusic() {
     musicOn = !musicOn;

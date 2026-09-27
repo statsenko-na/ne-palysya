@@ -295,7 +295,7 @@
     const risky = (SLACK.has(player.action) || (boss.state === 'inspect' && !playerIsWorking() && !HIDDEN.has(player.action))) && boss.state !== 'office';
     const target = risky && d < 200 ? clamp(1 - (d - 50) / 150, 0, 1) : 0;
     danger += (target - danger) * Math.min(1, dt * 4);
-    if (danger > 0.5) hint('danger', 'Красные края и пульс: Д.Н. совсем рядом, а ты бездельничаешь. Беги в Excel или прячься!');
+    if (danger > 0.5) hint('danger', 'Красные края: Д.Н. совсем рядом, а ты бездельничаешь. Беги в Excel или прячься!');
     if (clockMinutes >= 17 * 60 && !planMinDone()) hint('planLate', 'Нет даже половины плана, а уже 17:00! Меньше половины к 19:30 — выговор. Посиди в Excel, лучше на глазах у Д.Н.');
     if (danger > 0.15) {
       heartbeat -= dt;

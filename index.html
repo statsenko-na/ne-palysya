@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>Не пались — банковский офисный симулятор</title>
-    <link rel="stylesheet" href="style.css?v=0.26.15" />
+    <link rel="stylesheet" href="style.css?v=0.26.16" />
   </head>
   <body>
     <main class="cabinet">
@@ -62,7 +62,7 @@
                 <button class="diff-btn on" data-diff="normal" title="Как задумано">💼 СОТРУДНИК</button>
                 <button class="diff-btn" data-diff="hard" title="Д.Н. видит дальше, проверки чаще, план выше; после выговора за «не застал» каждый следующий промах — сразу выговор">🔥 ВЕТЕРАН</button>
               </div>
-              <div class="audio-row"><button class="audio-btn music-toggle">🎵 Музыка: вкл (N)</button><button class="audio-btn sound-toggle">🔊 Звуки: вкл (M)</button><button class="audio-btn text-toggle" title="Крупнее текст в меню и в игре">🔠 Текст: обычный</button></div>
+              <div class="audio-row"><button class="audio-btn music-toggle">🎵 Музыка: вкл (N)</button><button class="audio-btn sound-toggle">🔊 Звуки: вкл (M)</button><button class="audio-btn text-toggle" title="Крупнее текст в меню и в игре">🔠 Текст: обычный</button><button class="audio-btn reduced-effects-toggle" type="button" aria-pressed="false">Меньше вспышек и тряски: выкл</button></div>
               <label class="speed-row">⏱ Скорость времени <input class="speed-range" type="range" min="0.5" max="3" step="0.25" value="1" /> <b class="speed-val">×1</b></label>
               <div class="vol-row"><label>🔊 Звуки <input class="vol-range vol-sfx" type="range" min="0" max="1" step="0.05" value="1" /></label><label>🎵 Музыка <input class="vol-range vol-music" type="range" min="0" max="1" step="0.05" value="1" /></label><button class="audio-btn keys-open">⌨ Клавиши</button></div>
               <div class="controls-mini">WASD / стрелки — ходить · E / Пробел — действие · H — спрятаться · Tab / Q — телефон · O — автопилот · P / Esc — пауза · 1/2/3 — ответ на летучке · U — апгрейды · N — музыка · I — как играть</div>
@@ -77,7 +77,7 @@
               <button id="resume-btn" class="pixel-btn">ПРОДОЛЖИТЬ <span>↵</span></button>
               <button class="pixel-btn pixel-btn-alt auto-resume">🍿 ДАЛЬШЕ НА АВТОПИЛОТЕ <span>O</span></button>
               <button class="pixel-btn pixel-btn-alt onb-open">❓ КАК ИГРАТЬ <span>I</span></button>
-              <div class="audio-row"><button class="audio-btn music-toggle">🎵 Музыка: вкл (N)</button><button class="audio-btn sound-toggle">🔊 Звуки: вкл (M)</button><button class="audio-btn text-toggle" title="Крупнее текст в меню и в игре">🔠 Текст: обычный</button></div>
+              <div class="audio-row"><button class="audio-btn music-toggle">🎵 Музыка: вкл (N)</button><button class="audio-btn sound-toggle">🔊 Звуки: вкл (M)</button><button class="audio-btn text-toggle" title="Крупнее текст в меню и в игре">🔠 Текст: обычный</button><button class="audio-btn reduced-effects-toggle" type="button" aria-pressed="false">Меньше вспышек и тряски: выкл</button></div>
               <label class="speed-row">⏱ Скорость времени <input class="speed-range" type="range" min="0.5" max="3" step="0.25" value="1" /> <b class="speed-val">×1</b></label>
               <div class="vol-row"><label>🔊 Звуки <input class="vol-range vol-sfx" type="range" min="0" max="1" step="0.05" value="1" /></label><label>🎵 Музыка <input class="vol-range vol-music" type="range" min="0" max="1" step="0.05" value="1" /></label><button class="audio-btn keys-open">⌨ Клавиши</button></div>
             </div>
@@ -143,7 +143,7 @@
                   <div class="onb-art onb-hud">
                     <div class="hud-tip"><b>↗ Радар</b> — где Д.Н. и что делает, шкала подозрения, «👁 ВИДИТ ТЕБЯ»</div>
                     <div class="hud-tip red"><b>Красная рамка</b> — идёт проверка или Д.Н. ждёт у твоего стола</div>
-                    <div class="hud-tip red"><b>Красные края + пульс</b> — Д.Н. близко, а ты бездельничаешь</div>
+                    <div class="hud-tip red"><b>Красные края</b> — Д.Н. близко, а ты бездельничаешь</div>
                     <div class="hud-tip"><b>↓ Подсказка внизу</b> — что сделает E здесь</div>
                   </div>
                   <div class="onb-text">
@@ -312,39 +312,40 @@
         <p>Для комфортной смены в БЦ «Угар» переверни устройство горизонтально.</p>
       </div>
     </div>
-    <script src="js/world.js?v=0.26.15"></script>
-    <script src="js/lines.js?v=0.26.15"></script>
-    <script src="js/art.js?v=0.26.15"></script>
-    <script src="js/config.js?v=0.26.15"></script>
-    <script src="js/core.js?v=0.26.15"></script>
-    <script src="js/equipment.js?v=0.26.15"></script>
-    <script src="js/save-schema.js?v=0.26.15"></script>
-    <script src="js/moments.js?v=0.26.15"></script>
-    <script src="js/relationships.js?v=0.26.15"></script>
-    <script src="js/activities.js?v=0.26.15"></script>
-    <script src="js/story-yogurt.js?v=0.26.15"></script>
-    <script src="js/event-autoshka.js?v=0.26.15"></script>
-    <script src="js/distractions.js?v=0.26.15"></script>
-    <script src="js/disguise.js?v=0.26.15"></script>
-    <script src="js/boss-memory.js?v=0.26.15"></script>
-    <script src="js/week-scenarios.js?v=0.26.15"></script>
-    <script src="js/week-outcomes.js?v=0.26.15"></script>
-    <script src="js/records.js?v=0.26.15"></script>
-    <script src="js/meta.js?v=0.26.15"></script>
-    <script src="js/events.js?v=0.26.15"></script>
-    <script src="js/action-choice.js?v=0.26.15"></script>
-    <script src="js/interact.js?v=0.26.15"></script>
-    <script src="js/boss.js?v=0.26.15"></script>
-    <script src="js/autopilot.js?v=0.26.15"></script>
-    <script src="js/player.js?v=0.26.15"></script>
-    <script src="js/render.js?v=0.26.15"></script>
-    <script src="js/render-office.js?v=0.26.15"></script>
-    <script src="js/render-actors.js?v=0.26.15"></script>
-    <script src="js/render-fx.js?v=0.26.15"></script>
-    <script src="js/render-hud.js?v=0.26.15"></script>
-    <script src="js/render-phone.js?v=0.26.15"></script>
-    <script src="js/render-choice.js?v=0.26.15"></script>
-    <script src="js/render-guide.js?v=0.26.15"></script>
-    <script src="game.js?v=0.26.15"></script>
+    <script src="js/world.js?v=0.26.16"></script>
+    <script src="js/lines.js?v=0.26.16"></script>
+    <script src="js/art.js?v=0.26.16"></script>
+    <script src="js/config.js?v=0.26.16"></script>
+    <script src="js/core.js?v=0.26.16"></script>
+    <script src="js/accessibility.js?v=0.26.16"></script>
+    <script src="js/equipment.js?v=0.26.16"></script>
+    <script src="js/save-schema.js?v=0.26.16"></script>
+    <script src="js/moments.js?v=0.26.16"></script>
+    <script src="js/relationships.js?v=0.26.16"></script>
+    <script src="js/activities.js?v=0.26.16"></script>
+    <script src="js/story-yogurt.js?v=0.26.16"></script>
+    <script src="js/event-autoshka.js?v=0.26.16"></script>
+    <script src="js/distractions.js?v=0.26.16"></script>
+    <script src="js/disguise.js?v=0.26.16"></script>
+    <script src="js/boss-memory.js?v=0.26.16"></script>
+    <script src="js/week-scenarios.js?v=0.26.16"></script>
+    <script src="js/week-outcomes.js?v=0.26.16"></script>
+    <script src="js/records.js?v=0.26.16"></script>
+    <script src="js/meta.js?v=0.26.16"></script>
+    <script src="js/events.js?v=0.26.16"></script>
+    <script src="js/action-choice.js?v=0.26.16"></script>
+    <script src="js/interact.js?v=0.26.16"></script>
+    <script src="js/boss.js?v=0.26.16"></script>
+    <script src="js/autopilot.js?v=0.26.16"></script>
+    <script src="js/player.js?v=0.26.16"></script>
+    <script src="js/render.js?v=0.26.16"></script>
+    <script src="js/render-office.js?v=0.26.16"></script>
+    <script src="js/render-actors.js?v=0.26.16"></script>
+    <script src="js/render-fx.js?v=0.26.16"></script>
+    <script src="js/render-hud.js?v=0.26.16"></script>
+    <script src="js/render-phone.js?v=0.26.16"></script>
+    <script src="js/render-choice.js?v=0.26.16"></script>
+    <script src="js/render-guide.js?v=0.26.16"></script>
+    <script src="game.js?v=0.26.16"></script>
   </body>
 </html>

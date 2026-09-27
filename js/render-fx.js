@@ -195,12 +195,13 @@
     ctx.globalAlpha = 1;
   }
 
-  function drawDanger() {
-    if (danger < 0.05) return;
-    const pulse = 0.6 + Math.sin(performance.now() / (120 - danger * 40)) * 0.4;
+  function drawDanger(effectPresentation) {
+    if (!effectPresentation || !effectPresentation.ok || !effectPresentation.staticWarning) return;
+    const level = effectPresentation.dangerLevel;
+    const pulse = effectPresentation.dangerPulse ? 0.6 + Math.sin(performance.now() / (120 - level * 40)) * 0.4 : 1;
     const v = ctx.createRadialGradient(W / 2, H / 2 + 20, 200, W / 2, H / 2 + 20, 560);
     v.addColorStop(0, 'rgba(180,20,20,0)');
-    v.addColorStop(1, `rgba(180,20,20,${0.35 * danger * pulse})`);
+    v.addColorStop(1, `rgba(180,20,20,${effectPresentation.dangerAlpha * pulse})`);
     ctx.fillStyle = v;
     ctx.fillRect(0, WD.HUD_H, W, H - WD.HUD_H);
   }

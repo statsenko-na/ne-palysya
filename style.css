@@ -496,6 +496,8 @@ body.is-playing {
 .diff-btn.on { border-color: var(--yellow); background: var(--yellow); color: var(--ink); }
 .audio-row { display: flex; justify-content: center; gap: .5rem; margin-top: .6rem; flex-wrap: wrap; }
 .audio-btn.off { color: #ff9a8a; border-color: #7a3a3a; }
+.reduced-effects-toggle { max-width: 100%; white-space: normal; line-height: 1.25; }
+.reduced-effects-toggle[aria-pressed="true"] { color: var(--yellow); border-color: var(--yellow); }
 
 /* Достижения */
 .ach-title { margin: .9rem 0 .4rem; color: var(--yellow); font-size: .875rem; }

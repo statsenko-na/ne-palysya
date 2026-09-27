@@ -71,9 +71,16 @@
 
 
   function draw() {
+    const effectPresentation = getEffectPresentation(reducedEffects, { shake, flash, danger });
     ctx.setTransform(S, 0, 0, S, 0, 0);
     ctx.imageSmoothingEnabled = false;
-    if (shake > 0) ctx.translate((rand() - 0.5) * shake * 8, (rand() - 0.5) * shake * 8);
+    if (shake > 0) {
+      const shakeX = rand() - 0.5;
+      const shakeY = rand() - 0.5;
+      if (effectPresentation.ok && effectPresentation.shake > 0) {
+        ctx.translate(shakeX * effectPresentation.shake * 8, shakeY * effectPresentation.shake * 8);
+      }
+    }
     R(0, 0, W, H, '#10181b');
     drawWindows();
     ctx.drawImage(art.staticLayer, 0, 0, W, H);
@@ -87,7 +94,7 @@
     drawParticles();
     drawLighting();
     drawCameraBodies();
-    drawDanger();
+    drawDanger(effectPresentation);
     drawOverheads();
     drawAutoclickerCursor();
     drawBubbles();
@@ -100,7 +107,7 @@
     drawPhone();
     drawBanner();
     drawActionChoice();
-    if (flash > 0) R(0, 0, W, H, `rgba(224,68,62,${flash * 0.35})`);
+    if (effectPresentation.ok && effectPresentation.flash > 0) R(0, 0, W, H, `rgba(224,68,62,${effectPresentation.flash * 0.35})`);
   }
 
   function loop(t) {
