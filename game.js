@@ -286,6 +286,7 @@
     get owned() { return { ...owned }; },
     get coworkers() { return coworkers.map(c => ({ id: c.id, away: c.away, remote: !!c.remote, slack: c.slack, cooldown: c.cooldown })); },
     setClock(mins) { shiftTime = (mins - CFG.shiftStart) / (CFG.shiftEnd - CFG.shiftStart) * CFG.shiftSeconds; clockMinutes = mins; if (mins < CFG.lunchOpen && day.lunchAway) { day.lunchAway = false; coworkers.forEach(c => { c.away = !!c.remote; }); } },
+    setDailyEnabled(v) { dailyTestOff = !v; },
     setCoins(v) { coins = v; store.set('coins', v); },
     buyUpgrade, startAutopilot, stopAutopilot,
     get choice() { return choice && { ...choice }; },

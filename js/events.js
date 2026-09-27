@@ -236,7 +236,7 @@
     if (day.beerAwayIndex >= coworkers.length) day.beerAwayTimer = 0;
   }
   function isEventWindowDeferred() {
-    return onLunch() || player.action === 'daily';
+    return onLunch() || player.action === 'daily' || dailyActive();
   }
   function canStartEventBeforeDeadline(eventId) {
     const upcoming = requiredEventEntries()

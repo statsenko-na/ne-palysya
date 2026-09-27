@@ -210,7 +210,7 @@
     }
     return lineOfSight(eye, target);
   }
-  function playerIsWorking() { return player.action === 'work'; }
+  function playerIsWorking() { return player.action === 'work' || player.action === 'daily'; } // на дейлике сидит за компьютером — для проверки это работа
 
   // ---------- ПЛАН НА ДЕНЬ ----------
   // Работа не тает. До плана идёт полностью, сверх плана — с малой отдачей: выгоднее уйти кайфовать.
@@ -376,7 +376,7 @@
     boss.quoteTimer -= dt;
     boss.praiseTimer = Math.max(0, boss.praiseTimer - dt);
 
-    if (mode === 'playing' && !onLunch() && !['inspect', 'waitDesk', 'lecture', 'leaving', 'gone', 'goout', 'out', 'scold', 'standup', 'distractionWalk', 'distractionWait'].includes(boss.state) && !eventIs('call') && !eventIs('drill')) {
+    if (mode === 'playing' && !onLunch() && !['inspect', 'waitDesk', 'lecture', 'leaving', 'gone', 'goout', 'out', 'scold', 'standup', 'distractionWalk', 'distractionWait'].includes(boss.state) && !eventIs('call') && !eventIs('drill') && !dailyActive()) {
       nextBossCheck -= dt;
       // Иногда проверка внезапная — без «Кхм-кхм» (зависит от сложности)
       if (nextBossCheck < diff().warn && !boss.warned && !boss.silentCheck && rand() < CFG.strollChance) startStroll();

@@ -19,6 +19,7 @@ const { loadPlaywright } = require('./pw');
     localStorage.setItem('nepalsya.day', JSON.stringify(day));
     NP_DEBUG.setDay(day);
     NP_DEBUG.restart(seed);
+    NP_DEBUG.setDailyEnabled(false); // дейлик 09:30 не должен вмешиваться в сценарий
     NP_DEBUG.clearEvents();
     NP_DEBUG.hideBanner();
     NP_DEBUG.setBoss(706, 446, 'office');

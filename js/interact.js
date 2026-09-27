@@ -726,7 +726,10 @@
     if (!z) return null;
     const yogurt = yogurtStoryModuleAvailable() ? ensureYogurtExtension() : null;
     const prompts = {
-      desk: player.action === 'work' ? 'E — встать из-за стола'
+      desk: player.action === 'daily' ? `🎧 Дейлик до 10:30 · ${coarsePointer ? '📱' : 'Q'} → рилсы (палево)`
+        : dailyReelsSeated() ? 'E — убрать рилсы и слушать дейлик'
+        : dailyActive() && player.action === 'none' ? 'E — сесть на дейлик'
+        : player.action === 'work' ? 'E — встать из-за стола'
         : (autoclickerCanOfferDeskChoice() ? 'E — выбрать: Excel или автокликер' : 'E — сесть за стол и открыть Excel'),
       coffee: day.coffeeJammed ? 'E — очистить кофемашину от жмыха (+3 KPI)'
         : ((day.coffeeQueueTimer || 0) > 0 ? `Очередь у кофемашины (~${Math.ceil(day.coffeeQueueTimer)} с)`
@@ -1688,6 +1691,7 @@
   }
 
   function interact() {
+    if (dailyInteract()) return;
     if (nudge && player.action === 'work') {
       // Блеб показывает мем через перегородку: кайф, но ты уже не в Excel
       nudge = null;

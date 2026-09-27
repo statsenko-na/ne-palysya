@@ -96,12 +96,14 @@
     drawCameraBodies();
     drawDanger(effectPresentation);
     drawOverheads();
+    drawDailyWorld();
     drawAutoclickerCursor();
     drawBubbles();
     ctx.setTransform(S, 0, 0, S, 0, 0);
     drawHUD();
     drawTutorial();
     drawObjective();
+    drawDailyHud();
     drawAutoBadge();
     drawChoice();
     drawPhone();

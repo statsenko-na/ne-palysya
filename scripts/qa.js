@@ -793,6 +793,49 @@ const { loadPlaywright } = require('./pw');
 
   check('нет ошибок в консоли', errors.length === 0, errors.join(' | '));
 
+  // Дейлик ПН–ЧТ 09:30–10:30: сидишь за столом, рилсы палятся на вопросе Д.Н., прогул — выговор
+  const dailyPrep = () => page.evaluate(() => {
+    NP_DEBUG.setDay(1); NP_DEBUG.restart(); NP_DEBUG.clearEvents();
+    NP_DEBUG.set({ fed: true, noPee: true }); NP_DEBUG.setClock(9 * 60 + 29); NP_DEBUG.setBoss(706, 446, 'office');
+    reprimands = 0; coverTokens = 0; fun = 50; usefulness = 10;
+  });
+  await dailyPrep();
+  const dl = await page.evaluate(() => {
+    NP_DEBUG.teleport(SEAT.x, SEAT.y); NP_DEBUG.skip(1);
+    const seated = player.action; dailyState().askT = 99; const f0 = fun, u0 = usefulness;
+    NP_DEBUG.skip(4);
+    return { phase: dailyState().phase, seated, funDown: fun < f0, planUp: usefulness > u0, check: nextBossCheck > 0 };
+  });
+  await page.screenshot({ path: path.join(outDir, '13b-daily.png') });
+  check('дейлик: сел за стол, кайф тает, план чуть растёт', dl.phase === 'on' && dl.seated === 'daily' && dl.funDown && dl.planUp, JSON.stringify(dl));
+  const dr = await page.evaluate(() => {
+    startPhoneScrolling(); const reels = player.action; const f0 = fun, u0 = usefulness;
+    CFG.dailyAskPlayer = 1; dailyState().askT = 0; dailyState().talkT = 99; NP_DEBUG.skip(0.1);
+    const asked = dailyState().ask > 0;
+    NP_DEBUG.skip(4); CFG.dailyAskPlayer = 0.5;
+    return { reels, asked, funUp: fun > f0, planUp: usefulness > u0, reprimands };
+  });
+  await page.screenshot({ path: path.join(outDir, '13c-daily-reels.png') });
+  check('дейлик: рилсы дают кайф и план, на вопросе Д.Н. — выговор', dr.reels === 'phone' && dr.funUp && dr.planUp && dr.reprimands === 1, JSON.stringify(dr));
+  await dailyPrep();
+  const dd = await page.evaluate(() => {
+    NP_DEBUG.teleport(SEAT.x, SEAT.y); NP_DEBUG.skip(1); dailyState().askT = 99;
+    startPhoneScrolling(); const saved = CFG.dailyAskPlayer; CFG.dailyAskPlayer = 1;
+    dailyState().askT = 0; NP_DEBUG.skip(0.1); dailyInteract(); NP_DEBUG.skip(4);
+    CFG.dailyAskPlayer = saved;
+    return { action: player.action, reprimands };
+  });
+  check('дейлик: успел убрать рилсы после вопроса — без выговора', dd.action === 'daily' && dd.reprimands === 0, JSON.stringify(dd));
+  await dailyPrep();
+  const ds = await page.evaluate(() => { NP_DEBUG.teleport(120, 236); NP_DEBUG.skip(3.5); return { reprimands, clock: clockMinutes }; });
+  check('дейлик: не пришёл к 09:35 — выговор', ds.reprimands === 1, JSON.stringify(ds));
+  const df = await page.evaluate(() => {
+    NP_DEBUG.setDay(4); NP_DEBUG.restart(); NP_DEBUG.clearEvents(); NP_DEBUG.set({ fed: true, noPee: true }); NP_DEBUG.setClock(9 * 60 + 29);
+    NP_DEBUG.teleport(120, 236); NP_DEBUG.skip(3.5);
+    return { active: dailyActive(), reprimands };
+  });
+  check('дейлик: в пятницу его нет', !df.active && df.reprimands === 0, JSON.stringify(df));
+
   // 17:00: подсказка про план, если отстаёшь
   const pw = await page.evaluate(() => {
     NP_DEBUG.setDay(1); NP_DEBUG.restart(); NP_DEBUG.clearEvents();

@@ -25,6 +25,7 @@ const { loadPlaywright } = require('./pw');
     persistEquipmentLoadout(createEquipmentState(loadout));
     NP_DEBUG.setDay(3);
     NP_DEBUG.restart(currentSeed);
+    NP_DEBUG.setDailyEnabled(false); // дейлик 09:30 не должен вмешиваться в сценарий
     NP_DEBUG.setDay(3);
     NP_DEBUG.clearEvents();
     NP_DEBUG.hideBanner();
@@ -172,6 +173,7 @@ const { loadPlaywright } = require('./pw');
     assert.deepEqual(paused.after, { mode: 'paused', ...paused.before }, 'пауза не расходует оба таймера');
     await page.reload();
     await page.waitForFunction(() => !!window.NP_DEBUG);
+    await page.evaluate(() => NP_DEBUG.setDailyEnabled(false));
     let resumed = await page.evaluate(() => ({
       status: NP_DEBUG.loadResult.status,
       waitT: NP_DEBUG.state.boss.waitT,

@@ -285,6 +285,7 @@
     updateCoworkers(dt);
     updateAmbient(dt);
     updateEvents(dt);
+    updateDaily(dt);
     if (autoclickerSavePending) {
       autoclickerSavePending = false;
       saveProgress();
