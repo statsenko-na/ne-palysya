@@ -69,7 +69,7 @@
     if (key === 'u' && (mode === 'menu' || mode === 'ended')) { openShop(); return; }
     if (key === 'm') { muted = !muted; store.set('muted', muted); toast(muted ? 'Звук выключен (M)' : 'Звук включён (M)', 1.4); syncAudioButtons(); return; }
     if (key === 'n') { toggleMusic(); return; }
-    if (key === 'escape' && phonePanelOpen && mode === 'playing') { closePhonePanel(); return; }
+    if (key === 'escape' && phonePanelOpen && mode === 'playing') { putAwayPhone(); return; }
     if (key === 'p' || key === 'escape') { if (mode === 'playing' || mode === 'paused') pauseGame(); return; }
     if (key === 'o' && mode === 'paused') { resumeOnAuto(); return; }
     if (key === 'enter') {

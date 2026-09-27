@@ -86,7 +86,7 @@
     if (player.action === 'daily') {
       d.listened += dt;
       fun = Math.max(0, fun - CFG.dailyFunDrain * dt);
-      addWork(CFG.dailyWork * dt);
+      addWork(CFG.dailyWork * burnoutKpiMult() * dt);
     } else if (dailyReelsSeated()) {
       d.reels += dt;
       fun = Math.min(100, fun + CFG.dailyReelsFun * dt);

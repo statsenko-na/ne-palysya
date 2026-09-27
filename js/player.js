@@ -112,7 +112,8 @@
       const gear = (has('chair') ? 1.2 : 1) * (has('monitor') ? 1.15 : 1) * (eventIs('noise') && !has('headphones') ? 0.7 : 1);
       const mult = (boss.watchingWork ? CFG.watchedKpiMultiplier : 1) * (eventIs('internet') ? 1.5 : 1) * gear * (day.peeActive && day.pee > 50 ? 0.7 : 1) * (day.hungry ? 0.85 : 1);
       const beforeWork = usefulness;
-      addWork(base * mult * dt);
+      if (fun < CFG.burnoutFun) hint('burnout', 'Кайф на нуле — Excel еле идёт, план растёт медленно. Сходи за кофе, на перекур или полистай рилсы.');
+      addWork(base * mult * burnoutKpiMult() * dt);
       const gained = usefulness - beforeWork;
       day.excelWorkAcc = (day.excelWorkAcc || 0) + gained;
 
