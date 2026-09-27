@@ -235,6 +235,51 @@
     if (!EVENT_TIER[id] || !unlocked(EVENT_TIER[id])) return null;
     return { id, deadlineStart: 15 * 60, dispatched: false };
   }
+  function applyWeekScenarioToPlan(baseTasks, baseEvents) {
+    const weekDone = !!store.get('weekDone', false);
+    const selection = selectWeekScenario({ weekDone, weekNumber });
+    const reportTask = LINES.dayTasks.find(task => task.id === 'printReport');
+    const replaceableTaskIds = baseTasks
+      .map(task => task.id)
+      .filter(id => id !== 'printReport' && !/^(coffee|smoke|toilet|lunch)/.test(id) &&
+        Object.prototype.hasOwnProperty.call(window.NP_CONFIG.TASK_EVENT_PREREQUISITES || {}, id));
+    const sergey = coworkers.find(c => c.id === 'sirgey');
+    const unlockedEventIds = Object.keys(EVENT_TIER).filter(id => unlocked(EVENT_TIER[id]));
+    const context = {
+      weekDone,
+      weekNumber,
+      dayIndex,
+      unlockedEventIds,
+      sergeyAvailable: !!sergey && !sergey.ghost && !(sergey.extra && !sergey.statist && !unlocked('row2')),
+      replaceableTaskIds,
+      reportTask,
+    };
+    const result = selection.ok
+      ? applyWeekScenario(selection, baseTasks, baseEvents, context)
+      : { ok: false, reason: selection.reason };
+    const applied = result.ok ? result : applyWeekScenario('normal', baseTasks, baseEvents, context);
+    const tasks = applied.ok ? applied.tasks : baseTasks;
+    const events = applied.ok ? applied.events : baseEvents;
+    const requiredEvents = applied.ok
+      ? applied.requiredEventIds.map(id => ({
+        id,
+        deadlineStart: Object.prototype.hasOwnProperty.call(applied.eventDeadlineMinutes, id)
+          ? applied.eventDeadlineMinutes[id]
+          : null,
+        dispatched: false,
+      }))
+      : [];
+    saveExtensions.weekScenario = {
+      scenario: applied.ok ? applied.scenario : 'normal',
+      weekNumber,
+      active: weekDone,
+      dayIndex,
+      banner: result.ok && selection.ok ? selection.banner : null,
+      requiredEvents,
+      replacedTaskId: applied.ok ? applied.replacedTaskId : null,
+    };
+    return { tasks, events };
+  }
   function todoProgress(t) {
     if (t.stat) return Math.floor(stats[t.stat] || 0);
     switch (t.id) {
@@ -329,6 +374,12 @@
 
   function resetGame(seed) {
     closePhonePanel(true, true);
+    const persistedWeekNumber = store.get('weekNumber', null);
+    const hasCompletedWeek = !!store.get('weekDone', false);
+    weekNumber = Number.isInteger(persistedWeekNumber) && persistedWeekNumber >= 0
+      ? Math.max(persistedWeekNumber, hasCompletedWeek ? 1 : 0)
+      : (hasCompletedWeek ? 1 : 0);
+    if (!Number.isInteger(persistedWeekNumber) || persistedWeekNumber < 0 || persistedWeekNumber !== weekNumber) store.set('weekNumber', weekNumber);
     rngSeed = Number.isInteger(seed) ? seed : Math.floor(Date.now() % 100000); // seed — только для автотестов
     shiftId = createShiftId();
     shiftRulesetId = OFFICE_STORIES_RULESET_ID;
@@ -350,12 +401,16 @@
     coverTokens = 0;
     particles = []; floaters = []; bubbles = []; logEntries = [];
     todo = pickTodo();
-    requiredEvent = requiredEventForTodo(todo);
     officeEvent = null;
     banner = null;
     tutorial = { step: store.get('tutorialDone', false) ? 99 : 0, t: 0 };
     nextEvent = 32 + rand() * 12;
-    eventQueue = shuffleEvents();
+    // D5 меняет задачи и работает с базовой очередью; A03 после этого резервирует все обязательные ID в ней.
+    const dailyPlan = applyWeekScenarioToPlan(todo, shuffleEvents([]));
+    todo = dailyPlan.tasks;
+    eventQueue = dailyPlan.events;
+    requiredEvent = requiredEventForTodo(todo);
+    ensureRequiredEventQueue();
     Object.assign(player, { x: SEAT.x, y: WD.ROW1_Y + 62, action: 'none', actionTimer: 0, actionTotal: 0, coffeeBoost: 0, speed: CFG.playerSpeed, chatWith: null, chatPair: null, chatReplied: false, hideSpot: null, hideT: 0, queueTarget: null, workFromFront: false, bumpCooldown: 0, walkTimer: 0, moving: false, facingX: -1 });
     for (const key of ['alarm', 'caught', 'coworker', 'emptyDesk', 'gaveUp', 'heat', 'lunchBack', 'noise', 'office', 'patrol', 'praise', 'scold', 'scoldTarget', 'seesPlayer', 'silentCheck', 'snus', 'snusCd', 'standupTalk', 'stroll', 'suspicious', 'waitT', 'watchingWork', 'outTimer', 'outWhy']) delete boss[key];
     Object.assign(boss, { x: WD.bossHome.x, y: WD.bossHome.y, state: 'office', stateTimer: 5, path: [], mode: 'patrol', spotDesc: 'кабинет', suspicion: 0, catchCooldown: 0, quoteTimer: 4, praiseTimer: 0, lookTimer: 0, inspectTimer: 0, visitedSpots: 0, warned: false, facing: Math.PI / 2, walkTimer: 0, moving: false });
@@ -413,7 +468,12 @@
     setMode('playing');
     if (!hasSavedShift || loadResult.status === 'migrated') {
       const firstWeek = !store.get('weekDone', false);
-      banner = { dur: firstWeek ? 8 : 4.4, text: `${today().name} · ДЕНЬ ${dayIndex + 1}/5 · ПЛАН ${planTarget}`, sub: firstWeek ? `${today().news} · ${today().mod}` : day.traffic ? 'Пробка на Аль-Фараби! Ты опоздал — беги к столу, Д.Н. скоро с проверкой.' : (day.smog ? `${today().mod} · Смог: гор не видно` : today().mod), t: 0 };
+      const scenarioBanner = saveExtensions.weekScenario && saveExtensions.weekScenario.active
+        ? saveExtensions.weekScenario.banner
+        : null;
+      banner = scenarioBanner
+        ? { dur: 4.4, text: scenarioBanner, sub: today().mod, t: 0 }
+        : { dur: firstWeek ? 8 : 4.4, text: `${today().name} · ДЕНЬ ${dayIndex + 1}/5 · ПЛАН ${planTarget}`, sub: firstWeek ? `${today().news} · ${today().mod}` : day.traffic ? 'Пробка на Аль-Фараби! Ты опоздал — беги к столу, Д.Н. скоро с проверкой.' : (day.smog ? `${today().mod} · Смог: гор не видно` : today().mod), t: 0 };
     }
     if (loadResult.status === 'migrated') saveProgress(); // заменяем v2 снимком v3 с уже использованной передышкой
     if (loadResult.status === 'new' && loadResult.reason && !['context_mismatch', 'autopilot'].includes(loadResult.reason)) toast('Сохранение смены повреждено; началась новая смена.', 3);

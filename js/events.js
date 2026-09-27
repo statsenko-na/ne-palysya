@@ -27,17 +27,50 @@
     autoshka: { dur: 18, title: 'У СИРГЕЯ УПАЛА АВТОШКА' },
   };
   const FEAST_ZONE = { id: 'feast', type: 'feast', x: 76, y: 170, w: 90, h: 86 };
-  function shuffleEvents() {
+  function requiredEventEntries() {
+    const entries = [];
+    const add = (entry, source) => {
+      if (!entry || typeof entry.id !== 'string' || !EVENTS[entry.id]) return;
+      const existing = entries.find(item => item.id === entry.id);
+      const deadlineStart = Number.isFinite(entry.deadlineStart) ? entry.deadlineStart : null;
+      if (existing) {
+        if (deadlineStart !== null && (existing.deadlineStart === null || deadlineStart < existing.deadlineStart)) existing.deadlineStart = deadlineStart;
+        existing.dispatched = existing.dispatched || !!entry.dispatched;
+        existing.sources.push(source);
+        return;
+      }
+      entries.push({ id: entry.id, deadlineStart, dispatched: !!entry.dispatched, sources: [source] });
+    };
+    add(requiredEvent, 'todo');
+    const scenario = saveExtensions.weekScenario;
+    if (scenario && Array.isArray(scenario.requiredEvents)) {
+      scenario.requiredEvents.forEach(entry => add(entry, 'weekScenario'));
+    }
+    return entries;
+  }
+  function markRequiredEventDispatched(id) {
+    if (requiredEvent && requiredEvent.id === id) requiredEvent.dispatched = true;
+    const scenario = saveExtensions.weekScenario;
+    if (!scenario || !Array.isArray(scenario.requiredEvents)) return;
+    scenario.requiredEvents.forEach(entry => { if (entry && entry.id === id) entry.dispatched = true; });
+  }
+  function shuffleEvents(requirements = requiredEventEntries()) {
     const open = id => unlocked(EVENT_TIER[id]);
     const pool = ['call', 'internet', 'jam', 'bday', 'heat', 'noise', 'drill', 'standup', 'majik', 'autoshka', 'arrfr'].filter(open);
     if (!open('food')) return []; // понедельник: только ядро, без событий
     for (let i = pool.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [pool[i], pool[j]] = [pool[j], pool[i]]; }
     let ids = pool.slice(0, 5);
-    const requiredId = requiredEvent && !requiredEvent.dispatched && pool.includes(requiredEvent.id) ? requiredEvent.id : null;
-    if (requiredId) {
-      ids = [requiredId, ...ids.filter(id => id !== requiredId).slice(0, 4)];
+    const requiredIds = (requirements || []).filter(entry => entry && !entry.dispatched && pool.includes(entry.id)).map(entry => entry.id);
+    if (requiredIds.length) {
+      const optionalIds = ids.filter(id => !requiredIds.includes(id));
+      if (optionalIds.length < 5 - requiredIds.length) {
+        pool.forEach(id => {
+          if (!requiredIds.includes(id) && !optionalIds.includes(id) && optionalIds.length < 5 - requiredIds.length) optionalIds.push(id);
+        });
+      }
+      ids = [...requiredIds, ...optionalIds.slice(0, 5 - requiredIds.length)];
       rand(); // Сохраняем прежнее потребление RNG при выборе позиции угощения.
-      ids.splice(1, 0, 'food');
+      ids.splice(requiredIds.length, 0, 'food');
     } else {
       ids.splice(Math.floor(rand() * 2), 0, 'food');
     }
@@ -48,8 +81,8 @@
   function startEvent(id) {
     const def = EVENTS[id];
     if (!def) return false;
-    if (requiredEvent && id === requiredEvent.id) {
-      requiredEvent.dispatched = true;
+    if (requiredEventEntries().some(entry => entry.id === id && !entry.dispatched)) {
+      markRequiredEventDispatched(id);
       eventQueue = eventQueue.filter(eventId => eventId !== id);
     }
     officeEvent = { id, t: def.dur, used: false };
@@ -206,32 +239,45 @@
     return onLunch() || player.action === 'daily';
   }
   function canStartEventBeforeDeadline(eventId) {
-    if (!requiredEvent || requiredEvent.dispatched || eventId === requiredEvent.id) return true;
+    const upcoming = requiredEventEntries()
+      .filter(entry => !entry.dispatched && entry.deadlineStart !== null && entry.id !== eventId)
+      .sort((a, b) => a.deadlineStart - b.deadlineStart);
+    if (!upcoming.length) return true;
     const def = EVENTS[eventId];
     if (!def) return false;
     const minutesPerSimulationSecond = (CFG.shiftEnd - CFG.shiftStart) / CFG.shiftSeconds;
-    const secondsUntilDeadline = Math.max(0, (requiredEvent.deadlineStart - clockMinutes) / minutesPerSimulationSecond);
+    const secondsUntilDeadline = Math.max(0, (upcoming[0].deadlineStart - clockMinutes) / minutesPerSimulationSecond);
     return def.dur <= secondsUntilDeadline;
   }
   function dispatchRequiredEvent() {
-    if (!requiredEvent || requiredEvent.dispatched || clockMinutes < requiredEvent.deadlineStart || isEventWindowDeferred()) return false;
-    eventQueue = eventQueue.filter(id => id !== requiredEvent.id);
+    if (isEventWindowDeferred()) return false;
+    const due = requiredEventEntries()
+      .filter(entry => !entry.dispatched && entry.deadlineStart !== null && clockMinutes >= entry.deadlineStart)
+      .sort((a, b) => a.deadlineStart - b.deadlineStart)[0];
+    if (!due) return false;
+    eventQueue = eventQueue.filter(id => id !== due.id);
     nextEvent = 30 + rand() * 14;
-    return startEvent(requiredEvent.id);
+    return startEvent(due.id);
   }
   function ensureRequiredEventQueue() {
-    if (!requiredEvent || !EVENTS[requiredEvent.id] || !unlocked(EVENT_TIER[requiredEvent.id])) return;
-    const includesRequired = eventQueue.includes(requiredEvent.id);
-    let queue = eventQueue.filter(id => id !== requiredEvent.id);
-    if (requiredEvent.dispatched) { eventQueue = queue; return; }
-    if (!includesRequired && queue.length) {
+    const all = requiredEventEntries();
+    if (!all.length) return;
+    const requiredIds = all.filter(entry => !entry.dispatched && unlocked(EVENT_TIER[entry.id])).map(entry => entry.id);
+    let queue = eventQueue.filter(id => !all.some(entry => entry.id === id));
+    if (!requiredIds.length) { eventQueue = queue; return; }
+    const hasFood = queue.includes('food');
+    queue = queue.filter(id => id !== 'food');
+    const targetLength = Math.max(eventQueue.length, requiredIds.length + (hasFood ? 1 : 0));
+    while (requiredIds.length + (hasFood ? 1 : 0) + queue.length > targetLength) {
       let replace = -1;
       for (let i = queue.length - 1; i >= 0; i--) {
-        if (queue[i] !== 'food' && queue[i] !== 'sb') { replace = i; break; }
+        if (queue[i] !== 'sb') { replace = i; break; }
       }
-      if (replace >= 0) queue.splice(replace, 1);
+      if (replace < 0) replace = queue.length - 1;
+      if (replace < 0) break;
+      queue.splice(replace, 1);
     }
-    eventQueue = [requiredEvent.id, ...queue];
+    eventQueue = [...requiredIds, ...(hasFood ? ['food'] : []), ...queue];
   }
   function updateEvents(dt) {
     updateDrillAway(dt);

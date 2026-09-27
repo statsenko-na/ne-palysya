@@ -100,6 +100,12 @@ function applyWeekScenario(scenario, baseTasks, baseEvents, context) {
     if (!context.unlockedEventIds.includes('jam')) {
       return weekScenarioResult(false, scenarioId, baseTasks, baseEvents, [], {}, null, 'event_locked');
     }
+    // Вторник уже содержит эту цель в неизменяемом DAYS; не удваиваем награду за одну печать.
+    if (tasks.some(task => weekScenarioTaskId(task) === 'printReport')) {
+      requiredEventIds.push('jam');
+      eventDeadlineMinutes.jam = 900;
+      return weekScenarioResult(true, scenarioId, tasks, events, requiredEventIds, eventDeadlineMinutes, null, null);
+    }
     if (!Array.isArray(context.replaceableTaskIds) ||
         context.replaceableTaskIds.some(id => typeof id !== 'string')) {
       return weekScenarioResult(false, scenarioId, baseTasks, baseEvents, [], {}, null, 'context_missing');

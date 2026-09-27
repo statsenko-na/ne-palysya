@@ -409,7 +409,12 @@
     const earned = shiftResult.coins;
     coins += earned;
     store.set('coins', coins);
-    if (win && dayName === 'ПЯТНИЦА') { store.set('weekDone', true); weekReprimands = 0; store.set('weekReprimands', 0); }
+    if (win && dayName === 'ПЯТНИЦА') {
+      store.set('weekDone', true);
+      weekNumber++;
+      store.set('weekNumber', weekNumber);
+      weekReprimands = 0; store.set('weekReprimands', 0);
+    }
     if (win) {
       const completedDay = dayIndex;
       const nextDay = completedDay < DAYS.length - 1 ? completedDay + 1 : 0;

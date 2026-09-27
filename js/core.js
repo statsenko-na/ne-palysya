@@ -47,6 +47,10 @@
   let timeScale = clamp(Number(store.get('timeScale', 1)) || 1, 0.5, 3);
   let coins = store.get('coins', 0) | 0;
   let weekReprimands = store.get('weekReprimands', 0) | 0; // выговоры копятся за всю неделю
+  const storedWeekNumber = store.get('weekNumber', null);
+  let weekNumber = Number.isInteger(storedWeekNumber) && storedWeekNumber >= 0
+    ? storedWeekNumber
+    : (store.get('weekDone', false) ? 1 : 0);
   let majikArc = store.get('majikArc', 0) | 0; // сюжет недели: сколько раз подняли/уронили Маджикистан
   let diffKey = DIFFICULTY[store.get('difficulty', 'normal')] ? store.get('difficulty', 'normal') : 'normal';
   const diff = () => DIFFICULTY[diffKey];
@@ -177,8 +181,17 @@
     restoreSavedTodos(s.todo, migrated);
     if (s.stats) { Object.assign(stats, s.stats); stats.chatted = new Set(s.stats.chatted || []); }
     officeEvent = s.officeEvent && EVENTS[s.officeEvent.id] ? { ...EVENTS[s.officeEvent.id], ...s.officeEvent } : null;
+    saveExtensions = s.extensions || {};
+    if (!saveExtensions.weekScenario) {
+      // Смена, сохранённая до подключения тем, доигрывается без ретроактивной замены целей.
+      saveExtensions.weekScenario = { scenario: 'normal', weekNumber, active: false, dayIndex, banner: null, requiredEvents: [], replacedTaskId: null };
+    }
     requiredEvent = s.requiredEvent || requiredEventForTodo(todo);
     if (requiredEvent && (officeEvent?.id === requiredEvent.id || day.majikFail || stats.majikFixed > 0)) requiredEvent.dispatched = true;
+    const scenarioRequirements = saveExtensions.weekScenario.requiredEvents;
+    if (Array.isArray(scenarioRequirements)) {
+      scenarioRequirements.forEach(entry => { if (entry && officeEvent?.id === entry.id) entry.dispatched = true; });
+    }
 
     if (migrated) {
       shiftId = createShiftId();
@@ -213,7 +226,6 @@
     tutorial = s.tutorial || tutorial;
     nudge = s.nudge || null;
     banterT = s.banterT || 0;
-    saveExtensions = s.extensions || {};
     saveExtensionErrors = s.extensionErrors || {};
     ensureMomentsExtension();
     Object.assign(player, s.player);

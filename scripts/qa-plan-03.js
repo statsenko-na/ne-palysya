@@ -86,7 +86,7 @@ const { loadPlaywright } = require('./pw');
       snapshot.requiredEvent = null;
       snapshot.eventQueue = snapshot.eventQueue.filter(id => id !== 'majik');
       localStorage.setItem('nepalsya.currentSave', JSON.stringify(snapshot));
-      return JSON.stringify({ snapshot, queueLength: snapshot.eventQueue.length });
+      return JSON.stringify(snapshot);
     });
     const legacyPage = await browser.newPage({ viewport: { width: 1600, height: 1000 } });
     legacyPage.on('pageerror', error => errors.push(error.message));
@@ -100,7 +100,7 @@ const { loadPlaywright } = require('./pw');
       queue: NP_DEBUG.eventQueue,
       required: NP_DEBUG.persistence.requiredEvent,
     }));
-    const expectedLegacyQueueLength = JSON.parse(legacySnapshot).queueLength;
+    const expectedLegacyQueueLength = JSON.parse(legacySnapshot).eventQueue.length;
     assert.deepStrictEqual(restoredLegacy.required, { id: 'majik', deadlineStart: 900, dispatched: false }, 'старый v3 восстанавливает обязательную цель');
     assert.strictEqual(restoredLegacy.queue[0], 'majik', 'старый v3 возвращает цель в начало очереди');
     assert.strictEqual(restoredLegacy.queue.length, expectedLegacyQueueLength, 'восстановление не увеличивает очередь');
