@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>Не пались — банковский офисный симулятор</title>
-    <link rel="stylesheet" href="style.css?v=0.28.0" />
+    <link rel="stylesheet" href="style.css?v=0.28.1" />
   </head>
   <body>
     <main class="cabinet">
@@ -136,7 +136,7 @@
                     <h3>Правила: выговоры, план, кайф</h3>
                     <p><b>📝 Выговоры ○○○</b> — единственная угроза. Лимит за день: Стажёр 4, Сотрудник 3, Ветеран 2 (и за неделю 7 / 5 / 4) — дальше увольнение. Дают за залёт, за то, что Д.Н. <b>дважды</b> (Стажёра — трижды) не застал тебя на месте, за меньше чем половину плана к 19:30 и за сорванные поручения.</p>
                     <p><b>📋 План</b> — работа на день, делается в Excel и не тает. К 19:30 нужна <b>хотя бы половина</b>, иначе выговор; целиком — +20 очков. <b>Сделал — дальше работа почти ничего не даёт</b> (×0.25): иди кайфовать.</p>
-                    <p><b>🎸 Кайф</b> — твои очки. <b>В Excel кайф тает</b> (−1 в секунду): на работе сложно кайфовать, держи баланс. Итог смены = кайф + 20 за план + 12 за каждое дело − 15 за каждый выговор, оценка от D до S.</p>
+                    <p><b>🎸 Кайф</b> — твои очки. <b>В Excel кайф тает</b> (−1 в секунду): на работе сложно кайфовать, держи баланс. Итог смены = кайф + 20 за план + 12 за каждое дело + моменты (до 12) − 15 за каждый выговор, оценка от D до S.</p>
                     <p class="onb-why">Суть: сделай нужное (план), но не «всё». Остальное время кайфуй так, чтобы Д.Н. не заметил.</p>
                   </div>
                 </section>
@@ -195,7 +195,7 @@
                   <div class="onb-art"><div class="spr spr-cw0"></div><div class="spr spr-cw3"></div><div class="spr spr-ex1"></div></div>
                   <div class="onb-text">
                     <h3>Люди</h3>
-                    <p><b>Первый ряд</b> (со вторника, встань перед столом и нажми E):</p>
+                    <p><b>Первый ряд</b> (со вторника, встань перед столом или сзади, за креслом, и нажми E):</p>
                     <ul class="onb-list">
                       <li><b>Аймашын</b>, тимлид разработки, прикроет от следующего выговора.</li>
                       <li><b>Хлад</b> на 45 с покажет таймер до проверки.</li>
@@ -203,7 +203,7 @@
                       <li><b>Блеб</b>, дата-сайентист, угостит куртом и заболтает Д.Н.: проверка на 15 с позже. Иногда Блеб сам зовёт смотреть мем, пока ты в Excel, — это палево.</li>
                     </ul>
                     <p><b>Второй ряд</b> то работает, то отвлекается: Асель из комплаенса, Штази и Альджазира — начальница Маджикистана (они статисты — болтать с ними нельзя), а с четверга с удалёнки возвращается Сиргей с падающей «автошкой». Когда Д.Н. их замечает, он <b>идёт отчитывать</b> — это твоё окно.</p>
-                    <p><b>Альджазира</b> раз в 2–3 минуты сама приходит к твоему столу: обычно ворчит, но в 20% случаев «Маджикистан рухнул» — кайф и план обнуляются.</p>
+                    <p><b>Альджазира</b> раз в 2–3 минуты сама приходит к твоему столу: иногда хвалит, чаще ворчит. С шансом 35% за день один её визит — «Маджикистан рухнул»: кайф и план обнуляются.</p>
                     <p><b>Тигран</b> — дух офиса: уволился, но место за ним. Сидит всегда, Д.Н. его не видит. Поболтай — «Поехали!» обнуляет подозрение.</p>
                   </div>
                 </section>
@@ -218,6 +218,7 @@
                       <tr><td><b>ЧТ</b></td><td>второй ряд, Маджикистан, камеры СБ · план 80</td></tr>
                       <tr><td><b>ПТ</b></td><td>Д.Н. уезжает в 17:00, иногда пиво в «Мюнхене» · план 60</td></tr>
                     </table>
+                    <p><b>Дейлик</b> ПН–ЧТ с 09:30 до 10:30: все за компьютерами, E у своего стола — на созвон (кайф тает, план чуть растёт). Рилсы за столом дают кайф и план, но если Д.Н. спросит тебя, а ты листаешь, — выговор; E быстро убирает телефон. Не сел к 09:35 — выговор (в понедельник прощают).</p>
                     <p><b>Обед</b>: уйти можно только <b>с 12:30 до 14:00</b> — E у двери «ВЫХОД», обед длится час, +8 кайфа (в четверг — стейки в «Вилке», +20). <b>Пока ты на обеде, Д.Н. ничего не может</b>: ни проверок, ни выговоров, ни «не застал». Не пообедал — голоден: кайф −20%, Excel −15%. После первой пройденной недели всё открыто сразу.</p>
                   </div>
                 </section>
@@ -247,6 +248,15 @@
                     <p><b>В меню:</b> сложность (Стажёр / Сотрудник / Ветеран), 🎵 музыка (N), 🔊 звуки (M), ⏱ скорость времени, 🍿 автопилот.</p>
                     <p><b>🍿 Автопилот (O)</b> включается в любой момент смены — Быкентий играет сам, а ты смотришь. WASD или O — вернуть управление.</p>
                     <p class="onb-keys"><b>WASD</b> ходить · <b>E</b> действие · <b>H</b> спрятаться · <b>O</b> автопилот · <b>1/2/3</b> выбор варианта · <b>Tab</b> телефон · <b>P</b> пауза · <b>N</b> музыка · <b>M</b> звук · <b>U</b> апгрейды · <b>I</b> эта справка · всё работает и на русской раскладке</p>
+                  </div>
+                </section>
+                <section class="onb-slide" data-news="1">
+                  <div class="onb-art onb-emoji">🎧💬</div>
+                  <div class="onb-text">
+                    <h3>Новое: дейлик вместо летучки</h3>
+                    <p><b>Дейлик</b> ПН–ЧТ с 09:30 до 10:30: все сидят за компьютерами, Д.Н. ведёт созвон из кабинета. E у своего стола — на созвон: кайф тает, план чуть растёт. Проверок и обходов в это время нет.</p>
+                    <p><b>Рилсы на дейлике</b> (телефон → «Рилсы», не вставая): кайф и план растут быстрее. Но Д.Н. иногда спрашивает: «Быкентий, что по задачам?» — у тебя пара секунд, чтобы убрать телефон (E). Не успел — выговор. Не пришёл к 09:35 — тоже выговор; в понедельник прощают, в пятницу дейлика нет.</p>
+                    <p>Летучки у доски больше нет. <b>С коллегой</b> теперь можно поболтать и сзади, из-за спинки кресла.</p>
                   </div>
                 </section>
                 <section class="onb-slide" data-news="1">
@@ -347,41 +357,41 @@
         <p>Для комфортной смены в БЦ «Угар» переверни устройство горизонтально.</p>
       </div>
     </div>
-    <script src="js/world.js?v=0.28.0"></script>
-    <script src="js/lines.js?v=0.28.0"></script>
-    <script src="js/art.js?v=0.28.0"></script>
-    <script src="js/config.js?v=0.28.0"></script>
-    <script src="js/core.js?v=0.28.0"></script>
-    <script src="js/accessibility.js?v=0.28.0"></script>
-    <script src="js/equipment.js?v=0.28.0"></script>
-    <script src="js/save-schema.js?v=0.28.0"></script>
-    <script src="js/moments.js?v=0.28.0"></script>
-    <script src="js/relationships.js?v=0.28.0"></script>
-    <script src="js/activities.js?v=0.28.0"></script>
-    <script src="js/story-yogurt.js?v=0.28.0"></script>
-    <script src="js/event-autoshka.js?v=0.28.0"></script>
-    <script src="js/distractions.js?v=0.28.0"></script>
-    <script src="js/disguise.js?v=0.28.0"></script>
-    <script src="js/boss-memory.js?v=0.28.0"></script>
-    <script src="js/week-scenarios.js?v=0.28.0"></script>
-    <script src="js/week-outcomes.js?v=0.28.0"></script>
-    <script src="js/records.js?v=0.28.0"></script>
-    <script src="js/meta.js?v=0.28.0"></script>
-    <script src="js/events.js?v=0.28.0"></script>
-    <script src="js/action-choice.js?v=0.28.0"></script>
-    <script src="js/interact.js?v=0.28.0"></script>
-    <script src="js/boss.js?v=0.28.0"></script>
-    <script src="js/daily.js?v=0.28.0"></script>
-    <script src="js/autopilot.js?v=0.28.0"></script>
-    <script src="js/player.js?v=0.28.0"></script>
-    <script src="js/render.js?v=0.28.0"></script>
-    <script src="js/render-office.js?v=0.28.0"></script>
-    <script src="js/render-actors.js?v=0.28.0"></script>
-    <script src="js/render-fx.js?v=0.28.0"></script>
-    <script src="js/render-hud.js?v=0.28.0"></script>
-    <script src="js/render-phone.js?v=0.28.0"></script>
-    <script src="js/render-choice.js?v=0.28.0"></script>
-    <script src="js/render-guide.js?v=0.28.0"></script>
-    <script src="game.js?v=0.28.0"></script>
+    <script src="js/world.js?v=0.28.1"></script>
+    <script src="js/lines.js?v=0.28.1"></script>
+    <script src="js/art.js?v=0.28.1"></script>
+    <script src="js/config.js?v=0.28.1"></script>
+    <script src="js/core.js?v=0.28.1"></script>
+    <script src="js/accessibility.js?v=0.28.1"></script>
+    <script src="js/equipment.js?v=0.28.1"></script>
+    <script src="js/save-schema.js?v=0.28.1"></script>
+    <script src="js/moments.js?v=0.28.1"></script>
+    <script src="js/relationships.js?v=0.28.1"></script>
+    <script src="js/activities.js?v=0.28.1"></script>
+    <script src="js/story-yogurt.js?v=0.28.1"></script>
+    <script src="js/event-autoshka.js?v=0.28.1"></script>
+    <script src="js/distractions.js?v=0.28.1"></script>
+    <script src="js/disguise.js?v=0.28.1"></script>
+    <script src="js/boss-memory.js?v=0.28.1"></script>
+    <script src="js/week-scenarios.js?v=0.28.1"></script>
+    <script src="js/week-outcomes.js?v=0.28.1"></script>
+    <script src="js/records.js?v=0.28.1"></script>
+    <script src="js/meta.js?v=0.28.1"></script>
+    <script src="js/events.js?v=0.28.1"></script>
+    <script src="js/action-choice.js?v=0.28.1"></script>
+    <script src="js/interact.js?v=0.28.1"></script>
+    <script src="js/boss.js?v=0.28.1"></script>
+    <script src="js/daily.js?v=0.28.1"></script>
+    <script src="js/autopilot.js?v=0.28.1"></script>
+    <script src="js/player.js?v=0.28.1"></script>
+    <script src="js/render.js?v=0.28.1"></script>
+    <script src="js/render-office.js?v=0.28.1"></script>
+    <script src="js/render-actors.js?v=0.28.1"></script>
+    <script src="js/render-fx.js?v=0.28.1"></script>
+    <script src="js/render-hud.js?v=0.28.1"></script>
+    <script src="js/render-phone.js?v=0.28.1"></script>
+    <script src="js/render-choice.js?v=0.28.1"></script>
+    <script src="js/render-guide.js?v=0.28.1"></script>
+    <script src="game.js?v=0.28.1"></script>
   </body>
 </html>
