@@ -17,6 +17,8 @@
 | `js/events.js` | Офисные события, камеры СБ, обед, туалет и пятничное пиво |
 | `js/interact.js` | Взаимодействия по E и достижения |
 | `js/boss.js` | ИИ Директора Начальниковича, план на день и выговоры |
+| `js/daily.js` | Утренний дейлик ПН–ЧТ: созвон за столом, рилсы, вопросы Д.Н. |
+| `js/activities.js`, `disguise.js`, `distractions.js`, `equipment.js`, `story-yogurt.js`, `event-autoshka.js`, `relationships.js`, `moments.js`, `boss-memory.js`, `week-*.js`, `records.js`, `action-choice.js`, `save-schema.js` | Офисные истории и сохранение смены; связующий код — в `js/interact.js` |
 | `js/autopilot.js` | Автопилот |
 | `js/player.js` | Игрок и главный цикл обновления `update()` |
 | `js/render.js` | Примитивы рисования, масштаб интерфейса, `draw()` и `loop()` |
