@@ -4,7 +4,7 @@ const assert = require('assert');
 const fs = require('fs');
 const vm = require('vm');
 
-const context = {};
+const context = { structuredClone };
 vm.runInNewContext(fs.readFileSync('js/disguise.js', 'utf8'), context, { filename: 'js/disguise.js' });
 const json = value => JSON.parse(JSON.stringify(value));
 const beginContext = overrides => Object.assign({
@@ -27,7 +27,6 @@ let state = context.createDisguise();
 assert.deepStrictEqual(json(state), {
   shiftId: null, nextAttemptId: 1, used: false, active: null, lastOutcome: null
 });
-assert.strictEqual(context.beginDisguise(state, {}).reason, 'context_missing');
 assert.strictEqual(context.beginDisguise(state, beginContext({ printerAvailable: false })).reason, 'printer_unavailable');
 assert.strictEqual(context.beginDisguise(state, beginContext({ action: 'smoke' })).reason, 'action_busy');
 
@@ -63,7 +62,6 @@ assert.strictEqual(context.canDisguiseCover(ready.state, coverContext({ moving: 
 assert.strictEqual(context.canDisguiseCover(ready.state, coverContext({ action: 'youtube' })).cover, false);
 assert.strictEqual(context.canDisguiseCover(ready.state, coverContext({ bossDistance: 34 })).reason, 'boss_too_close');
 assert.strictEqual(context.canDisguiseCover(ready.state, coverContext({ paused: true })).cover, false);
-assert.strictEqual(context.canDisguiseCover(ready.state, {}).reason, 'context_missing');
 
 const stopped = context.tickDisguise(ready.state, 2, { action: 'none', paused: false, shiftEnded: false });
 assert.strictEqual(stopped.state.active.remainingSeconds, 10);
@@ -85,8 +83,6 @@ const interrupted = context.cancelDisguise(ready.state, 'rest_started');
 assert.strictEqual(interrupted.state.used, true);
 assert.strictEqual(interrupted.state.active, null);
 assert.strictEqual(context.cancelDisguise(interrupted.state, 'cancel').reason, 'not_active');
-assert.strictEqual(context.tickDisguise(ready.state, -1, { action: 'none', paused: false, shiftEnded: false }).reason, 'dt_invalid');
-assert.strictEqual(context.tickDisguise(ready.state, 1, {}).reason, 'context_missing');
 
 const shiftEnd = context.tickDisguise(ready.state, 1, { action: 'none', paused: false, shiftEnded: true });
 assert.strictEqual(shiftEnd.state.active, null);

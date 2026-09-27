@@ -133,6 +133,20 @@ const { loadPlaywright } = require('./pw');
   await page.evaluate(() => { NP_DEBUG.skip(3.5); });
   st = await page.evaluate(() => NP_DEBUG.state);
   check('болтовня даёт бонус', st.stats.chats === 1, JSON.stringify(st.stats));
+  // Болтовня сзади: из-за спинки кресла (первый ряд — от окон, второй — из главного прохода)
+  const backChat = await page.evaluate(() => {
+    const out = [];
+    for (const id of ['hlad', 'sirgey']) {
+      const c = coworkers.find(q => q.id === id); c.cooldown = 0; c.away = false;
+      const z = WD.zones.find(q => q.id === `chat_${id}_back`);
+      NP_DEBUG.teleport(z.x + z.w / 2, z.y + z.h / 2);
+      NP_DEBUG.interact();
+      out.push({ id, action: player.action, zone: player.chatZone, free: !blocked(player.x, player.y, player.r) });
+      NP_DEBUG.endAction('cancel');
+    }
+    return out;
+  });
+  check('болтовня сзади стола: первый и второй ряд', backChat.every(b => b.action === 'chat' && b.zone === `chat_${b.id}_back` && b.free), JSON.stringify(backChat));
 
   // 9. Подозрение и поимка: курим на балконе у начальника на виду
   await page.evaluate(() => { NP_DEBUG.teleport(870, 230); });
@@ -222,17 +236,6 @@ const { loadPlaywright } = require('./pw');
   check('сбор на ДР: −кайф, 0 KPI', bd.fun === 40 && bd.kpi === 50, JSON.stringify(bd));
   await page.screenshot({ path: path.join(outDir, '12-bday.png') });
 
-  // Летучка: стоишь у доски — +KPI
-  await page.evaluate(() => { NP_DEBUG.setBoss(706, 446, 'office'); NP_DEBUG.clearEvents(); NP_DEBUG.set({ usefulness: 40, adhocDone: true }); NP_DEBUG.startEvent('standup'); NP_DEBUG.teleport(306, 420); });
-  await page.keyboard.press('KeyE');
-  st = await page.evaluate(() => NP_DEBUG.state);
-  check('летучка: встал у доски', st.player.action === 'standup', st.player.action);
-  await page.evaluate(() => NP_DEBUG.skip(6));
-  await page.screenshot({ path: path.join(outDir, '13-standup.png') });
-  await page.evaluate(() => NP_DEBUG.skip(16));
-  st = await page.evaluate(() => NP_DEBUG.state);
-  check('летучка даёт KPI', st.usefulness > 44, st.usefulness.toFixed(1));
-
   // Пожарная тревога: эвакуация у выхода
   await page.evaluate(() => { NP_DEBUG.startEvent('drill'); NP_DEBUG.teleport(40, 302); });
   await page.keyboard.press('KeyE');
@@ -278,19 +281,6 @@ const { loadPlaywright } = require('./pw');
     return { a1, a2, choiceId, a3, a4, noBossKey: !('bossKey' in NP_DEBUG) };
   });
   check('русская раскладка: У — Excel и выбор YouTube, Щ — автопилот вкл/выкл посреди смены; альт-таба нет', rus.a1 === 'work' && rus.a2 === 'youtube' && rus.choiceId === 'youtube-risk' && rus.a3 && !rus.a4 && rus.noBossKey, JSON.stringify(rus));
-
-  // Летучка: выбор ответа клавишей 2
-  const su = await page.evaluate(() => {
-    NP_DEBUG.setClock(11 * 60); NP_DEBUG.set({ reprimands: 0, misses: 0, usefulness: 20 }); NP_DEBUG.clearEvents();
-    NP_DEBUG.setBoss(706, 446, 'office'); NP_DEBUG.skip(5); NP_DEBUG.startEvent('standup'); NP_DEBUG.teleport(306, 420); NP_DEBUG.interact();
-    for (let i = 0; i < 30 && !(NP_DEBUG.choice && NP_DEBUG.choice.asked); i++) NP_DEBUG.skip(0.5);
-    return { ...NP_DEBUG.choice, mode: NP_DEBUG.state.mode, clock: NP_DEBUG.state.clockMinutes, rep: NP_DEBUG.state.reprimands, k: NP_DEBUG.state.usefulness, boss: NP_DEBUG.state.boss.state };
-  });
-  await page.screenshot({ path: path.join(outDir, '20-standup-choice.png') });
-  await page.keyboard.press('Digit2');
-  const su2 = await page.evaluate(() => NP_DEBUG.choice);
-  check('летучка: вопрос и ответ клавишей 2', su && su.asked && su2 && su2.done, JSON.stringify([su, su2]));
-  await page.evaluate(() => NP_DEBUG.skip(20));
 
   // Стукача больше нет
   check('стукач вырезан', await page.evaluate(() => !window.NP_LINES.snitch));
@@ -483,7 +473,7 @@ const { loadPlaywright } = require('./pw');
     return { mon, thu };
   });
   check('понедельник: ядро + обед (без событий, коллег, второго ряда)', prog.mon.q === 0 && !prog.mon.u.coworkers && prog.mon.u.lunch && prog.mon.todo.includes('lunch') && prog.mon.remote === 1 && prog.mon.statists === 3 && prog.mon.todo.includes('coffee1'), JSON.stringify(prog.mon));
-  check('четверг: второй ряд, летучка, события открыты', prog.thu.u.row2 && prog.thu.u.standup && prog.thu.q > 3 && prog.thu.away === 0 && prog.thu.todo.includes('majik'), JSON.stringify(prog.thu));
+  check('четверг: второй ряд, события открыты', prog.thu.u.row2 && prog.thu.q > 3 && prog.thu.away === 0 && prog.thu.todo.includes('majik'), JSON.stringify(prog.thu));
   await page.screenshot({ path: path.join(outDir, '24-thursday-card.png') });
 
   // Тигран — дух офиса: сидит всегда, не отвлекается, «Поехали!» обнуляет подозрение
@@ -792,6 +782,59 @@ const { loadPlaywright } = require('./pw');
   check('автосохранение: время shiftTime и состояние полностью восстанавливаются', autosaveSync.clockPreserved && autosaveSync.usefulness === 45 && autosaveSync.fun === 70 && autosaveSync.reprimands === 1 && autosaveSync.weekReprimands === 2 && autosaveSync.waterCups === 2 && Math.abs(autosaveSync.waterRecharge - 15) < 1 && autosaveSync.coffeeJammed && autosaveSync.adhocDone && autosaveSync.overtimeWork === 8, JSON.stringify(autosaveSync));
 
   check('нет ошибок в консоли', errors.length === 0, errors.join(' | '));
+
+  // Дейлик ПН–ЧТ 09:30–10:30: сидишь за столом, рилсы палятся на вопросе Д.Н., прогул — выговор
+  const dailyPrep = () => page.evaluate(() => {
+    NP_DEBUG.setDay(1); NP_DEBUG.restart(); NP_DEBUG.clearEvents();
+    NP_DEBUG.set({ fed: true, noPee: true }); NP_DEBUG.setClock(9 * 60 + 29); NP_DEBUG.setBoss(706, 446, 'office');
+    reprimands = 0; coverTokens = 0; fun = 50; usefulness = 10;
+  });
+  await dailyPrep();
+  const dl = await page.evaluate(() => {
+    NP_DEBUG.teleport(SEAT.x, SEAT.y); NP_DEBUG.skip(1);
+    const seated = player.action; dailyState().askT = 99; const f0 = fun, u0 = usefulness;
+    NP_DEBUG.skip(4);
+    return { phase: dailyState().phase, seated, funDown: fun < f0, planUp: usefulness > u0, check: nextBossCheck > 0 };
+  });
+  await page.screenshot({ path: path.join(outDir, '13b-daily.png') });
+  check('дейлик: сел за стол, кайф тает, план чуть растёт', dl.phase === 'on' && dl.seated === 'daily' && dl.funDown && dl.planUp, JSON.stringify(dl));
+  const dr = await page.evaluate(() => {
+    startPhoneScrolling(); const reels = player.action; const f0 = fun, u0 = usefulness;
+    CFG.dailyAskPlayer = 1; dailyState().askT = 0; dailyState().talkT = 99; NP_DEBUG.skip(0.1);
+    const asked = dailyState().ask > 0;
+    NP_DEBUG.skip(4); CFG.dailyAskPlayer = 0.5;
+    return { reels, asked, funUp: fun > f0, planUp: usefulness > u0, reprimands };
+  });
+  await page.screenshot({ path: path.join(outDir, '13c-daily-reels.png') });
+  check('дейлик: рилсы дают кайф и план, на вопросе Д.Н. — выговор', dr.reels === 'phone' && dr.funUp && dr.planUp && dr.reprimands === 1, JSON.stringify(dr));
+  await dailyPrep();
+  const dd = await page.evaluate(() => {
+    NP_DEBUG.teleport(SEAT.x, SEAT.y); NP_DEBUG.skip(1); dailyState().askT = 99;
+    startPhoneScrolling(); const saved = CFG.dailyAskPlayer; CFG.dailyAskPlayer = 1;
+    dailyState().askT = 0; NP_DEBUG.skip(0.1); dailyInteract(); NP_DEBUG.skip(4);
+    CFG.dailyAskPlayer = saved;
+    return { action: player.action, reprimands };
+  });
+  check('дейлик: успел убрать рилсы после вопроса — без выговора', dd.action === 'daily' && dd.reprimands === 0, JSON.stringify(dd));
+  await dailyPrep();
+  const ds = await page.evaluate(() => { NP_DEBUG.teleport(120, 236); NP_DEBUG.skip(3.5); return { reprimands, clock: clockMinutes }; });
+  check('дейлик: не пришёл к 09:35 — выговор', ds.reprimands === 1, JSON.stringify(ds));
+  const df = await page.evaluate(() => {
+    NP_DEBUG.setDay(4); NP_DEBUG.restart(); NP_DEBUG.clearEvents(); NP_DEBUG.set({ fed: true, noPee: true }); NP_DEBUG.setClock(9 * 60 + 29);
+    NP_DEBUG.teleport(120, 236); NP_DEBUG.skip(3.5);
+    return { active: dailyActive(), reprimands };
+  });
+  const dsave = await page.evaluate(() => {
+    NP_DEBUG.setDay(1); NP_DEBUG.restart(); NP_DEBUG.clearEvents(); NP_DEBUG.set({ fed: true, noPee: true });
+    NP_DEBUG.setClock(9 * 60 + 29); NP_DEBUG.setBoss(706, 446, 'office'); NP_DEBUG.teleport(SEAT.x, SEAT.y); NP_DEBUG.skip(3.5);
+    dailyState().rep = true;
+    NP_DEBUG.saveProgress(); NP_DEBUG.restart(); NP_DEBUG.skip(0.2);
+    const out = { active: dailyActive(), action: player.action, rep: dailyState().rep };
+    NP_DEBUG.clearSavedProgress();
+    return out;
+  });
+  check('дейлик: сохранение посреди созвона восстанавливает его', dsave.active && dsave.action === 'daily' && dsave.rep, JSON.stringify(dsave));
+  check('дейлик: в пятницу его нет', !df.active && df.reprimands === 0, JSON.stringify(df));
 
   // 17:00: подсказка про план, если отстаёшь
   const pw = await page.evaluate(() => {

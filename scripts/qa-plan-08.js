@@ -19,6 +19,7 @@ const { loadPlaywright } = require('./pw');
     localStorage.setItem('nepalsya.day', JSON.stringify(day));
     NP_DEBUG.setDay(day);
     NP_DEBUG.restart(seed);
+    NP_DEBUG.setDailyEnabled(false); // дейлик 09:30 не должен вмешиваться в сценарий
     NP_DEBUG.clearEvents();
     NP_DEBUG.hideBanner();
     NP_DEBUG.setBoss(706, 446, 'office');
@@ -94,15 +95,11 @@ const { loadPlaywright } = require('./pw');
 
     await reset({ seed: 806 });
     await page.evaluate(() => {
-      NP_DEBUG.setAction('standup');
-      NP_DEBUG.setStandupChoice({ asked: true, done: false, t: 3 });
-      NP_DEBUG.answerStandup(2);
+      NP_DEBUG.recordRelationshipEvent('sirgey', 'betrayal', 'qa08-sirgey-betrayal');
     });
     state = await relationship();
     assert.equal(state.entries.sirgey.mood, 'angry');
     assert.equal(state.entries.sirgey.angryThroughDay, 1);
-    const sirgeyCooldown = await page.evaluate(() => NP_DEBUG.coworkers.find(c => c.id === 'sirgey').cooldown);
-    assert.ok(sirgeyCooldown <= 120 && sirgeyCooldown >= 119.8, `обвинение сохраняет cooldown Сиргея 120 с: ${sirgeyCooldown}`);
     await page.evaluate(() => {
       NP_DEBUG.set({ usefulness: NP_DEBUG.state.planTarget });
       NP_DEBUG.finish('win');

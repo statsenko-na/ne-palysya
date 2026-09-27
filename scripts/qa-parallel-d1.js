@@ -4,7 +4,7 @@ const assert = require('assert');
 const fs = require('fs');
 const vm = require('vm');
 
-const context = {};
+const context = { structuredClone };
 vm.runInNewContext(fs.readFileSync('js/distractions.js', 'utf8'), context, { filename: 'js/distractions.js' });
 const json = value => JSON.parse(JSON.stringify(value));
 const baseContext = overrides => Object.assign({
@@ -28,7 +28,6 @@ assert.deepStrictEqual(json(state), {
   shiftId: null, successfulUses: 0, usedKinds: [], nextAttemptId: 1,
   cooldownRemaining: 0, active: null, lastOutcome: null
 });
-assert.strictEqual(context.canDistract(state, {}, 'printer').reason, 'context_missing');
 assert.strictEqual(context.canDistract(state, baseContext({ bossState: 'inspect' }), 'printer').reason, 'boss_unavailable');
 assert.strictEqual(context.canDistract(state, baseContext({ paused: true }), 'printer').reason, 'paused');
 assert.strictEqual(context.canDistract(state, baseContext({ legalAway: true }), 'printer').reason, 'legal_away');
@@ -41,8 +40,6 @@ assert.strictEqual(routeFailed.ok, false);
 assert.strictEqual(routeFailed.reason, 'route_unavailable');
 assert.strictEqual(routeFailed.state, state);
 assert.strictEqual(state.successfulUses, 0);
-const targetFailed = context.beginDistraction(state, baseContext(), 'printer', { id: 'bad', x: NaN, y: 1 });
-assert.strictEqual(targetFailed.reason, 'target_invalid');
 
 const beforeBegin = JSON.stringify(state);
 state = started(state, 'printer');

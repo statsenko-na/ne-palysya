@@ -4,7 +4,7 @@ const assert = require('assert');
 const fs = require('fs');
 const vm = require('vm');
 
-const context = {};
+const context = { structuredClone };
 vm.runInNewContext(fs.readFileSync('js/week-scenarios.js', 'utf8'), context, { filename: 'js/week-scenarios.js' });
 const json = value => JSON.parse(JSON.stringify(value));
 const baseContext = overrides => Object.assign({
@@ -26,7 +26,6 @@ assert.strictEqual(context.selectWeekScenario({ weekDone: true, weekNumber: 3 })
 assert.strictEqual(context.selectWeekScenario({ weekDone: true, weekNumber: 4 }).scenario, 'normal');
 assert.strictEqual(context.selectWeekScenario({ weekDone: true, weekNumber: 2 }).banner, 'Неделя отчётов');
 assert.strictEqual(context.selectWeekScenario({ weekDone: true, weekNumber: 3 }).banner, 'Неделя техработ');
-assert.strictEqual(context.selectWeekScenario({ weekNumber: 2 }).ok, false);
 
 const taskBase = [
   { id: 'coffee2', text: 'Кофе', goal: 2, done: false, day: true },

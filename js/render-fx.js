@@ -134,7 +134,7 @@
       cabinet_hide: ['ЗА ШКАФАМИ', '#2a6a8a'], printer_hide: ['ЗА КСЕРОКСОМ', '#2a6a8a'], printer: ['ПЕЧАТЬ МЕМА', '#2a6a8a'],
       eat: ['ЖУЁТ', '#c9861e'], fixjam: ['ЧИНИТ КСЕРОКС', '#2f9a5a'], phone: [phoneSafe > 0 ? '«НА СОЗВОНЕ» 📱' : 'ЛИСТАЕТ ТЕЛЕФОН', phoneSafe > 0 ? '#2f9a5a' : '#c9861e'],
       meme: ['СМОТРИТ МЕМ БЛЕБА', '#c9861e'],
-      queue: ['В ОЧЕРЕДИ В БИОТУАЛЕТ', '#2a6a8a'], standup: ['НА ЛЕТУЧКЕ', '#2f9a5a'], toilet: ['ЗАНЯТО', '#2a6aa0'],
+      queue: ['В ОЧЕРЕДИ В БИОТУАЛЕТ', '#2a6a8a'], toilet: ['ЗАНЯТО', '#2a6aa0'],
       lunch: ['ОБЕД В «МЮНХЕНЕ»', '#c9861e'], evac: ['НА УЛИЦЕ', '#2f9a5a'],
     };
     const lab = labels[player.action];

@@ -2,29 +2,20 @@
 // JSON-схема снимка смены. Модуль не обращается к игровому состоянию, DOM или хранилищу.
 
 const SAVE_SCHEMA_VERSION = 3;
-const SAVE_SCHEMA_EVENTS = new Set(['food', 'call', 'internet', 'jam', 'bday', 'heat', 'noise', 'drill', 'standup', 'majik', 'arrfr', 'sb', 'autoshka']);
+const SAVE_SCHEMA_EVENTS = new Set(['food', 'call', 'internet', 'jam', 'bday', 'heat', 'noise', 'drill', 'majik', 'arrfr', 'sb', 'autoshka']);
 const SAVE_SCHEMA_NPCS = new Set(['aimashyn', 'hlad', 'shurik', 'bleb', 'sirgey', 'asel', 'aljazira', 'stazy', 'tigran']);
-const SAVE_SCHEMA_EXTENSIONS = new Set(['moments', 'relationships', 'activities', 'distractions', 'disguise', 'equipment', 'bossMemory', 'yogurt', 'autoshka', 'weekScenario', 'weekOutcomes', 'tigranSecret', 'phone', 'daily', 'groupSmoke']);
+const SAVE_SCHEMA_EXTENSIONS = new Set(['moments', 'relationships', 'activities', 'distractions', 'disguise', 'equipment', 'bossMemory', 'yogurt', 'autoshka', 'weekScenario', 'weekOutcomes', 'tigranSecret', 'phone']);
 const SAVE_SCHEMA_EXTENSION_ERROR_KEYS = new Set([...SAVE_SCHEMA_EXTENSIONS, '$root']);
-const SAVE_SCHEMA_DAY_FIELDS = [
-  'misses', 'lunchCalled', 'lunchOpen', 'fed', 'hungry', 'bossLunch', 'beer', 'toiletCd', 'queue', 'queueTotal',
-  'qShift', 'knock', 'cabinDoor', 'npcInside', 'npcTimer', 'waterCups', 'waterRecharge', 'coffeeCups',
-  'coffeeJammed', 'coffeeQueueTimer', 'coffeeQueueChecked', 'excelWorkAcc', 'excelPoolTasks', 'overtimeWork',
-  'overtimeUsed', 'overworkT', 'adhocDone', 'adhocAt', 'aljaziraTimer', 'aljaziraVisiting', 'aljaziraDisasterAt',
-  'aljaziraDisasterDone', 'aljaziraPhase', 'aljaziraPhaseTimer', 'aljaziraForceMood', 'lastSavedMinute', 'pee',
-  'peeActive', 'peeLeft', 'peeAt', 'peeCriticalTold', 'vilka', 'smog', 'traffic', 'lunchAway', 'dish',
-  'majikFail', 'hideCd', 'planWarned', 'recoveryGraceUsed', 'drillAwayTimer', 'drillAwayIndex', 'lunchAwayTimer', 'lunchAwayIndex', 'beerAwayTimer', 'beerAwayIndex',
-];
 const SAVE_SCHEMA_PLAYER_FIELDS = [
   'x', 'y', 'speed', 'action', 'actionTimer', 'actionTotal', 'facingX', 'walkTimer', 'moving', 'coffeeBoost',
-  'bumpCooldown', 'chatWith', 'chatPair', 'chatReplied', 'hideSpot', 'hideT', 'queueTarget', 'workFromFront',
+  'bumpCooldown', 'chatWith', 'chatZone', 'chatPair', 'chatReplied', 'hideSpot', 'hideT', 'queueTarget', 'workFromFront',
 ];
 const SAVE_SCHEMA_BOSS_FIELDS = [
   'x', 'y', 'state', 'stateTimer', 'mode', 'spotDesc', 'facing', 'walkTimer', 'moving', 'suspicion',
   'catchCooldown', 'quoteTimer', 'praiseTimer', 'lookTimer', 'inspectTimer', 'visitedSpots', 'warned',
   'alarm', 'caught', 'coworker', 'emptyDesk', 'gaveUp', 'heat', 'inspectAge', 'lunchBack', 'noise',
   'office', 'patrol', 'praise', 'scold', 'scoldTarget', 'seesPlayer', 'silentCheck', 'snus', 'snusCd',
-  'standupTalk', 'stroll', 'suspicious', 'waitT', 'watchingWork', 'outTimer', 'outWhy', 'path',
+  'stroll', 'suspicious', 'waitT', 'watchingWork', 'outTimer', 'outWhy', 'path',
 ];
 const SAVE_SCHEMA_COWORKER_FIELDS = [
   'id', 'x', 'y', 'cooldown', 'talkTimer', 'idleTimer', 'alert', 'remote', 'away', 'slack', 'slackTimer',
@@ -108,10 +99,16 @@ function saveSchemaPath(path) {
   return { ok: true, value: out };
 }
 
+// Дневные флаги сохраняются целиком: каждая механика добавляет свои, и ручной список их терял.
+// Несериализуемые значения пропускаются, а не ломают снимок.
 function saveSchemaDay(day) {
-  const picked = saveSchemaPick(day, SAVE_SCHEMA_DAY_FIELDS);
-  if (!picked.ok) return picked;
-  const value = picked.value;
+  if (!saveSchemaIsRecord(day)) return { ok: false, reason: 'invalid_object' };
+  const value = {};
+  for (const key of Object.keys(day)) {
+    if (day[key] === undefined) continue;
+    const cloned = saveSchemaCloneJson(day[key]);
+    if (cloned.ok) value[key] = cloned.value;
+  }
   if (value.beer !== undefined && value.beer !== null && typeof value.beer !== 'boolean') return { ok: false, reason: 'invalid_day_beer' };
   if (value.aljaziraForceMood !== undefined && value.aljaziraForceMood !== null && !['good', 'neutral', 'bad', 'disaster'].includes(value.aljaziraForceMood)) return { ok: false, reason: 'invalid_day_mood' };
   return { ok: true, value };
@@ -252,7 +249,7 @@ function saveSchemaProject(source) {
   if (!saveSchemaIsRecord(source)) return { ok: false, reason: 'invalid_source' };
   if (source.rulesetId !== undefined && (typeof source.rulesetId !== 'string' || !/^[a-z0-9][a-z0-9._-]{0,63}$/i.test(source.rulesetId))) return { ok: false, reason: 'invalid_ruleset_id' };
   const out = { v: SAVE_SCHEMA_VERSION };
-  const direct = ['shiftId', 'rulesetId', 'dayIndex', 'diffKey', 'clockMinutes', 'usefulness', 'fun', 'reprimands', 'weekReprimands', 'planTarget', 'majikArc', 'rngSeed', 'nextBossCheck', 'intelTimer', 'coverTokens', 'phoneSafe', 'nextDrill', 'eventQueue', 'nextEvent', 'choice', 'banner', 'tutorial', 'nudge', 'banterT', 'autoUsed', 'recoveryGraceUsed', 'migratedFromV2', 'demo'];
+  const direct = ['shiftId', 'rulesetId', 'dayIndex', 'diffKey', 'clockMinutes', 'usefulness', 'fun', 'reprimands', 'weekReprimands', 'planTarget', 'majikArc', 'rngSeed', 'nextBossCheck', 'intelTimer', 'coverTokens', 'phoneSafe', 'nextDrill', 'eventQueue', 'nextEvent', 'banner', 'tutorial', 'nudge', 'banterT', 'autoUsed', 'recoveryGraceUsed', 'migratedFromV2', 'demo'];
   const fields = {
     day: saveSchemaDay,
     player: saveSchemaPlayer,

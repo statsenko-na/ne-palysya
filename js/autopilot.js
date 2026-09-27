@@ -24,7 +24,7 @@
       autoGoal('hide', { x: pl.x, y: pl.y + 12 }); return;
     }
     if (eventIs('drill') && player.action !== 'evac') { autoGoal('exit', z('exit')); return; }
-    if (eventIs('standup')) { autoGoal('standup', z('standup')); return; }
+    if (dailyToday() && dailyState().phase !== 'done' && clockMinutes >= CFG.dailyStart - 4 && !dailySeated()) { autoGoal('desk', z('desk')); return; }
     if (eventIs('majik') && !officeEvent.used) { autoGoal('desk', z('desk'), { work: 6 }); return; }
     if ((eventIs('food') || eventIs('bday')) && !officeEvent.used) { autoGoal('feast', { x: 120, y: 236 }); return; }
     if (day.peeActive && day.pee > 25) { autoGoal('toilet', z('toilet')); return; }
@@ -91,10 +91,10 @@
   }
   // Возвращает направление движения на кадр; действия запускает сам
   function autoSteer(dt) {
-    if (choice && choice.asked && !choice.done && rand() < dt) answerStandup(Math.floor(rand() * 3));
     if (nudge && player.action === 'work' && rand() < dt * 0.5 && !autoDanger()) interact();
     const a = player.action;
     const danger = autoDanger();
+    if (a === 'daily') return [0, 0]; // на дейлике сидит честно
     if (a === 'work') {
       auto.workT -= dt;
       if ((auto.workT > 0 && !canLunch()) || danger || (eventIs('majik') && !officeEvent.used)) return [0, 0]; // обед важнее отсидки в Excel

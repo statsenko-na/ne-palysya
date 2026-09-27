@@ -7,7 +7,7 @@ const { pathToFileURL } = require('url');
 const { loadPlaywright } = require('./pw');
 
 function checkResultModel() {
-  const context = {};
+  const context = { structuredClone };
   vm.runInNewContext(fs.readFileSync(path.join(__dirname, '..', 'js', 'moments.js'), 'utf8'), context);
   const worked = context.calculateShiftResult({ fun: 100, fullPlan: true, done: 2, reprimands: 1, momentBonus: 12 });
   assert.strictEqual(worked.score, 141, 'ручной пример считает 100 + 20 + 24 − 15 + 12');
@@ -174,7 +174,7 @@ function checkResultModel() {
     await page.evaluate(() => {
       NP_DEBUG.setMomentsState({ version: 1, awards: [
         { id: 'variety', sourceId: 'v' }, { id: 'distraction', sourceId: 'd' },
-        { id: 'colleagueHelp', sourceId: 'c' }, { id: 'story', sourceId: 's' }, { id: 'groupSmoke', sourceId: 'g' },
+        { id: 'colleagueHelp', sourceId: 'c' }, { id: 'story', sourceId: 's' }
       ], variety: { completedKinds: [], completedSources: [], phoneEpisode: null } });
     });
     current = await page.evaluate(() => NP_DEBUG.shiftResult);

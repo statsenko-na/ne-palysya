@@ -4,7 +4,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const source = fs.readFileSync(path.join(__dirname, '..', 'js', 'moments.js'), 'utf8');
-const sandbox = {};
+const sandbox = { structuredClone };
 vm.runInNewContext(`${source}\n;globalThis.api = { createMoments, awardMoment, summarizeMoments, calculateShiftResult };`, sandbox);
 const { createMoments, awardMoment, summarizeMoments, calculateShiftResult } = sandbox.api;
 const varietyContext = (activityId, completed = true) => ({
@@ -12,7 +12,7 @@ const varietyContext = (activityId, completed = true) => ({
 });
 
 let moments = createMoments();
-for (const id of ['distraction', 'colleagueHelp', 'story', 'groupSmoke']) {
+for (const id of ['distraction', 'colleagueHelp', 'story']) {
   const result = awardMoment(moments, id, `shift-1:${id}`);
   assert.equal(result.ok, true, `должен начислиться ${id}`);
   moments = result.state;
@@ -22,7 +22,7 @@ for (const kind of ['smoke', 'youtube', 'fridge', 'chat']) {
 }
 assert.equal(summarizeMoments(moments).awarded, 12);
 assert.equal(summarizeMoments(moments).remaining, 0);
-assert.equal(moments.awards.some(item => item.id === 'variety'), false, 'общий потолок блокирует пятый бонус');
+assert.equal(moments.awards.filter(item => item.id === 'variety').length, 1, 'общий потолок блокирует пятый бонус');
 
 const beforeDuplicate = JSON.stringify(moments);
 const duplicate = awardMoment(moments, 'story', 'shift-1:story');

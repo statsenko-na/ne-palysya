@@ -26,7 +26,7 @@
   function drawPlayer() {
     const a = player.action;
     if (AWAY.has(a)) return;
-    if (a === 'work') {
+    if (a === 'work' || a === 'daily' || dailyReelsSeated()) {
       // Сидит за своим столом: столешница закроет ноги
       if (ready(img.vik)) drawStripFrame(img.vik, 4, 0, SEAT.x, DESK.y + 16 + Math.sin(performance.now() / 300) * 0.4, true);
       // отсвет монитора на лице

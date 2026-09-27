@@ -4,7 +4,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const source = fs.readFileSync(path.join(__dirname, '..', 'js', 'records.js'), 'utf8');
-const sandbox = {};
+const sandbox = { structuredClone };
 vm.runInNewContext(`${source}\n;globalThis.api = { normalizePlayerName, makeRecord, createLocalRecordsState, addLocalRecord, listLocalRecords };`, sandbox);
 const { normalizePlayerName, makeRecord, createLocalRecordsState, addLocalRecord, listLocalRecords } = sandbox.api;
 

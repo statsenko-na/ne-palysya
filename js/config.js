@@ -54,6 +54,17 @@
     beerAt: 17 * 60 + 15,      // пятничное пиво после отъезда Д.Н.
     beerChance: 0.65,
     bdayFee: 10,               // сбор на ДР: минус кайф, KPI не даёт
+    dailyStart: 9 * 60 + 30,   // дейлик ПН–ЧТ: час за своим компьютером (~22 с реального времени)
+    dailyEnd: 10 * 60 + 30,
+    dailyLate: 5,              // игровых минут на опоздание, потом выговор (в понедельник — только предупреждение)
+    dailyFunDrain: 0.4,        // честно слушаешь: −кайфа в секунду
+    dailyWork: 0.14,           // ...и план чуть-чуть растёт (~+3 за дейлик)
+    dailyReelsFun: 0.3,        // рилсы на дейлике: сверх обычных +1.2 кайфа/с
+    dailyReelsWork: 0.27,      // «киваешь с выключенной камерой»: ~+6 к плану за дейлик
+    dailyAskEvery: [5, 7.5],   // как часто Д.Н. кого-то спрашивает
+    dailyAskPlayer: 0.5,       // шанс, что спросит Быкентия
+    dailyAskWarn: 1.8,         // секунд на то, чтобы убрать рилсы после вопроса (×сложность)
+    dailyAnswerKpi: 2,         // ответил по делу — чуть плана
   };
 
   // ---------- СЛОЖНОСТЬ ----------
@@ -86,25 +97,25 @@
   // Неделя = обучение: каждый день открывает новые механики (после первой пройденной недели открыто всё).
   // plan — цель работы на день; tasks — задачи дня (попадают в список дел первыми).
   const DAYS = [
-    { name: 'ПОНЕДЕЛЬНИК', short: 'ПН', plan: 60, mod: 'Тяжёлый понедельник: проверки чаще', checkMul: 0.85,
+    { name: 'ПОНЕДЕЛЬНИК', daily: true, short: 'ПН', plan: 60, mod: 'Тяжёлый понедельник: проверки чаще', checkMul: 0.85,
       news: 'Ядро: Д.Н. и его конус, твой стол и Excel, кофе, балкон, YouTube, укрытия, синий биотуалет. Цель — план и кайф без увольнения.',
       tasks: ['coffee1', 'smoke1', 'toilet', 'lunch', 'inspect1', 'reportMon'] },
-    { name: 'ВТОРНИК', short: 'ВТ', plan: 70, mod: 'Обычный вторник. Подозрительно обычный.',
+    { name: 'ВТОРНИК', daily: true, short: 'ВТ', plan: 70, mod: 'Обычный вторник. Подозрительно обычный.',
       news: 'Новое: коллеги первого ряда (E перед их столом) — у каждого бонус. Офисные события: угощение, созвон, ксерокс.',
       tasks: ['coffee1', 'smoke2', 'toilet', 'lunch', 'chatAimashyn', 'chatHlad', 'printReport'] },
-    { name: 'СРЕДА', short: 'СР', plan: 70, mod: 'Среда — маленькая пятница: кайф ×1.25', funMul: 1.25,
+    { name: 'СРЕДА', daily: true, short: 'СР', plan: 70, mod: 'Среда — маленькая пятница: кайф ×1.25', funMul: 1.25,
       news: 'Новое: события — ДР, жара, перфоратор, учения. Алматинские дни: смог и пробка на Аль-Фараби.',
       tasks: ['coffee2', 'smoke3', 'toilet2', 'lunch', 'reportTurlo'] },
-    { name: 'ЧЕТВЕРГ', short: 'ЧТ', plan: 80, mod: 'Аудит из головного офиса: Д.Н. видит дальше', visionMul: 1.15,
-      news: 'Новое: второй ряд (Д.Н. отвлекается на бездельников), летучка с выбором, Маджикистан, камеры СБ.',
+    { name: 'ЧЕТВЕРГ', daily: true, short: 'ЧТ', plan: 80, mod: 'Аудит из головного офиса: Д.Н. видит дальше', visionMul: 1.15,
+      news: 'Новое: второй ряд (Д.Н. отвлекается на бездельников), Маджикистан, камеры СБ.',
       tasks: ['coffee1', 'smoke1a', 'toilet', 'lunchVilka', 'majik', 'scold', 'hideAudit'] },
     { name: 'ПЯТНИЦА', short: 'ПТ', plan: 60, mod: 'Пятница! Д.Н. уедет «на встречу» в 17:00', funMul: 1.2, bossLeaves: 17 * 60,
       news: 'Пятница: в 17:00 Д.Н. уезжает, иногда коллеги зовут в «Мюнхен» на пиво. Итог недели по Маджикистану.',
       tasks: ['coffee3', 'smoke4', 'toilet', 'lunch', 'cleanFriday', 'planEarly', 'yogurt', 'praise2'] },
   ];
   // С какого дня (индекс) открывается механика
-  const UNLOCK = { coworkers: 1, events1: 1, lunch: 0, events2: 2, almaty: 2, row2: 3, standup: 3, events3: 3 };
-  const EVENT_TIER = { food: 'events1', call: 'events1', internet: 'events1', jam: 'events1', bday: 'events2', heat: 'events2', noise: 'events2', drill: 'events2', standup: 'events3', majik: 'events3', autoshka: 'events3', arrfr: 'events3', sb: 'events3' };
+  const UNLOCK = { coworkers: 1, events1: 1, lunch: 0, events2: 2, almaty: 2, row2: 3, events3: 3 };
+  const EVENT_TIER = { food: 'events1', call: 'events1', internet: 'events1', jam: 'events1', bday: 'events2', heat: 'events2', noise: 'events2', drill: 'events2', majik: 'events3', autoshka: 'events3', arrfr: 'events3', sb: 'events3' };
   const TASK_EVENT_PREREQUISITES = { majik: 'majik' };
 
   window.NP_CONFIG = { CFG, DIFFICULTY, UPGRADES, DAYS, UNLOCK, EVENT_TIER, TASK_EVENT_PREREQUISITES };

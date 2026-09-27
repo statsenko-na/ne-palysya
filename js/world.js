@@ -140,12 +140,18 @@
     { id: 'exit', type: 'exit', x: 16, y: 284, w: 46, h: 36 },
     { id: 'toilet', type: 'toilet', x: 246, y: 508, w: 50, h: 18 },
     { id: 'complain', type: 'complain', x: 598, y: 372, w: 48, h: 28 },
-    { id: 'standup', type: 'standup', x: 266, y: 404, w: 84, h: 32 },
   );
+  // С коллегой можно заговорить и перед его столом, и сзади — из-за спинки кресла
+  // (первый ряд — из прохода у окон, второй — из главного прохода).
   people.filter(c => !c.statist).forEach(c => {
     zones.push({
       id: `chat_${c.id}`, type: 'chat', coworker: c.id,
       x: c.desk.x - 4, y: c.desk.y + DESK_DEPTH, w: DESK_W + 8, h: 30,
+    });
+    const backTop = c.desk.y === ROW1_Y ? FLOOR_TOP + 2 : c.desk.y - 34;
+    zones.push({
+      id: `chat_${c.id}_back`, type: 'chat', coworker: c.id, back: true,
+      x: c.desk.x - 4, y: backTop, w: DESK_W + 8, h: c.desk.y - backTop,
     });
   });
 
@@ -183,12 +189,11 @@
   const bossHome = { x: 706, y: 446 };
   const exitDoor = { x: 40, y: 302 };       // дверь на лестницу: обед, пиво, эвакуация
   const toiletDoor = { x: 267, y: 518 };    // перед дверью биотуалета (кабинка x 248–286, y 446–508)
-  const standupSpot = { x: 362, y: 420 };   // Д.Н. у доски на летучке
 
   window.NP_WORLD = {
     W, H, HUD_H, FLOOR_TOP, FLOOR_BOTTOM, LEFT, RIGHT,
     DESK_W, DESK_DEPTH, ROW1_Y,
     walls, colliders, desks, playerDesk, coworkers, people, plants, zones,
-    navNodes, patrolSpots, bossHome, exitDoor, toiletDoor, standupSpot,
+    navNodes, patrolSpots, bossHome, exitDoor, toiletDoor,
   };
 })();

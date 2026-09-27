@@ -6,7 +6,7 @@ const path = require('node:path');
 const vm = require('node:vm');
 
 const sourcePath = path.resolve(__dirname, '../js/relationships.js');
-const sandbox = {};
+const sandbox = { structuredClone };
 vm.runInNewContext(fs.readFileSync(sourcePath, 'utf8'), sandbox, { filename: sourcePath });
 const plain = value => JSON.parse(JSON.stringify(value));
 

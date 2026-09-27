@@ -1,4 +1,6 @@
 'use strict';
+// Варианты отдыха: подслушать на балконе, тихий или громкий YouTube, свой перекус или йогурт Хлада.
+// Модель без DOM: функции возвращают { ok, state, effects, reason, ... }, эффекты применяет interact.js.
 
 const ACTIVITY_VARIANTS = {
   'smoke-listening': { durationSeconds: 3, rate: 0, countAsBaseActivity: false },
@@ -20,6 +22,7 @@ function createActivities() {
   };
 }
 
+// Проверка нужна только при загрузке сохранения
 function activitiesStateIsValid(state) {
   if (!state || typeof state !== 'object' || Array.isArray(state)) return false;
   if (!(state.shiftId === null || (typeof state.shiftId === 'string' && state.shiftId.length > 0))) return false;
@@ -36,26 +39,6 @@ function activitiesStateIsValid(state) {
   if (!Number.isFinite(active.remainingSeconds) || active.remainingSeconds < 0 || active.remainingSeconds > active.durationSeconds) return false;
   if (!Number.isFinite(active.rate) || active.rate < 0 || typeof active.countAsBaseActivity !== 'boolean') return false;
   return typeof active.noiseTriggered === 'boolean';
-}
-
-function cloneActivities(state) {
-  return {
-    shiftId: state.shiftId,
-    nextAttemptId: state.nextAttemptId,
-    active: state.active ? {
-      variant: state.active.variant,
-      sourceId: state.active.sourceId,
-      durationSeconds: state.active.durationSeconds,
-      elapsedSeconds: state.active.elapsedSeconds,
-      remainingSeconds: state.active.remainingSeconds,
-      rate: state.active.rate,
-      countAsBaseActivity: state.active.countAsBaseActivity,
-      noiseTriggered: state.active.noiseTriggered
-    } : null,
-    listeningCompleted: state.listeningCompleted,
-    intelGranted: state.intelGranted,
-    yogurtStolen: state.yogurtStolen
-  };
 }
 
 function activityResult(ok, state, effects, reason, active, completed) {
@@ -77,12 +60,6 @@ function activityRefusal(state, reason, active) {
 }
 
 function startActivityVariant(state, context, variant) {
-  if (!activitiesStateIsValid(state)) return activityRefusal(state, 'state_invalid');
-  if (!context || typeof context !== 'object') return activityRefusal(state, 'context_missing');
-  if (typeof context.shiftId !== 'string' || !context.shiftId ||
-      typeof context.paused !== 'boolean' || typeof context.shiftEnded !== 'boolean') {
-    return activityRefusal(state, 'context_missing');
-  }
   if (!Object.prototype.hasOwnProperty.call(ACTIVITY_VARIANTS, variant)) return activityRefusal(state, 'variant_invalid');
   if (state.shiftId && state.shiftId !== context.shiftId) return activityRefusal(state, 'shift_mismatch');
   if (state.active) return activityRefusal(state, 'busy', state.active);
@@ -90,26 +67,21 @@ function startActivityVariant(state, context, variant) {
   if (context.shiftEnded) return activityRefusal(state, 'shift_ended');
 
   if (variant === 'smoke-listening') {
-    if (typeof context.dayIndex !== 'number' || !Number.isInteger(context.dayIndex)) return activityRefusal(state, 'context_missing');
     if (context.dayIndex < 1) return activityRefusal(state, 'locked');
     if (context.ordinarySmokeCompleted !== true) return activityRefusal(state, 'smoke_not_completed');
     if (state.listeningCompleted || state.intelGranted) return activityRefusal(state, 'already_listened');
   }
   if (variant === 'youtube-quiet' || variant === 'youtube-loud') {
-    if (typeof context.internetAvailable !== 'boolean') return activityRefusal(state, 'context_missing');
     if (!context.internetAvailable) return activityRefusal(state, 'internet_unavailable');
   }
   if (variant === 'fridge-yogurt') {
-    if (typeof context.ownerAvailable !== 'boolean' || typeof context.storyAvailable !== 'boolean') {
-      return activityRefusal(state, 'context_missing');
-    }
     if (!context.ownerAvailable) return activityRefusal(state, 'owner_unavailable');
     if (!context.storyAvailable) return activityRefusal(state, 'story_unavailable');
     if (state.yogurtStolen) return activityRefusal(state, 'yogurt_already_stolen');
   }
 
   const definition = ACTIVITY_VARIANTS[variant];
-  const next = cloneActivities(state);
+  const next = structuredClone(state);
   const attemptId = next.nextAttemptId;
   next.shiftId = context.shiftId;
   next.nextAttemptId += 1;
@@ -147,17 +119,13 @@ function activityNoiseEffects(active, context) {
 }
 
 function finishActivityVariant(state, reason) {
-  if (!activitiesStateIsValid(state)) return activityRefusal(state, 'state_invalid');
   if (!state.active) return activityRefusal(state, 'not_active');
-  if (reason !== 'done' && reason !== 'cancel' && reason !== 'shift_ended') {
-    return activityRefusal(state, 'reason_invalid', state.active);
-  }
   if (reason === 'done' && state.active.remainingSeconds > 0) {
     return activityRefusal(state, 'not_complete', state.active);
   }
 
   const active = state.active;
-  const next = cloneActivities(state);
+  const next = structuredClone(state);
   const completed = reason === 'done';
   const effects = [];
   if (completed) {
@@ -206,12 +174,6 @@ function cancelActivityVariant(state, reason) {
 }
 
 function tickActivityVariant(state, dt, context) {
-  if (!activitiesStateIsValid(state)) return activityRefusal(state, 'state_invalid');
-  if (!Number.isFinite(dt) || dt < 0) return activityRefusal(state, 'dt_invalid', state.active);
-  if (!context || typeof context !== 'object' ||
-      typeof context.paused !== 'boolean' || typeof context.shiftEnded !== 'boolean') {
-    return activityRefusal(state, 'context_missing', state.active);
-  }
   if (!state.active) return activityRefusal(state, 'not_active');
   if (context.paused) return activityResult(true, state, [], null, state.active, false);
   if (context.shiftEnded) return finishActivityVariant(state, 'shift_ended');
@@ -219,20 +181,15 @@ function tickActivityVariant(state, dt, context) {
   const active = state.active;
   const elapsedSeconds = Math.min(active.durationSeconds, active.elapsedSeconds + dt);
   const remainingSeconds = Math.max(0, active.durationSeconds - elapsedSeconds);
-  const next = cloneActivities(state);
+  const next = structuredClone(state);
   next.active.elapsedSeconds = elapsedSeconds;
   next.active.remainingSeconds = remainingSeconds;
   const effects = [];
 
   if (active.variant === 'youtube-loud' && !active.noiseTriggered &&
       active.elapsedSeconds < 3 && elapsedSeconds >= 3) {
-    if (typeof context.bossState !== 'string' ||
-        !Number.isFinite(context.bossDistance) || context.bossDistance < 0 ||
-        typeof context.bossRouteAvailable !== 'boolean') {
-      return activityRefusal(state, 'context_missing', state.active);
-    }
     next.active.noiseTriggered = true;
-    effects.push.apply(effects, activityNoiseEffects(active, context));
+    effects.push(...activityNoiseEffects(active, context));
   }
 
   if (remainingSeconds <= 0) {

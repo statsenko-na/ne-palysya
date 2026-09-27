@@ -22,7 +22,6 @@
       inspect: 'Д.Н. уже проверяет',
       waitDesk: 'Д.Н. ждёт у стола',
       lecture: 'Д.Н. читает нотацию',
-      standup: 'Д.Н. ведёт летучку',
       leaving: 'Д.Н. уезжает на встречу',
       gone: 'Д.Н. уехал',
       goout: `Д.Н. уходит ${boss.spotDesc || 'из офиса'}`,
@@ -210,7 +209,7 @@
     }
     return lineOfSight(eye, target);
   }
-  function playerIsWorking() { return player.action === 'work'; }
+  function playerIsWorking() { return player.action === 'work' || player.action === 'daily'; } // на дейлике сидит за компьютером — для проверки это работа
 
   // ---------- ПЛАН НА ДЕНЬ ----------
   // Работа не тает. До плана идёт полностью, сверх плана — с малой отдачей: выгоднее уйти кайфовать.
@@ -376,7 +375,7 @@
     boss.quoteTimer -= dt;
     boss.praiseTimer = Math.max(0, boss.praiseTimer - dt);
 
-    if (mode === 'playing' && !onLunch() && !['inspect', 'waitDesk', 'lecture', 'leaving', 'gone', 'goout', 'out', 'scold', 'standup', 'distractionWalk', 'distractionWait'].includes(boss.state) && !eventIs('call') && !eventIs('drill')) {
+    if (mode === 'playing' && !onLunch() && !['inspect', 'waitDesk', 'lecture', 'leaving', 'gone', 'goout', 'out', 'scold', 'distractionWalk', 'distractionWait'].includes(boss.state) && !eventIs('call') && !eventIs('drill') && !dailyActive()) {
       nextBossCheck -= dt;
       // Иногда проверка внезапная — без «Кхм-кхм» (зависит от сложности)
       if (nextBossCheck < diff().warn && !boss.warned && !boss.silentCheck && rand() < CFG.strollChance) startStroll();
@@ -505,14 +504,6 @@
         }
         break;
       }
-      case 'standup':
-        if (followPath(dt, CFG.bossInspectSpeed)) {
-          boss.moving = false;
-          boss.facing = Math.PI;
-          if (boss.quoteTimer <= 0) { say('boss', pick(LINES.boss.standupTalk), 3); boss.quoteTimer = 5; }
-        }
-        if (!eventIs('standup')) endInspection();
-        break;
       default: break;
     }
 

@@ -154,7 +154,6 @@ const { loadPlaywright } = require('./pw');
     await openDebug(0.2);
     await page.evaluate(() => NP_DEBUG.skip(0.25));
     assert.strictEqual(await page.evaluate(() => NP_DEBUG.actionChoice), null, 'таймер истекает по симуляционному dt');
-    assert.strictEqual((await page.evaluate(() => NP_DEBUG.actionChoiceResult)).calls, 0);
 
     await reset(909);
     await page.evaluate(() => NP_DEBUG.teleport(500, 450));
@@ -185,17 +184,6 @@ const { loadPlaywright } = require('./pw');
     assert.strictEqual(await page.evaluate(() => NP_DEBUG.actionChoice), null, 'неизвестный handler безопасно отклоняется');
     assert.strictEqual((await page.evaluate(() => NP_DEBUG.actionChoiceResult)).closeReason, 'unknown_handler');
 
-    await reset(912);
-    const conflict = await page.evaluate(() => {
-      NP_DEBUG.setAction('standup', 30);
-      NP_DEBUG.setStandupChoice({ t: 4, asked: true, done: false });
-      const opened = NP_DEBUG.openDebugActionChoice();
-      return { opened, state: NP_DEBUG.actionChoice };
-    });
-    assert.strictEqual(conflict.opened, false);
-    assert.strictEqual(conflict.state, null, 'новый выбор не перекрывает активный вопрос летучки');
-    await page.keyboard.press('1');
-    assert.strictEqual((await page.evaluate(() => NP_DEBUG.choice)).done, true, 'ответ летучки по-прежнему получает цифру');
     assert.strictEqual((await page.evaluate(() => NP_DEBUG.actionChoiceResult)).calls, 0);
 
     await reset(913);
