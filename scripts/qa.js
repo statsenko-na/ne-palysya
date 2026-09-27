@@ -817,8 +817,11 @@ const { loadPlaywright } = require('./pw');
   });
   check('дейлик: успел убрать рилсы после вопроса — без выговора', dd.action === 'daily' && dd.reprimands === 0, JSON.stringify(dd));
   await dailyPrep();
-  const ds = await page.evaluate(() => { NP_DEBUG.teleport(120, 236); NP_DEBUG.skip(3.5); return { reprimands, clock: clockMinutes }; });
-  check('дейлик: не пришёл к 09:35 — выговор', ds.reprimands === 1, JSON.stringify(ds));
+  const ds = await page.evaluate(() => {
+    NP_DEBUG.teleport(120, 236); NP_DEBUG.skip(8); const early = reprimands, earlyClock = clockMinutes;
+    NP_DEBUG.skip(6); return { early, earlyClock, reprimands, clock: clockMinutes };
+  });
+  check('дейлик: опоздание до 30 минут прощается, не пришёл к 10:00 — выговор', ds.early === 0 && ds.reprimands === 1, JSON.stringify(ds));
   const df = await page.evaluate(() => {
     NP_DEBUG.setDay(4); NP_DEBUG.restart(); NP_DEBUG.clearEvents(); NP_DEBUG.set({ fed: true, noPee: true }); NP_DEBUG.setClock(9 * 60 + 29);
     NP_DEBUG.teleport(120, 236); NP_DEBUG.skip(3.5);
