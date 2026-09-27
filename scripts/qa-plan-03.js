@@ -152,6 +152,7 @@ const { loadPlaywright } = require('./pw');
     for (const action of ['lunch', 'daily']) {
       await newThursday(2026 + action.length);
       await page.evaluate(value => {
+        NP_DEBUG.setDailyEnabled(value !== 'daily'); // имитируем созвон действием, без расписания дейлика
         NP_DEBUG.setClock(900);
         NP_DEBUG.setAction(value, 30);
         NP_DEBUG.skip(0.1);

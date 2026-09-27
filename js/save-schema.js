@@ -13,11 +13,11 @@ const SAVE_SCHEMA_DAY_FIELDS = [
   'overtimeUsed', 'overworkT', 'adhocDone', 'adhocAt', 'aljaziraTimer', 'aljaziraVisiting', 'aljaziraDisasterAt',
   'aljaziraDisasterDone', 'aljaziraPhase', 'aljaziraPhaseTimer', 'aljaziraForceMood', 'lastSavedMinute', 'pee',
   'peeActive', 'peeLeft', 'peeAt', 'peeCriticalTold', 'vilka', 'smog', 'traffic', 'lunchAway', 'dish',
-  'majikFail', 'hideCd', 'planWarned', 'recoveryGraceUsed', 'drillAwayTimer', 'drillAwayIndex', 'lunchAwayTimer', 'lunchAwayIndex', 'beerAwayTimer', 'beerAwayIndex',
+  'majikFail', 'hideCd', 'planWarned', 'recoveryGraceUsed', 'drillAwayTimer', 'drillAwayIndex', 'lunchAwayTimer', 'lunchAwayIndex', 'beerAwayTimer', 'beerAwayIndex', 'dailyMeet',
 ];
 const SAVE_SCHEMA_PLAYER_FIELDS = [
   'x', 'y', 'speed', 'action', 'actionTimer', 'actionTotal', 'facingX', 'walkTimer', 'moving', 'coffeeBoost',
-  'bumpCooldown', 'chatWith', 'chatPair', 'chatReplied', 'hideSpot', 'hideT', 'queueTarget', 'workFromFront',
+  'bumpCooldown', 'chatWith', 'chatZone', 'chatPair', 'chatReplied', 'hideSpot', 'hideT', 'queueTarget', 'workFromFront',
 ];
 const SAVE_SCHEMA_BOSS_FIELDS = [
   'x', 'y', 'state', 'stateTimer', 'mode', 'spotDesc', 'facing', 'walkTimer', 'moving', 'suspicion',

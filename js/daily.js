@@ -59,7 +59,9 @@
     }
   }
   function updateDaily(dt) {
-    if (mode !== 'playing' || !dailyToday() || dailyTestOff) return;
+    if (mode !== 'playing' || dailyTestOff) return;
+    if (player.action === 'daily' && !dailyActive()) endAction('done'); // созвон кончился или не восстановился
+    if (!dailyToday()) return;
     const d = dailyState();
     const m = clockMinutes;
     if (d.phase === 'idle' && m >= CFG.dailyStart + CFG.dailyLate) d.phase = 'done'; // часы перескочили начало дейлика (загрузка сохранения)
@@ -76,7 +78,6 @@
     if (['patrol', 'look'].includes(boss.state)) bossGoTo(WD.bossHome, 'return', 'кабинет');
     if (boss.state === 'office') { boss.stateTimer = Math.max(boss.stateTimer, 2); boss.quoteTimer = Math.max(boss.quoteTimer, 2); }
 
-    // Садимся: у своего стола — сразу на созвон; рилсы за столом — тоже сидя
     // Сидел в Excel или убрал телефон, не вставая, — остаётся на созвоне; иначе садится по E у стола
     if (!player.moving && (player.action === 'work' || (player.action === 'none' && dailyAtDesk()))) dailySit();
     const zone = currentZone();

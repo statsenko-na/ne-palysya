@@ -848,6 +848,16 @@ const { loadPlaywright } = require('./pw');
     NP_DEBUG.teleport(120, 236); NP_DEBUG.skip(3.5);
     return { active: dailyActive(), reprimands };
   });
+  const dsave = await page.evaluate(() => {
+    NP_DEBUG.setDay(1); NP_DEBUG.restart(); NP_DEBUG.clearEvents(); NP_DEBUG.set({ fed: true, noPee: true });
+    NP_DEBUG.setClock(9 * 60 + 29); NP_DEBUG.setBoss(706, 446, 'office'); NP_DEBUG.teleport(SEAT.x, SEAT.y); NP_DEBUG.skip(3.5);
+    dailyState().rep = true;
+    NP_DEBUG.saveProgress(); NP_DEBUG.restart(); NP_DEBUG.skip(0.2);
+    const out = { active: dailyActive(), action: player.action, rep: dailyState().rep };
+    NP_DEBUG.clearSavedProgress();
+    return out;
+  });
+  check('дейлик: сохранение посреди созвона восстанавливает его', dsave.active && dsave.action === 'daily' && dsave.rep, JSON.stringify(dsave));
   check('дейлик: в пятницу его нет', !df.active && df.reprimands === 0, JSON.stringify(df));
 
   // 17:00: подсказка про план, если отстаёшь
