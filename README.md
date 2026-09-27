@@ -6,6 +6,7 @@
 
 - **Онлайн (GitHub Pages):** [https://statsenko-na.github.io/ne-palysya/](https://statsenko-na.github.io/ne-palysya/)
   *(первое включение: **Settings → Pages → Build and deployment → Source: GitHub Actions**; деплой идёт при пуше в `main`).*
+- **В Telegram (Mini App):** та же страница открывается внутри Telegram через бота — настройка в [docs/TELEGRAM.md](docs/TELEGRAM.md).
 - **Локально:** дважды кликни по `index.html`. Сборка, сервер и зависимости не нужны.
 - **Телефон:** в альбомной ориентации появляются виртуальный стик и кнопки.
 
