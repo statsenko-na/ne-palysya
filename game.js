@@ -33,6 +33,23 @@
       bindWait = null; renderKeys(); return;
     }
     if (keysOpen) { e.preventDefault(); if (e.key === 'Escape' || e.key === 'Enter') closeKeys(); return; }
+    if (isLocalRecordsOpen()) {
+      if (e.key === 'Escape') { e.preventDefault(); closeLocalRecords(); }
+      else if (e.key === 'Tab') {
+        const dialog = $('records-overlay');
+        const focusable = dialog ? [...dialog.querySelectorAll('button:not([disabled]), select:not([disabled]), [tabindex="0"]')] : [];
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (first && (!dialog.contains(document.activeElement) || (e.shiftKey && document.activeElement === first))) {
+          e.preventDefault();
+          (e.shiftKey ? last : first).focus();
+        } else if (last && !e.shiftKey && document.activeElement === last) {
+          e.preventDefault();
+          first.focus();
+        }
+      }
+      return;
+    }
     if (e.target && e.target.matches && e.target.matches('input, textarea, select, [contenteditable="true"]')) return;
     const key = getControlKey(e);
     if (MOVE_KEYS.includes(key) || ['e', 'h', 'p', 'q', 'o', 'enter', ' '].includes(key)) e.preventDefault();
@@ -175,6 +192,21 @@
   addTap(ui.start, startGame);
   addTap(ui.resume, pauseGame);
   addTap(ui.restart, startGame);
+  initializePlayerNameInput();
+  document.querySelectorAll('.player-name-input').forEach(playerNameInput => playerNameInput.addEventListener('keydown', e => {
+    if (e.key !== 'Enter' || e.isComposing) return;
+    e.preventDefault();
+    updatePlayerNameField(playerNameInput);
+    playerNameInput.blur();
+    if (mode === 'menu' || mode === 'ended') startGame();
+  }));
+  document.querySelectorAll('.records-open').forEach(b => addTap(b, openLocalRecords));
+  [$('records-close-icon'), $('records-close')].forEach(b => addTap(b, closeLocalRecords));
+  const recordsOverlay = $('records-overlay');
+  if (recordsOverlay) recordsOverlay.addEventListener('click', e => { if (e.target === recordsOverlay) closeLocalRecords(); });
+  [$('records-day-filter'), $('records-difficulty-filter'), $('records-assist-filter')].forEach(el => {
+    if (el) el.addEventListener('change', renderLocalRecords);
+  });
   ui.shopBtns.forEach(b => addTap(b, openShop));
   document.querySelectorAll('.auto-open').forEach(b => addTap(b, startAutopilot));
   const resumeOnAuto = () => { if (mode === 'paused') { setMode('playing'); if (!auto.on) toggleAutopilot(); } };

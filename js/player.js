@@ -407,8 +407,9 @@
       : `best.${dayIndex}`;
     const best = store.get(bestKey, 0);
     const legacyBest = shiftRulesetId === OFFICE_STORIES_RULESET_ID ? store.get(`best.${dayIndex}`, 0) : 0;
-    const record = win && score > best;
-    if (record) store.set(bestKey, score);
+    const record = !auto.demo && win && score > best;
+    if (!auto.demo && record) store.set(bestKey, score);
+    addCompletedShiftRecord(Math.max(0, score), result === 'win' || result === 'munich' ? result : 'fired');
     const dayName = today().name;
     const earned = shiftResult.coins;
     let weeklyOutcomeSummary = null;

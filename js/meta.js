@@ -173,9 +173,198 @@
   function setTimeScale(v) {
     timeScale = clamp(Number(v) || 1, 0.5, 3);
     store.set('timeScale', timeScale);
+    updateShiftRecordTimeScale(timeScale);
     document.querySelectorAll('.speed-range').forEach(r => { r.value = String(timeScale); });
     document.querySelectorAll('.speed-val').forEach(el => { el.textContent = `×${+timeScale.toFixed(2)}`; });
   }
+  const LOCAL_RECORDS_KEY = 'localRecords';
+  const ACTIVE_RECORD_IDENTITY_KEY = 'activeRecordIdentity';
+  let shiftRecordIdentity = null;
+  let localRecordsCache = null;
+  let recordsDialogOpen = false;
+  let recordsReturnFocus = null;
+  function cleanPlayerNameInput(value) {
+    return Array.from(String(value == null ? '' : value).replace(/\p{Cc}/gu, ' ').replace(/\s+/gu, ' ').trim()).slice(0, 20).join('');
+  }
+  function renderPlayerNameCount(value) {
+    const countText = `${Array.from(value || '').length} / 20`;
+    document.querySelectorAll('.player-name-input').forEach(field => {
+      const count = $(field.dataset.countTarget);
+      if (count) count.textContent = countText;
+    });
+  }
+  function updatePlayerNameField(input) {
+    if (!input) return '';
+    if (auto.demo) {
+      const saved = store.get('playerName', '');
+      document.querySelectorAll('.player-name-input').forEach(field => { field.value = saved; });
+      renderPlayerNameCount(input.value);
+      return input.value;
+    }
+    const oldValue = input.value;
+    const oldCaret = typeof input.selectionStart === 'number' ? input.selectionStart : oldValue.length;
+    const charsBeforeCaret = Array.from(oldValue.slice(0, oldCaret)).length;
+    const value = cleanPlayerNameInput(oldValue);
+    if (value !== oldValue) {
+      input.value = value;
+      const caret = Array.from(value).slice(0, charsBeforeCaret).join('').length;
+      try { input.setSelectionRange(caret, caret); } catch (_) {}
+    }
+    store.set('playerName', value);
+    document.querySelectorAll('.player-name-input').forEach(field => { if (field !== input) field.value = value; });
+    renderPlayerNameCount(value);
+    return value;
+  }
+  function initializePlayerNameInput() {
+    const saved = typeof store.get('playerName', '') === 'string' ? store.get('playerName', '') : '';
+    document.querySelectorAll('.player-name-input').forEach(input => {
+      input.value = cleanPlayerNameInput(saved);
+      input.addEventListener('input', () => updatePlayerNameField(input));
+      input.addEventListener('change', () => updatePlayerNameField(input));
+    });
+    renderPlayerNameCount(cleanPlayerNameInput(saved));
+  }
+  function validActiveRecordIdentity(identity) {
+    return !!identity && typeof identity === 'object' && !Array.isArray(identity)
+      && identity.runId === shiftId
+      && typeof identity.name === 'string'
+      && Number.isInteger(identity.dayIndex) && identity.dayIndex >= 0 && identity.dayIndex < DAYS.length
+      && !!DIFFICULTY[identity.difficulty]
+      && typeof identity.rulesetId === 'string' && !!identity.rulesetId && identity.rulesetId.length <= 64
+      && Number.isFinite(identity.maxTimeScale) && identity.maxTimeScale >= 0.5 && identity.maxTimeScale <= 3;
+  }
+  function captureShiftRecordIdentity(loadResult) {
+    if (auto.demo) { shiftRecordIdentity = null; return null; }
+    const saved = store.get(ACTIVE_RECORD_IDENTITY_KEY, null);
+    if (loadResult && loadResult.status === 'resumed' && validActiveRecordIdentity(saved)) {
+      shiftRecordIdentity = { ...saved, maxTimeScale: Math.max(saved.maxTimeScale, timeScale) };
+    } else {
+      shiftRecordIdentity = {
+        runId: shiftId,
+        name: normalizePlayerName(store.get('playerName', '')),
+        dayIndex,
+        difficulty: diffKey,
+        rulesetId: shiftRulesetId,
+        maxTimeScale: timeScale,
+      };
+    }
+    store.set(ACTIVE_RECORD_IDENTITY_KEY, shiftRecordIdentity);
+    return shiftRecordIdentity;
+  }
+  function updateShiftRecordTimeScale(value) {
+    if (!shiftRecordIdentity || shiftRecordIdentity.runId !== shiftId || auto.demo) return false;
+    const maxTimeScale = Math.max(shiftRecordIdentity.maxTimeScale, clamp(Number(value) || 1, 0.5, 3));
+    if (maxTimeScale === shiftRecordIdentity.maxTimeScale) return false;
+    shiftRecordIdentity = { ...shiftRecordIdentity, maxTimeScale };
+    store.set(ACTIVE_RECORD_IDENTITY_KEY, shiftRecordIdentity);
+    return true;
+  }
+  function ensureLocalRecordsState() {
+    if (localRecordsCache) return localRecordsCache;
+    const raw = store.get(LOCAL_RECORDS_KEY, null);
+    const normalized = createLocalRecordsState(raw || {});
+    const legacyBest = normalized.legacyBest.slice();
+    for (let day = 0; day < DAYS.length; day++) {
+      const score = store.get(`best.${day}`, 0);
+      if (Number.isFinite(score) && score > 0) legacyBest.push({ dayIndex: day, score });
+    }
+    const state = createLocalRecordsState({ records: normalized.records, legacyBest });
+    if (auto.demo) return state;
+    localRecordsCache = state;
+    if (!raw || JSON.stringify(raw) !== JSON.stringify(localRecordsCache)) store.set(LOCAL_RECORDS_KEY, localRecordsCache);
+    return localRecordsCache;
+  }
+  function addCompletedShiftRecord(score, outcome) {
+    if (auto.demo) return { ok: false, reason: 'demo_not_recorded' };
+    const identity = shiftRecordIdentity;
+    if (!validActiveRecordIdentity(identity)) return { ok: false, reason: 'record_identity_unavailable' };
+    const record = makeRecord({
+      runId: identity.runId,
+      name: identity.name,
+      score,
+      dayIndex: identity.dayIndex,
+      difficulty: identity.difficulty,
+      rulesetId: identity.rulesetId,
+      autoUsed: !!autoUsed,
+      maxTimeScale: identity.maxTimeScale,
+      completedAt: Date.now(),
+      outcome,
+    });
+    if (!record.ok) return record;
+    const added = addLocalRecord(ensureLocalRecordsState(), record);
+    if (added.ok) {
+      localRecordsCache = added.state;
+      store.set(LOCAL_RECORDS_KEY, localRecordsCache);
+    }
+    if (store.get(ACTIVE_RECORD_IDENTITY_KEY, null)?.runId === identity.runId) store.set(ACTIVE_RECORD_IDENTITY_KEY, null);
+    shiftRecordIdentity = null;
+    return added;
+  }
+  function appendRecordsCell(row, value, tag = 'td') {
+    const cell = document.createElement(tag);
+    cell.textContent = String(value);
+    row.appendChild(cell);
+  }
+  function selectedLocalRecordsFilter() {
+    const day = $('records-day-filter')?.value || 'all';
+    const difficulty = $('records-difficulty-filter')?.value || 'all';
+    const assisted = $('records-assist-filter')?.value || 'all';
+    const filter = { rulesetId: OFFICE_STORIES_RULESET_ID, limit: 10 };
+    if (day !== 'all') filter.dayIndex = Number(day);
+    if (difficulty !== 'all') filter.difficulty = difficulty;
+    if (assisted !== 'all') filter.autoUsed = assisted === 'assisted';
+    return { day, filter };
+  }
+  function renderLocalRecords() {
+    const rows = $('records-rows');
+    const empty = $('records-empty');
+    const legacy = $('records-legacy');
+    if (!rows || !empty || !legacy) return false;
+    const { day, filter } = selectedLocalRecordsFilter();
+    const listed = listLocalRecords(ensureLocalRecordsState(), filter);
+    while (rows.firstChild) rows.removeChild(rows.firstChild);
+    const difficultyNames = { easy: 'Стажёр', normal: 'Сотрудник', hard: 'Ветеран' };
+    const outcomeNames = { win: 'Победа', munich: 'Мюнхен', fired: 'Увольнение' };
+    if (listed.ok) {
+      listed.records.forEach((record, index) => {
+        const row = document.createElement('tr');
+        [index + 1, record.name, DAYS[record.dayIndex].name, difficultyNames[record.difficulty],
+          record.autoUsed ? 'С автопилотом' : 'Без автопилота', record.score, outcomeNames[record.outcome]].forEach(value => appendRecordsCell(row, value));
+        rows.appendChild(row);
+      });
+      empty.classList.toggle('hidden', listed.records.length > 0);
+      empty.textContent = listed.records.length ? '' : 'Для этих фильтров пока нет смен.';
+      const old = listed.legacyBest.filter(item => day === 'all' || item.dayIndex === Number(day));
+      legacy.textContent = old.length
+        ? `${old[0].label}: ${old.map(item => `${DAYS[item.dayIndex].name} — ${item.score} очков`).join(' · ')}. Для этих результатов имя, сложность и автопилот не записывались.`
+        : 'Старых рекордов по правилам 0.24.1 нет.';
+    } else {
+      empty.classList.remove('hidden');
+      empty.textContent = 'Не удалось прочитать локальную таблицу.';
+      legacy.textContent = '';
+    }
+    return true;
+  }
+  function openLocalRecords() {
+    const overlay = $('records-overlay');
+    if (!overlay) return false;
+    recordsReturnFocus = document.activeElement;
+    renderLocalRecords();
+    recordsDialogOpen = true;
+    overlay.classList.remove('hidden');
+    $('records-close-icon')?.focus();
+    return true;
+  }
+  function closeLocalRecords() {
+    const overlay = $('records-overlay');
+    if (!overlay || !recordsDialogOpen) return false;
+    overlay.classList.add('hidden');
+    recordsDialogOpen = false;
+    if (recordsReturnFocus && typeof recordsReturnFocus.focus === 'function') recordsReturnFocus.focus();
+    recordsReturnFocus = null;
+    return true;
+  }
+  function isLocalRecordsOpen() { return recordsDialogOpen; }
   // ---------- ОНБОРДИНГ «КАК ИГРАТЬ» ----------
   const onb = { open: false, i: 0, thenStart: false, el: $('onboarding') };
   // Первый запуск — только 3 ключевых слайда (цель, правила, Д.Н.); по I — полная справка
@@ -443,6 +632,7 @@
       weekReprimands = 0; store.set('weekReprimands', 0);
     }
     const loadResult = loadSavedProgress();
+    captureShiftRecordIdentity(loadResult);
     beginEquipmentForShift(loadResult);
     refreshPinnedObjective();
     lastLoadResult = { ...loadResult };
