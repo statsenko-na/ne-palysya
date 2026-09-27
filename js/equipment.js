@@ -1,3 +1,4 @@
+// Оснащение за KPI-коины: термос, зеркало и автокликер, два слота. createEquipmentState нормализует и загруженное состояние.
 const EQUIPMENT_CATALOG = [
   { id: 'thermos', name: 'Термос', cost: 18, description: 'Один запасной boost на 8 секунд после первой полной чашки.' },
   { id: 'mirror', name: 'Зеркало', cost: 18, description: 'Показывает направление на Д.Н. у стола при прямой видимости.' },
@@ -87,14 +88,8 @@ function equipmentCanEdit(context) {
 }
 
 function validateLoadout(state) {
-  if (!state || typeof state !== 'object' || Array.isArray(state)) {
-    return { ok: false, valid: false, errors: ['invalid_state'], reason: 'invalid_state' };
-  }
-  if (!Array.isArray(state.ownedEquipment) || !Array.isArray(state.loadout)) {
-    return { ok: false, valid: false, errors: ['invalid_state'], reason: 'invalid_state' };
-  }
-  const owned = Array.isArray(state.ownedEquipment) ? state.ownedEquipment : [];
-  const loadout = Array.isArray(state.loadout) ? state.loadout : [];
+  const owned = state.ownedEquipment;
+  const loadout = state.loadout;
   const errors = [];
   if (owned.some(id => !EQUIPMENT_IDS.includes(id)) || new Set(owned).size !== owned.length) errors.push('invalid_owned_equipment');
   if (loadout.length > 2) errors.push('too_many_slots');
@@ -106,7 +101,6 @@ function validateLoadout(state) {
 
 function purchaseEquipment(state, id, coins, context) {
   if (!equipmentFinite(coins) || coins < 0) return equipmentFailure(state, 'invalid_coins', { coins: null });
-  if (!state || typeof state !== 'object' || Array.isArray(state)) return equipmentFailure(state, 'invalid_state', { coins });
   const item = EQUIPMENT_CATALOG.find(entry => entry.id === id);
   if (!item) return equipmentFailure(state, 'unknown_equipment', { coins });
   if (!equipmentCanEdit(context)) return equipmentFailure(state, 'equipment_locked', { coins });
@@ -119,7 +113,6 @@ function purchaseEquipment(state, id, coins, context) {
 }
 
 function equipItem(state, id, slot, context) {
-  if (!state || typeof state !== 'object' || Array.isArray(state)) return equipmentFailure(state, 'invalid_state');
   if (!EQUIPMENT_IDS.includes(id)) return equipmentFailure(state, 'unknown_equipment');
   if (!equipmentCanEdit(context)) return equipmentFailure(state, 'equipment_locked');
   if (!Number.isInteger(slot) || slot < 0 || slot > 1) return equipmentFailure(state, 'invalid_slot');
@@ -135,7 +128,6 @@ function equipItem(state, id, slot, context) {
 }
 
 function beginEquipmentShift(state, context) {
-  if (!state || typeof state !== 'object' || Array.isArray(state)) return equipmentFailure(state, 'invalid_state');
   if (!context || typeof context.shiftId !== 'string' || !context.shiftId.trim()) return equipmentFailure(state, 'shift_id_required');
   const current = createEquipmentState(state);
   const shiftId = context.shiftId.trim();
@@ -162,10 +154,6 @@ function beginEquipmentShift(state, context) {
 }
 
 function recordThermosBrew(state, context) {
-  if (!state || typeof state !== 'object' || Array.isArray(state)) return equipmentFailure(state, 'invalid_state');
-  if (!context || typeof context !== 'object') return equipmentFailure(state, 'brew_context_required');
-  if (typeof context.paused !== 'boolean' || typeof context.shiftEnded !== 'boolean' || typeof context.completed !== 'boolean' ||
-      typeof context.coffeeForColleague !== 'boolean') return equipmentFailure(state, 'brew_context_incomplete');
   if (context.paused === true) return equipmentFailure(state, 'paused');
   if (context.shiftEnded === true) return equipmentFailure(state, 'shift_ended');
   if (context.completed !== true) return equipmentFailure(state, 'brew_not_complete');
@@ -182,11 +170,6 @@ function recordThermosBrew(state, context) {
 }
 
 function useThermos(state, context) {
-  if (!state || typeof state !== 'object' || Array.isArray(state)) return equipmentFailure(state, 'invalid_state');
-  if (!context || typeof context !== 'object' || !equipmentFinite(context.currentBoost) || context.currentBoost < 0 ||
-      typeof context.paused !== 'boolean' || typeof context.shiftEnded !== 'boolean' || typeof context.viaPhone !== 'boolean') {
-    return equipmentFailure(state, 'invalid_thermos_context');
-  }
   if (!context.viaPhone) return equipmentFailure(state, 'phone_required');
   if (context.paused === true) return equipmentFailure(state, 'paused');
   if (context.shiftEnded === true) return equipmentFailure(state, 'shift_ended');
@@ -200,17 +183,12 @@ function useThermos(state, context) {
 }
 
 function equipmentMirrorVisible(state, context) {
-  if (!state || typeof state !== 'object' || Array.isArray(state) || !context || typeof context !== 'object') return false;
   if (context.atDesk !== true || context.lineOfSight !== true || !equipmentFinite(context.distance) || context.distance < 0 || context.distance > 180) return false;
   const current = createEquipmentState(state);
   return Array.isArray(current.activeLoadout) && current.activeLoadout.includes('mirror');
 }
 
 function activateAutoclicker(state, context) {
-  if (!state || typeof state !== 'object' || Array.isArray(state)) return equipmentFailure(state, 'invalid_state');
-  if (!context || typeof context.paused !== 'boolean' || typeof context.shiftEnded !== 'boolean') {
-    return equipmentFailure(state, 'invalid_activation_context');
-  }
   if (context.atDesk !== true) return equipmentFailure(state, 'not_at_desk');
   if (context.paused === true) return equipmentFailure(state, 'paused');
   if (context.shiftEnded === true) return equipmentFailure(state, 'shift_ended');
@@ -228,11 +206,6 @@ function activateAutoclicker(state, context) {
 }
 
 function beginAutoclickerInspection(state, context) {
-  if (!state || typeof state !== 'object' || Array.isArray(state)) return equipmentFailure(state, 'invalid_state', { waitSeconds: 0 });
-  if (!context || typeof context.inspectionId !== 'string' || !context.inspectionId.trim() ||
-      typeof context.paused !== 'boolean' || typeof context.shiftEnded !== 'boolean') {
-    return equipmentFailure(state, 'inspection_context_incomplete', { waitSeconds: 0 });
-  }
   if (context.emptyDesk !== true) return equipmentFailure(state, 'desk_not_empty', { waitSeconds: 0 });
   if (context.paused === true) return equipmentFailure(state, 'paused', { waitSeconds: 0 });
   if (context.shiftEnded === true) return equipmentFailure(state, 'shift_ended', { waitSeconds: 0 });
@@ -252,10 +225,6 @@ function beginAutoclickerInspection(state, context) {
 }
 
 function tickEquipment(state, context) {
-  if (!state || typeof state !== 'object' || Array.isArray(state)) return equipmentFailure(state, 'invalid_state', { inspectionOutcome: null });
-  if (!context || !equipmentFinite(context.dt) || context.dt < 0 || typeof context.paused !== 'boolean') {
-    return equipmentFailure(state, 'invalid_tick_context', { inspectionOutcome: null });
-  }
   if (context.shiftEnded === true) return equipmentFailure(state, 'shift_ended', { inspectionOutcome: null });
   const next = createEquipmentState(state);
   if (context.paused) return equipmentSuccess(next, { inspectionOutcome: null, inspectionId: null });

@@ -204,7 +204,7 @@
     const [a, la, b, lb] = pick(opts);
     if (!sayAmbient(a, la)) return;
     // ответ — когда первую реплику уже дочитали
-    pendingSays.push({ owner: b, text: lb, t: readDur(la) + 0.5 });
+    pendingSays.push({ owner: b, text: lb, t: Math.max(2.6, readDur(la)) + 0.5 }); // реплика висит не меньше 2.6 с
   }
 
   function updateCoworkers(dt) {

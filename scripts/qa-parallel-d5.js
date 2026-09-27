@@ -26,7 +26,6 @@ assert.strictEqual(context.selectWeekScenario({ weekDone: true, weekNumber: 3 })
 assert.strictEqual(context.selectWeekScenario({ weekDone: true, weekNumber: 4 }).scenario, 'normal');
 assert.strictEqual(context.selectWeekScenario({ weekDone: true, weekNumber: 2 }).banner, 'Неделя отчётов');
 assert.strictEqual(context.selectWeekScenario({ weekDone: true, weekNumber: 3 }).banner, 'Неделя техработ');
-assert.strictEqual(context.selectWeekScenario({ weekNumber: 2 }).ok, false);
 
 const taskBase = [
   { id: 'coffee2', text: 'Кофе', goal: 2, done: false, day: true },

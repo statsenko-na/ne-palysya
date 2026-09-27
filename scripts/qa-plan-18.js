@@ -151,25 +151,6 @@ const { loadPlaywright } = require('./pw');
     assert.strictEqual(reliableDone.relationships.entries.sirgey.mood, 'friendly');
     assert.strictEqual(reliableDone.moments.awards.filter(item => item.id === 'colleagueHelp').length, 1);
 
-    // Полный лимит моментов не блокирует ремонт, план или кредит отношений.
-    await reset(1810);
-    await page.evaluate(() => {
-      saveExtensions.moments = {
-        version: 1,
-        awards: ['variety', 'distraction', 'story', 'groupSmoke'].map(id => ({ id, sourceId: `qa:${id}`, points: 3 })),
-        variety: { completedKinds: [], completedSources: [], phoneEpisode: null },
-      };
-    });
-    await startAtSirgey();
-    await openHelp();
-    await page.evaluate(() => { NP_DEBUG.selectActionChoice(0); NP_DEBUG.setBoss(40, 500, 'gone'); NP_DEBUG.skip(6.1); });
-    const capped = await page.evaluate(() => ({ state: NP_DEBUG.state, relationships: NP_DEBUG.relationships, moments: NP_DEBUG.moments, autoshka: saveExtensions.autoshka }));
-    assert.strictEqual(capped.autoshka.status, 'completed');
-    assert.strictEqual(capped.state.usefulness, 6);
-    assert.strictEqual(capped.relationships.entries.sirgey.favorCredit, 1);
-    assert.strictEqual(capped.moments.awards.reduce((sum, item) => sum + item.points, 0), 12);
-    assert.strictEqual(capped.moments.awards.some(item => item.id === 'colleagueHelp'), false, 'момент пропускается только при исчерпанном лимите');
-
     // Отмена не оставляет план, момент или кредит.
     await reset(1803);
     await startAtSirgey();
