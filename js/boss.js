@@ -48,8 +48,119 @@
     bossGoTo(youtubeServerApproach(), 'patrol', 'серверную');
     return true;
   }
+  const BOSS_MEMORY_OBSERVATION_RADIUS = 80;
+  function ensureBossMemoryExtension() {
+    if (!saveExtensions || typeof saveExtensions !== 'object' || Array.isArray(saveExtensions)) saveExtensions = {};
+    const current = saveExtensions.bossMemory;
+    if (!current || typeof current !== 'object' || Array.isArray(current) ||
+        (current.shiftId && current.shiftId !== shiftId)) {
+      saveExtensions.bossMemory = createBossMemory();
+      clearSaveExtensionError('bossMemory');
+    }
+    return saveExtensions.bossMemory;
+  }
+  function bossMemoryRoute(from, target) {
+    if (!from || !target || !Number.isFinite(target.x) || !Number.isFinite(target.y) || blocked(target.x, target.y, 6)) return null;
+    const path = findPath(from, target);
+    if (!Array.isArray(path) || !path.length) return null;
+    let previous = { x: from.x, y: from.y };
+    for (const point of path) {
+      if (!point || !Number.isFinite(point.x) || !Number.isFinite(point.y) || !segmentClear(previous, point, 5)) return null;
+      previous = point;
+    }
+    return path.map(point => ({ x: point.x, y: point.y }));
+  }
+  function bossMemorySafeSpotNear(origin) {
+    if (!origin || !Number.isFinite(origin.x) || !Number.isFinite(origin.y)) return null;
+    const candidates = [];
+    for (let i = 0; i < WD.navNodes.length; i++) {
+      const point = WD.navNodes[i];
+      const distance = dist(origin, point);
+      if (distance > BOSS_MEMORY_OBSERVATION_RADIUS || blocked(point.x, point.y, 6)) continue;
+      if (!bossMemoryRoute(boss, point)) continue;
+      candidates.push({ point, distance, index: i });
+    }
+    candidates.sort((a, b) => a.distance - b.distance || a.index - b.index);
+    return candidates.length ? { x: candidates[0].point.x, y: candidates[0].point.y } : null;
+  }
+  function recordBossMemoryIncident(incidentType, incidentId, origin, visible) {
+    if (mode !== 'playing' || !visible) return false;
+    const current = ensureBossMemoryExtension();
+    if (current.seenIncidentIds.includes(incidentId)) return false;
+    const safeSpot = bossMemorySafeSpotNear(origin);
+    if (!safeSpot) return false;
+    const result = observeBossIncident(current, { shiftId, incidentId, incidentType, visible: true, safeSpot });
+    if (!result.ok) return false;
+    saveExtensions.bossMemory = result.state;
+    return true;
+  }
+  function tickBossMemoryAdapter(dt) {
+    const current = ensureBossMemoryExtension();
+    if (Array.isArray(current.observations) && current.observations.length === 0) return;
+    const result = tickBossMemory(current, Math.max(0, Number(dt) || 0), { paused: mode !== 'playing' });
+    if (!result.ok) {
+      saveExtensions.bossMemory = createBossMemory();
+      clearSaveExtensionError('bossMemory');
+      return;
+    }
+    saveExtensions.bossMemory = result.state;
+  }
+  function chooseBossMemoryStrollSpot() {
+    const current = ensureBossMemoryExtension();
+    if (current.shiftId !== shiftId || !Array.isArray(current.observations) || !current.observations.length) return null;
+    const paths = new Map();
+    for (const observation of current.observations) {
+      if (!observation || observation.consumed || observation.remainingSeconds <= 0) continue;
+      const path = bossMemoryRoute(boss, observation);
+      if (path) paths.set(observation.id, path);
+    }
+    if (!paths.size) return null;
+    const result = chooseRememberedSpot(current, {
+      shiftId, normalStroll: true, availablePointIds: Array.from(paths.keys()), randomSample: rand(),
+    });
+    if (!result.ok || !result.chosen || !result.point) return null;
+    const routeEffect = result.effects.find(effect => effect.type === 'requestBossRoute');
+    const messageEffect = result.effects.find(effect => effect.type === 'message');
+    const path = routeEffect && paths.get(routeEffect.targetId);
+    if (!routeEffect || routeEffect.reasonId !== 'boss_memory' || !messageEffect ||
+        messageEffect.lineId !== 'bossRememberedSpot' || messageEffect.ownerId !== 'boss' || !path) return null;
+    return {
+      x: result.point.x, y: result.point.y, desc: 'к месту, где уже видел отдых',
+      bossMemoryChoice: result, bossMemoryPath: path,
+    };
+  }
+  function bossGoToStrollSpot(spot) {
+    if (!spot || !spot.bossMemoryChoice) {
+      bossGoTo(spot, 'patrol', spot && spot.desc);
+      return false;
+    }
+    const path = bossMemoryRoute(boss, spot);
+    if (!path) {
+      bossGoTo(pick(WD.patrolSpots), 'patrol');
+      return false;
+    }
+    saveExtensions.bossMemory = spot.bossMemoryChoice.state;
+    boss.state = 'patrol';
+    boss.path = path;
+    boss.spotDesc = spot.desc;
+    boss.quoteTimer = Math.max(boss.quoteTimer, 3.2);
+    say('boss', LINES.bossMemory.rememberedSpot, 2.8, '#e8e2d0');
+    saveProgress();
+    return true;
+  }
+  function rememberVisibleAutoclickerReveal() {
+    const clicker = saveExtensions.equipment && saveExtensions.equipment.autoclicker;
+    if (mode !== 'playing' || boss.state !== 'waitDesk' || boss.emptyDesk !== true || !clicker || clicker.phase !== 'revealed') return false;
+    const cursor = { x: DESK.x + 56, y: DESK.y - 14 };
+    const visible = dist(boss, cursor) <= 120 && lineOfSight({ x: boss.x, y: boss.y - 4 }, cursor);
+    const recorded = recordBossMemoryIncident('autoclicker_exposed', `${shiftId}:autoclicker-exposed`, cursor, visible);
+    if (recorded) saveProgress();
+    return recorded;
+  }
   // Куда Д.Н. идёт гулять: общие точки или к столу случайного коллеги
   function strollSpot() {
+    const remembered = chooseBossMemoryStrollSpot();
+    if (remembered) return remembered;
     const people = coworkers.filter(c => !c.away && !c.ghost);
     if (people.length && rand() < 0.45) {
       const c = pick(people);
@@ -61,8 +172,8 @@
     boss.warned = false;
     boss.silentCheck = false;
     const s = strollSpot();
-    bossGoTo(s, 'patrol', s.desc);
-    if (rand() < 0.5) say('boss', pick(LINES.boss.stroll), 2.4, '#e8e2d0');
+    const remembered = bossGoToStrollSpot(s);
+    if (!remembered && rand() < 0.5) say('boss', pick(LINES.boss.stroll), 2.4, '#e8e2d0');
     nextBossCheck = (CFG.checkInterval[0] + rand() * (CFG.checkInterval[1] - CFG.checkInterval[0])) * 0.6 * diff().check;
   }
   function startInspection(force = false) {
@@ -160,6 +271,7 @@
   }
 
   function caught() {
+    const memoryRecorded = recordBossMemoryIncident('caught', `${shiftId}:caught:${(stats.catches || 0) + 1}`, { x: player.x, y: player.y }, playerVisibleToBoss());
     const clickerResolved = resolveAutoclickerInspectionElsewhere();
     stats.catches++;
     const why = { smoke: 'курил на балконе', youtube: 'смотрел YouTube', fridge: 'шарил в холодильнике', chat: 'болтал', phone: 'сидел в телефоне', meme: 'смотрел мем Блеба' }[player.action];
@@ -175,7 +287,7 @@
     say('boss', pick(LINES.boss.caught), 3);
     floater(player.x, player.y - 70, 'СПАЛИЛИ! ВЫГОВОР', '#ff6a5a');
     if (player.action !== 'none' && player.action !== 'work') endAction('cancel');
-    if (clickerResolved) saveProgress();
+    if (clickerResolved || memoryRecorded) saveProgress();
   }
 
   function passDeskInspection() {
@@ -248,6 +360,8 @@
   }
 
   function updateBoss(dt) {
+    tickBossMemoryAdapter(dt);
+    rememberVisibleAutoclickerReveal();
     // Снюс: раз в 1–2 минуты Д.Н. закидывается — медленнее ходит, подозрение растёт слабее, у стола ждёт дольше
     boss.snus = Math.max(0, (boss.snus || 0) - dt);
     boss.snusCd = (boss.snusCd === undefined ? 40 + rand() * 40 : boss.snusCd) - dt;
@@ -289,7 +403,7 @@
         boss.moving = false;
         boss.facing = Math.PI / 2;
         if (boss.quoteTimer <= 0) { say('boss', pick(LINES.boss.office), 2.6, '#e8e2d0'); boss.quoteTimer = 10 + rand() * 6; }
-        if (boss.stateTimer <= 0) { const s = strollSpot(); bossGoTo(s, 'patrol', s.desc); }
+        if (boss.stateTimer <= 0) { const s = strollSpot(); bossGoToStrollSpot(s); }
         break;
       case 'patrol':
         if (followPath(dt, CFG.bossSpeed)) { boss.state = 'look'; boss.stateTimer = 2 + rand() * 2; boss.lookTimer = 0; }
@@ -299,7 +413,7 @@
         lookAround(dt);
         if (boss.stateTimer <= 0) {
           if (rand() < 0.22) bossGoTo(WD.bossHome, 'return', 'кабинет');
-          else { const s = strollSpot(); bossGoTo(s, 'patrol', s.desc); }
+          else { const s = strollSpot(); bossGoToStrollSpot(s); }
         }
         break;
       case 'return':
