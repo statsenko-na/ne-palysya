@@ -133,6 +133,20 @@ const { loadPlaywright } = require('./pw');
   await page.evaluate(() => { NP_DEBUG.skip(3.5); });
   st = await page.evaluate(() => NP_DEBUG.state);
   check('болтовня даёт бонус', st.stats.chats === 1, JSON.stringify(st.stats));
+  // Болтовня сзади: из-за спинки кресла (первый ряд — от окон, второй — из главного прохода)
+  const backChat = await page.evaluate(() => {
+    const out = [];
+    for (const id of ['hlad', 'sirgey']) {
+      const c = coworkers.find(q => q.id === id); c.cooldown = 0; c.away = false;
+      const z = WD.zones.find(q => q.id === `chat_${id}_back`);
+      NP_DEBUG.teleport(z.x + z.w / 2, z.y + z.h / 2);
+      NP_DEBUG.interact();
+      out.push({ id, action: player.action, zone: player.chatZone, free: !blocked(player.x, player.y, player.r) });
+      NP_DEBUG.endAction('cancel');
+    }
+    return out;
+  });
+  check('болтовня сзади стола: первый и второй ряд', backChat.every(b => b.action === 'chat' && b.zone === `chat_${b.id}_back` && b.free), JSON.stringify(backChat));
 
   // 9. Подозрение и поимка: курим на балконе у начальника на виду
   await page.evaluate(() => { NP_DEBUG.teleport(870, 230); });

@@ -707,7 +707,7 @@
     if (player.action === 'plant_hide') return { prompt: 'E / H — вылезти из листвы', target: player.hideSpot };
     if (player.action === 'cabinet_hide') return { prompt: 'E / H — выйти из-за шкафов', target: 'archive' };
     if (player.action === 'printer_hide') return { prompt: 'E / H — вылезти из-за ксерокса', target: 'printer' };
-    if (player.action === 'chat') return { prompt: 'Болтаете… (шаг — прервать)', target: `chat_${player.chatWith}` };
+    if (player.action === 'chat') return { prompt: 'Болтаете… (шаг — прервать)', target: player.chatZone || `chat_${player.chatWith}` };
     if (player.action === 'autoshka-repair') return { prompt: 'Чинишь автошку у Сиргея… (шаг — прервать)', target: 'chat_sirgey' };
     if (player.action === 'printer-distraction-prep') return { prompt: 'Готовишь приманку у ксерокса…', target: 'printer' };
     if (player.action === 'takeFolder') return { prompt: 'Берёшь папку…', target: 'printer' };
@@ -1577,6 +1577,7 @@
         if (c.id === 'tigran') finishTigranConversation(c);
       }
       player.chatWith = null;
+      player.chatZone = null;
     }
     if (a === 'coffee') {
       const yogurtCoffeeFinished = finishYogurtCoffeeBrew(reason);
@@ -1954,6 +1955,14 @@
         if (c.cooldown > 0) { say(c.id, pick(['Отстань, я занят(а)!', 'Потом, дедлайн!', 'Не сейчас, Д.Н. бдит.']), 2.2); return; }
         const pair = pick(LINES.chat[c.id]);
         player.chatWith = c.id;
+        player.chatZone = z.id;
+        if (z.back) {
+          // Сзади встаёт у плеча коллеги, чтобы кресло и спина его не закрывали
+          const side = player.x < c.x ? -1 : 1;
+          const x = c.x + side * 26;
+          if (!blocked(x, player.y, player.r)) player.x = x;
+          player.facingX = -side;
+        }
         player.chatPair = pair;
         startAction('chat', 6.5);
         say('player', pair[0], 3);

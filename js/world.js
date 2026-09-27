@@ -142,10 +142,17 @@
     { id: 'complain', type: 'complain', x: 598, y: 372, w: 48, h: 28 },
     { id: 'standup', type: 'standup', x: 266, y: 404, w: 84, h: 32 },
   );
+  // С коллегой можно заговорить и перед его столом, и сзади — из-за спинки кресла
+  // (первый ряд — из прохода у окон, второй — из главного прохода).
   people.filter(c => !c.statist).forEach(c => {
     zones.push({
       id: `chat_${c.id}`, type: 'chat', coworker: c.id,
       x: c.desk.x - 4, y: c.desk.y + DESK_DEPTH, w: DESK_W + 8, h: 30,
+    });
+    const backTop = c.desk.y === ROW1_Y ? FLOOR_TOP + 2 : c.desk.y - 34;
+    zones.push({
+      id: `chat_${c.id}_back`, type: 'chat', coworker: c.id, back: true,
+      x: c.desk.x - 4, y: backTop, w: DESK_W + 8, h: c.desk.y - backTop,
     });
   });
 
