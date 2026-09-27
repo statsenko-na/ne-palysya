@@ -403,7 +403,7 @@
   // ---------- ОНБОРДИНГ «КАК ИГРАТЬ» ----------
   const onb = { open: false, i: 0, thenStart: false, el: $('onboarding') };
   // Слайды «Что нового» (data-news) один раз показываются вернувшимся игрокам перед сменой; меняй id с новой волной
-  const NEWS_ID = '0.27';
+  const NEWS_ID = '0.28';
   // Первый запуск — только 3 ключевых слайда (цель, правила, Д.Н.); по I — полная справка
   const onbSlides = () => onb.el ? [...onb.el.querySelectorAll(onb.set === 'core' ? '.onb-slide[data-core]' : onb.set === 'news' ? '.onb-slide[data-news]' : '.onb-slide')] : [];
   function renderSlide() {

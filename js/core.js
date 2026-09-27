@@ -19,7 +19,7 @@
   canvas.height = H * S;
 
   // Версия в URL сбрасывает кэш браузера, когда спрайт заменён под тем же именем файла
-  const ASSET_V = '0.28.0';
+  const ASSET_V = '0.28.1';
   function loadImage(src) { const i = new Image(); i.src = `${src}?v=${ASSET_V}`; return i; }
   const img = {
     vik: loadImage('assets/bykentiy-walk-v4.png'),
