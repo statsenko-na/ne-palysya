@@ -569,3 +569,4 @@ html.tg-fullscreen .screen-overlay {
 }
 html.tg-desktop .rotate-phone-icon { animation: none; }
 .tg-fullscreen-btn { margin-top: 1rem; }
+.pixel-btn[hidden] { display: none !important; }

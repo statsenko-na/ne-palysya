@@ -119,6 +119,20 @@
     });
   }
 
+  // «Выйти из игры»: сохраняемся (локально и в облако) и закрываем Mini App
+  function tgExit() {
+    if (mode === 'playing' || mode === 'paused') saveProgress();
+    if (tgApp.CloudStorage && tgApp.isVersionAtLeast('6.9')) tgCloudSave();
+    if (tgApp.isVersionAtLeast('6.2')) tgApp.disableClosingConfirmation();
+    setTimeout(() => tgApp.close(), 300); // даём облаку принять запись
+  }
+  function tgSetupExitButtons() {
+    document.querySelectorAll('.tg-exit').forEach(b => {
+      b.hidden = false;
+      b.addEventListener('click', () => { playSound('click'); tgExit(); });
+    });
+  }
+
   function tgPrefillPlayerName() {
     const user = tgApp.initDataUnsafe && tgApp.initDataUnsafe.user;
     if (!user || !user.first_name || store.get('playerName', '')) return;
@@ -162,6 +176,7 @@
       tgPrefillPlayerName();
       tgSetupDesktopOverlay();
       tgSetupCloudSaves();
+      tgSetupExitButtons();
     } catch (err) {
       console.warn('Telegram Mini App:', err);
     }
