@@ -35,6 +35,90 @@
     if (tgApp.isVersionAtLeast('6.2')) inShift ? tgApp.enableClosingConfirmation() : tgApp.disableClosingConfirmation();
   }
 
+  // Telegram на ПК и в вебе открывает игру узким вертикальным окном: вместо «Поверни телефон» — кнопка полного экрана
+  function tgSetupDesktopOverlay() {
+    if (tgMobile()) {
+      const p = document.querySelector('.rotate-phone-card p');
+      if (p) p.textContent = 'Переверни телефон горизонтально. Не поворачивается — выключи блокировку поворота экрана.';
+      return;
+    }
+    document.documentElement.classList.add('tg-desktop');
+    const card = document.querySelector('.rotate-phone-card');
+    if (!card) return;
+    card.querySelector('.rotate-phone-icon').textContent = '🖥';
+    card.querySelector('h2').textContent = 'НУЖЕН ШИРОКИЙ ЭКРАН';
+    const fsOk = tgApp.isVersionAtLeast('8.0');
+    card.querySelector('p').textContent = fsOk
+      ? 'Окно Telegram слишком узкое для офиса. Разверни игру на весь экран.'
+      : 'Окно Telegram слишком узкое для офиса. Растяни окно пошире или обнови Telegram.';
+    const btn = card.querySelector('.tg-fullscreen-btn');
+    if (!btn || !fsOk) return;
+    btn.hidden = false;
+    btn.addEventListener('click', () => tgApp.requestFullscreen());
+  }
+
+  // Сохранения дублируются в CloudStorage Telegram: localStorage WebView на iOS может очиститься.
+  // Снимок всех ключей nepalsya.* режется на части по 4000 символов (лимит значения — 4096).
+  const TG_CLOUD_CHUNK = 4000;
+  let tgCloudTimer = 0;
+  let tgCloudParts = 0;
+  function tgLocalSnapshot() {
+    const data = {};
+    try {
+      for (let i = 0; i < localStorage.length; i++) {
+        const k = localStorage.key(i);
+        if (k && k.startsWith('nepalsya.')) data[k] = localStorage.getItem(k);
+      }
+    } catch (_) { /* нет доступа */ }
+    return data;
+  }
+  function tgCloudSave() {
+    clearTimeout(tgCloudTimer);
+    tgCloudTimer = 0;
+    const json = JSON.stringify(tgLocalSnapshot());
+    const parts = Math.ceil(json.length / TG_CLOUD_CHUNK);
+    const cloud = tgApp.CloudStorage;
+    for (let i = 0; i < parts; i++) cloud.setItem(`s${i}`, json.slice(i * TG_CLOUD_CHUNK, (i + 1) * TG_CLOUD_CHUNK));
+    cloud.setItem('sn', String(parts));
+    const stale = [];
+    for (let i = parts; i < tgCloudParts; i++) stale.push(`s${i}`);
+    if (stale.length) cloud.removeItems(stale);
+    tgCloudParts = parts;
+  }
+  function tgCloudSaveSoon() {
+    if (!tgCloudTimer) tgCloudTimer = setTimeout(tgCloudSave, 3000);
+  }
+  // Прогресс есть, если игрок хоть раз сохранялся (монеты, день, апгрейды)
+  function tgHasLocalProgress(snapshot) {
+    return Object.keys(snapshot).some(k => /^nepalsya\.(day|coins|upgrades|weekNumber|onboardingDone)$/.test(k));
+  }
+  function tgSetupCloudSaves() {
+    if (!tgApp.isVersionAtLeast('6.9') || !tgApp.CloudStorage) return;
+    const cloud = tgApp.CloudStorage;
+    cloud.getItem('sn', (err, n) => {
+      if (err) return;
+      tgCloudParts = Number(n) || 0;
+      const local = tgLocalSnapshot();
+      if (tgCloudParts && !tgHasLocalProgress(local)) {
+        // Локально пусто, в облаке есть прогресс — восстанавливаем и перезапускаем страницу
+        const keys = Array.from({ length: tgCloudParts }, (_, i) => `s${i}`);
+        cloud.getItems(keys, (err2, values) => {
+          if (err2 || !values) return;
+          try {
+            const data = JSON.parse(keys.map(k => values[k] || '').join(''));
+            Object.entries(data).forEach(([k, v]) => { if (k.startsWith('nepalsya.')) localStorage.setItem(k, v); });
+            location.reload();
+          } catch (_) { /* повреждённый снимок — играем с чистого листа */ }
+        });
+        return;
+      }
+      // Дальше каждая запись в store уходит и в облако (с задержкой)
+      const localSet = store.set;
+      store.set = (k, v) => { localSet(k, v); tgCloudSaveSoon(); };
+      tgCloudSave();
+    });
+  }
+
   function tgPrefillPlayerName() {
     const user = tgApp.initDataUnsafe && tgApp.initDataUnsafe.user;
     if (!user || !user.first_name || store.get('playerName', '')) return;
@@ -57,7 +141,10 @@
       if (tgApp.isVersionAtLeast('7.7')) tgApp.disableVerticalSwipes(); // свайп по джойстику не сворачивает игру
       if (tgApp.isVersionAtLeast('8.0')) {
         tgApp.onEvent('fullscreenChanged', () => { tgSyncFullscreenClass(); tgLockLandscape(); updateUiScale(); });
-        tgApp.onEvent('fullscreenFailed', () => {});
+        tgApp.onEvent('fullscreenFailed', () => {
+          const p = document.querySelector('.rotate-phone-card p');
+          if (p && !tgMobile()) p.textContent = 'Полный экран недоступен в этой версии Telegram. Растяни окно пошире.';
+        });
         tgApp.onEvent('safeAreaChanged', updateUiScale);
         tgApp.onEvent('contentSafeAreaChanged', updateUiScale);
         if (tgMobile() && !tgApp.isFullscreen) tgApp.requestFullscreen();
@@ -67,10 +154,14 @@
       }
       tgApp.BackButton.onClick(() => { if (mode === 'playing' || mode === 'paused') pauseGame(); });
       // Telegram свернули — ставим смену на паузу и сохраняемся
-      tgApp.onEvent('deactivated', () => { if (mode === 'playing') pauseGame(); });
+      tgApp.onEvent('deactivated', () => { if (mode === 'playing') pauseGame(); if (tgCloudTimer) tgCloudSave(); });
+      // iOS глушит звук при сворачивании — после возврата будим AudioContext
+      tgApp.onEvent('activated', () => { if (audioCtx) getAudio(); });
       tgSyncShiftControls();
       setInterval(tgSyncShiftControls, 400);
       tgPrefillPlayerName();
+      tgSetupDesktopOverlay();
+      tgSetupCloudSaves();
     } catch (err) {
       console.warn('Telegram Mini App:', err);
     }
