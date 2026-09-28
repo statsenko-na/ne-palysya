@@ -567,3 +567,5 @@ html.tg-fullscreen .screen-overlay {
     calc(12px + var(--tg-safe-area-inset-bottom, 0px))
     calc(12px + var(--tg-safe-area-inset-left, 0px));
 }
+html.tg-desktop .rotate-phone-icon { animation: none; }
+.tg-fullscreen-btn { margin-top: 1rem; }

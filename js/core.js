@@ -19,7 +19,7 @@
   canvas.height = H * S;
 
   // Версия в URL сбрасывает кэш браузера, когда спрайт заменён под тем же именем файла
-  const ASSET_V = '0.29.0';
+  const ASSET_V = '0.29.1';
   function loadImage(src) { const i = new Image(); i.src = `${src}?v=${ASSET_V}`; return i; }
   const img = {
     vik: loadImage('assets/bykentiy-walk-v4.png'),
@@ -283,7 +283,7 @@
       const AC = window.AudioContext || window.webkitAudioContext;
       if (AC) audioCtx = new AC();
     }
-    if (audioCtx && audioCtx.state === 'suspended') audioCtx.resume();
+    if (audioCtx && (audioCtx.state === 'suspended' || audioCtx.state === 'interrupted')) audioCtx.resume();
     return audioCtx;
   }
   function tone(type, f0, f1, dur, vol, delay = 0, bus = 'sfx') {
