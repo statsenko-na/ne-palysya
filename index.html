@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
     <title>Не пались — банковский офисный симулятор</title>
-    <link rel="stylesheet" href="style.css?v=0.29.1" />
+    <link rel="stylesheet" href="style.css?v=0.29.2" />
   </head>
   <body>
     <main class="cabinet">
@@ -57,6 +57,7 @@
                 <button class="pixel-btn pixel-btn-alt auto-open">🍿 АВТОПИЛОТ</button>
                 <button class="pixel-btn pixel-btn-alt onb-open">❓ КАК ИГРАТЬ <span>I</span></button>
                 <button class="pixel-btn pixel-btn-alt onb-news">✨ ЧТО НОВОГО</button>
+                <button class="pixel-btn pixel-btn-alt tg-exit" type="button" hidden>🚪 ВЫЙТИ ИЗ ИГРЫ</button>
               </div>
               <div class="diff-row">Сложность:
                 <button class="diff-btn" data-diff="easy" title="Проверки реже, план ниже, выговор за «не застал» — на 3-й раз">🐣 СТАЖЁР</button>
@@ -78,6 +79,7 @@
               <button id="resume-btn" class="pixel-btn">ПРОДОЛЖИТЬ <span>↵</span></button>
               <button class="pixel-btn pixel-btn-alt auto-resume">🍿 ДАЛЬШЕ НА АВТОПИЛОТЕ <span>O</span></button>
               <button class="pixel-btn pixel-btn-alt onb-open">❓ КАК ИГРАТЬ <span>I</span></button>
+              <button class="pixel-btn pixel-btn-alt tg-exit" type="button" hidden>🚪 ВЫЙТИ ИЗ ИГРЫ</button>
               <div class="audio-row"><button class="audio-btn music-toggle">🎵 Музыка: вкл (N)</button><button class="audio-btn sound-toggle">🔊 Звуки: вкл (M)</button><button class="audio-btn text-toggle" title="Крупнее текст в меню и в игре">🔠 Текст: обычный</button><button class="audio-btn reduced-effects-toggle" type="button" aria-pressed="false">Меньше вспышек и тряски: выкл</button></div>
               <label class="speed-row">⏱ Скорость времени <input class="speed-range" type="range" min="0.5" max="3" step="0.25" value="1" /> <b class="speed-val">×1</b></label>
               <div class="vol-row"><label>🔊 Звуки <input class="vol-range vol-sfx" type="range" min="0" max="1" step="0.05" value="1" /></label><label>🎵 Музыка <input class="vol-range vol-music" type="range" min="0" max="1" step="0.05" value="1" /></label><button class="audio-btn keys-open">⌨ Клавиши</button></div>
@@ -358,42 +360,42 @@
         <button class="pixel-btn tg-fullscreen-btn" type="button" hidden>⛶ НА ВЕСЬ ЭКРАН</button>
       </div>
     </div>
-    <script src="js/world.js?v=0.29.1"></script>
-    <script src="js/lines.js?v=0.29.1"></script>
-    <script src="js/art.js?v=0.29.1"></script>
-    <script src="js/config.js?v=0.29.1"></script>
-    <script src="js/core.js?v=0.29.1"></script>
-    <script src="js/accessibility.js?v=0.29.1"></script>
-    <script src="js/equipment.js?v=0.29.1"></script>
-    <script src="js/save-schema.js?v=0.29.1"></script>
-    <script src="js/moments.js?v=0.29.1"></script>
-    <script src="js/relationships.js?v=0.29.1"></script>
-    <script src="js/activities.js?v=0.29.1"></script>
-    <script src="js/story-yogurt.js?v=0.29.1"></script>
-    <script src="js/event-autoshka.js?v=0.29.1"></script>
-    <script src="js/distractions.js?v=0.29.1"></script>
-    <script src="js/disguise.js?v=0.29.1"></script>
-    <script src="js/boss-memory.js?v=0.29.1"></script>
-    <script src="js/week-scenarios.js?v=0.29.1"></script>
-    <script src="js/week-outcomes.js?v=0.29.1"></script>
-    <script src="js/records.js?v=0.29.1"></script>
-    <script src="js/meta.js?v=0.29.1"></script>
-    <script src="js/events.js?v=0.29.1"></script>
-    <script src="js/action-choice.js?v=0.29.1"></script>
-    <script src="js/interact.js?v=0.29.1"></script>
-    <script src="js/boss.js?v=0.29.1"></script>
-    <script src="js/daily.js?v=0.29.1"></script>
-    <script src="js/autopilot.js?v=0.29.1"></script>
-    <script src="js/player.js?v=0.29.1"></script>
-    <script src="js/render.js?v=0.29.1"></script>
-    <script src="js/render-office.js?v=0.29.1"></script>
-    <script src="js/render-actors.js?v=0.29.1"></script>
-    <script src="js/render-fx.js?v=0.29.1"></script>
-    <script src="js/render-hud.js?v=0.29.1"></script>
-    <script src="js/render-phone.js?v=0.29.1"></script>
-    <script src="js/render-choice.js?v=0.29.1"></script>
-    <script src="js/render-guide.js?v=0.29.1"></script>
-    <script src="js/tg.js?v=0.29.1"></script>
-    <script src="game.js?v=0.29.1"></script>
+    <script src="js/world.js?v=0.29.2"></script>
+    <script src="js/lines.js?v=0.29.2"></script>
+    <script src="js/art.js?v=0.29.2"></script>
+    <script src="js/config.js?v=0.29.2"></script>
+    <script src="js/core.js?v=0.29.2"></script>
+    <script src="js/accessibility.js?v=0.29.2"></script>
+    <script src="js/equipment.js?v=0.29.2"></script>
+    <script src="js/save-schema.js?v=0.29.2"></script>
+    <script src="js/moments.js?v=0.29.2"></script>
+    <script src="js/relationships.js?v=0.29.2"></script>
+    <script src="js/activities.js?v=0.29.2"></script>
+    <script src="js/story-yogurt.js?v=0.29.2"></script>
+    <script src="js/event-autoshka.js?v=0.29.2"></script>
+    <script src="js/distractions.js?v=0.29.2"></script>
+    <script src="js/disguise.js?v=0.29.2"></script>
+    <script src="js/boss-memory.js?v=0.29.2"></script>
+    <script src="js/week-scenarios.js?v=0.29.2"></script>
+    <script src="js/week-outcomes.js?v=0.29.2"></script>
+    <script src="js/records.js?v=0.29.2"></script>
+    <script src="js/meta.js?v=0.29.2"></script>
+    <script src="js/events.js?v=0.29.2"></script>
+    <script src="js/action-choice.js?v=0.29.2"></script>
+    <script src="js/interact.js?v=0.29.2"></script>
+    <script src="js/boss.js?v=0.29.2"></script>
+    <script src="js/daily.js?v=0.29.2"></script>
+    <script src="js/autopilot.js?v=0.29.2"></script>
+    <script src="js/player.js?v=0.29.2"></script>
+    <script src="js/render.js?v=0.29.2"></script>
+    <script src="js/render-office.js?v=0.29.2"></script>
+    <script src="js/render-actors.js?v=0.29.2"></script>
+    <script src="js/render-fx.js?v=0.29.2"></script>
+    <script src="js/render-hud.js?v=0.29.2"></script>
+    <script src="js/render-phone.js?v=0.29.2"></script>
+    <script src="js/render-choice.js?v=0.29.2"></script>
+    <script src="js/render-guide.js?v=0.29.2"></script>
+    <script src="js/tg.js?v=0.29.2"></script>
+    <script src="game.js?v=0.29.2"></script>
   </body>
 </html>
