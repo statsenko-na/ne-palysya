@@ -709,6 +709,7 @@
     if (loadResult.status === 'new' && loadResult.reason && !['context_mismatch', 'autopilot'].includes(loadResult.reason)) toast('Сохранение смены повреждено; началась новая смена.', 3);
   }
   function enterFullscreen() {
+    if (tgApp) return; // в Telegram полный экран и ориентацией управляет js/tg.js
     try {
       const el = document.documentElement;
       if (!document.fullscreenElement && !document.webkitFullscreenElement) {
